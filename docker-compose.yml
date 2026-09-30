@@ -1,0 +1,20 @@
+services:
+  wetterstation:
+    build: .
+    image: wetterstation:latest
+    container_name: wetterstation
+    restart: unless-stopped
+    ports:
+      - "47813:47813"
+    environment:
+      # Long-Lived Access Token aus Home Assistant (Profil → Sicherheit)
+      HA_TOKEN: ${HA_TOKEN}
+      # Optional: überschreibt homeassistant.url aus der config.yaml
+      # HA_URL: http://192.168.1.10:8123
+      TZ: Europe/Berlin
+    volumes:
+      - ./config:/config:ro          # enthält config.yaml
+      - wetterstation-data:/data     # Warnungs-Verlauf
+
+volumes:
+  wetterstation-data:

@@ -1,0 +1,189 @@
+# =====================================================================
+#  Wetterstation – Konfiguration
+#  Diese Datei als config/config.yaml ablegen (wird nach /config gemountet).
+#  Werte wie ${HA_TOKEN} werden aus Umgebungsvariablen gefüllt,
+#  ${NAME:-standard} setzt einen Standardwert.
+#  Änderungen werden nach einem Neustart des Containers aktiv.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# Station – wird öffentlich angezeigt (Kopfzeile, Einstellungen, Fußzeile)
+# ---------------------------------------------------------------------
+station:
+  name: Wetterstation Garten
+  subtitle: WS90 + WH57 via Home Assistant   # kleine Zeile im Kopf (optional)
+  altitude_m: 312                            # optional
+  since: 2024-04-01                          # Inbetriebnahme; Startpunkt für Rekorde
+  # timezone: Europe/Berlin                  # optional, sonst die Zeitzone aus Home Assistant
+
+  # Nur serverseitig für Sonnenauf-/untergang und Mond. Wird NIE an den Browser
+  # gesendet. Ohne Angabe werden die Koordinaten aus Home Assistant verwendet.
+  # latitude: 50.1
+  # longitude: 8.7
+
+  # Geräte: für Sensor-Infos (Details-Seite) und die Fußzeile.
+  # metrics: welche Messwerte von diesem Gerät kommen
+  #   temp, hum, wind, rain, press, solar, uv, light
+  # battery / signal: beliebige HA-Entitäten (optional)
+  devices:
+    - id: ws90
+      name: Ecowitt WS90
+      short: WS90
+      role: Außensensor
+      battery: sensor.ws90_battery
+      signal: sensor.ws90_signal_strength
+      metrics: [temp, hum, wind, rain, solar, uv]
+    - id: wh57
+      name: Ecowitt WH57
+      short: WH57
+      role: Blitzsensor
+      battery: sensor.wh57_battery
+      signal: sensor.wh57_signal_strength
+      metrics: [light]
+    - id: gateway
+      name: Ecowitt GW2000
+      short: Gateway
+      role: Gateway
+      metrics: [press]
+
+# ---------------------------------------------------------------------
+# Home Assistant – bleibt auf dem Server, nie im Browser
+# ---------------------------------------------------------------------
+homeassistant:
+  url: ${HA_URL:-http://homeassistant.local:8123}
+  token: ${HA_TOKEN}     # Long-Lived Access Token (Profil → Sicherheit)
+
+# ---------------------------------------------------------------------
+# Sensoren – Entity-IDs aus Home Assistant
+# (Entwicklerwerkzeuge → Zustände). Nicht vorhandene Sensoren einfach
+# weglassen oder auskommentieren – die zugehörigen Karten verschwinden dann.
+# Einheiten werden automatisch umgerechnet (°F, mph, inHg, in … sind ok).
+# ---------------------------------------------------------------------
+sensors:
+  temperature: sensor.ws90_outdoor_temperature
+  feels_like: sensor.ws90_feels_like_temperature
+  dew_point: sensor.ws90_dewpoint
+  humidity: sensor.ws90_outdoor_humidity
+
+  wind_speed: sensor.ws90_wind_speed
+  wind_gust: sensor.ws90_wind_gust
+  wind_direction: sensor.ws90_wind_direction     # Grad 0–360
+
+  rain_rate: sensor.ws90_rain_rate_piezo         # mm/h
+  rain_event: sensor.ws90_event_rain_piezo
+  rain_daily: sensor.ws90_daily_rain_piezo       # Tageszähler, Pflicht für Regen-Diagramme
+  # Optional – ohne diese Sensoren werden Woche/Monat/Jahr aus der Statistik berechnet:
+  rain_weekly: sensor.ws90_weekly_rain_piezo
+  rain_monthly: sensor.ws90_monthly_rain_piezo
+  rain_yearly: sensor.ws90_yearly_rain_piezo
+
+  pressure: sensor.gateway_relative_pressure
+  solar_radiation: sensor.ws90_solar_radiation
+  uv_index: sensor.ws90_uv_index
+
+  lightning_distance: sensor.wh57_lightning_distance
+  lightning_time: sensor.wh57_lightning_time     # Zeitstempel letzter Einschlag
+  lightning_count: sensor.wh57_lightning_strikes # Tageszähler Einschläge
+
+# ---------------------------------------------------------------------
+# Vorhersage (weather-Entität, täglich)
+# ---------------------------------------------------------------------
+forecast:
+  entity: weather.forecast_home
+  # label: Open-Meteo      # Quellenangabe in der Karte; sonst aus "attribution"
+  days: 5
+
+# ---------------------------------------------------------------------
+# Warnungen – nur lesend im Browser, hier definiert.
+# Jede Regel: all: (alle Bedingungen) oder any: (mindestens eine).
+# Bedingung: sensor: <Schlüssel aus "sensors"> ODER entity: <HA-Entität>
+#   Vergleich: above / below / at_least / at_most / equals
+#   recent: { sensor: lightning_time, minutes: 30 }  → nur wenn frisch
+# Werte in Standard-Einheiten: °C, km/h, hPa, mm, mm/h, km.
+# message: Platzhalter {sensor_schlüssel}, {…|time}, {…|compass}
+# level: warning (bernsteinfarben) oder info (blau)
+# Den ganzen Block weglassen = Standardregeln; "alerts: []" = keine Warnungen.
+# ---------------------------------------------------------------------
+alert_settings:
+  clear_after_minutes: 10   # so lange muss eine Regel "aus" sein, bevor die Warnung endet
+
+alerts:
+  - id: lightning
+    label: Blitz in der Nähe
+    description: Einschlag näher als 15 km (WH57)
+    banner: Gewitter in der Nähe
+    level: warning
+    all:
+      - sensor: lightning_distance
+        below: 15
+        recent: { sensor: lightning_time, minutes: 30 }
+    message: "Letzter Blitz {lightning_distance} km entfernt um {lightning_time|time} Uhr · {lightning_count} Einschläge heute"
+
+  - id: frost
+    label: Frost
+    description: Temperatur unter 0 °C oder Taupunkt unter 1 °C
+    banner: Frostgefahr
+    level: info
+    any:
+      - { sensor: temperature, below: 0 }
+      - { sensor: dew_point, below: 1 }
+    message: "Temperatur {temperature} °C · Taupunkt {dew_point} °C"
+
+  - id: gust
+    label: Sturmböen
+    description: Böe über 60 km/h
+    banner: Sturmböen
+    level: warning
+    all:
+      - { sensor: wind_gust, above: 60 }
+    message: "Böe {wind_gust} km/h aus {wind_direction|compass}"
+
+  - id: rain
+    label: Starkregen
+    description: Regenrate über 10 mm/h
+    banner: Starkregen
+    level: warning
+    all:
+      - { sensor: rain_rate, above: 10 }
+    message: "Regenrate {rain_rate} mm/h · {rain_daily} mm heute"
+
+  - id: uv
+    label: Hoher UV-Index
+    description: UV-Index ab 6
+    banner: Hoher UV-Index
+    level: warning
+    all:
+      - { sensor: uv_index, at_least: 6 }
+    message: "UV-Index {uv_index} · Sonnenschutz empfohlen"
+
+  # Beispiel mit beliebiger HA-Entität:
+  # - id: ws90_battery
+  #   label: Batterie WS90
+  #   description: Superkondensator unter 2,4 V
+  #   level: info
+  #   all:
+  #     - { entity: sensor.ws90_battery, below: 2.4 }
+  #   message: "Spannung {sensor.ws90_battery} V"
+
+# ---------------------------------------------------------------------
+# Oberfläche
+# ---------------------------------------------------------------------
+ui:
+  refresh_seconds: 15        # wie oft der Browser neue Werte holt
+  stale_after_seconds: 120   # danach wird der Live-Punkt grau ("Veraltet")
+  default_units:             # Vorgabe für neue Besucher; jeder kann selbst umstellen
+    temperature: °C          # °C | °F
+    wind: km/h               # km/h | m/s | mph | Bft
+    pressure: hPa            # hPa | mmHg | inHg
+    rain: mm                 # mm | l/m² | in
+
+# ---------------------------------------------------------------------
+# Server
+# ---------------------------------------------------------------------
+server:
+  port: 47813
+  demo: false                # true = synthetische Daten, Home Assistant wird nicht kontaktiert
+  cache:
+    live_seconds: 15
+    history_seconds: 300
+    records_seconds: 3600

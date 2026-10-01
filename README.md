@@ -1,120 +1,205 @@
-# Wetterstation
+<p align="center">
+  <img src="web/public/favicon.svg" width="96" height="96" alt="Weather station icon">
+</p>
 
-Öffentliche Web-Oberfläche für eine Wetterstation, deren Daten in **Home Assistant** liegen (getestet mit Ecowitt WS90 + WH57 + Gateway über die Ecowitt-Integration, funktioniert aber mit beliebigen Sensoren).
+<h1 align="center">Ecowitt Weather Dashboard</h1>
 
-Ein einzelner Docker-Container liefert die Oberfläche und eine kleine, schreibgeschützte API aus. Der Home-Assistant-Token und die HA-Adresse bleiben auf dem Server, der Browser sieht nur fertige Messwerte.
+<p align="center">
+  A public web dashboard for a personal weather station whose data lives in <strong>Home Assistant</strong>.
+</p>
 
-Die Oberfläche hat fünf Bereiche: Übersicht, Verlauf (Tag/Woche/Monat/Jahr), Details je Messwert, Warnungen und Einstellungen (nur Einheiten).
+> [!NOTE]
+> **This is a hobby project, vibe-coded with AI.** It runs my own weather station, but it is not actively or professionally maintained. Expect rough edges, and don't expect quick fixes or regular releases.
+>
+> That said, **help and ideas are very welcome!** If you find a bug, have a feature idea or want to improve something, feel free to open an issue or a pull request.
 
-## Schnellstart
+---
+
+## What it does
+
+A single Docker container serves the web interface plus a small, read-only API. Your Home Assistant URL and access token stay on the server; visitors' browsers only ever see finished measurements, never the token, your coordinates or your entity IDs.
+
+Built and tested with an **Ecowitt WS90** (temperature, humidity, ultrasonic wind, piezo rain, solar/UV), an **Ecowitt WH57** (lightning) and an Ecowitt gateway (pressure) via the Home Assistant Ecowitt integration. Other sensors work as well, as long as they are in Home Assistant.
+
+**Screens** (the interface is in German):
+
+- **Übersicht (overview):** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
+- **Verlauf (history):** charts for day / week / month / year, plus all-time records
+- **Details:** one measurement in depth, with today's values, records and sensor/battery info
+- **Warnungen (alerts):** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
+- **Einstellungen (settings):** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in)
+
+Units from Home Assistant are converted automatically, so it doesn't matter whether your HA runs metric or imperial.
+
+## Requirements
+
+- Docker with Docker Compose
+- Home Assistant with:
+  - the **Recorder** enabled. It provides the 24-hour history; week, month, year and records come from the long-term statistics, which need sensors with a `state_class` (the Ecowitt integration provides that).
+  - a **long-lived access token**. Ideally create a separate non-admin user in Home Assistant just for this dashboard and create the token for that user (*Profile → Security → Long-lived access tokens*).
+
+## Installation with Docker Compose
+
+### 1. Create a folder
 
 ```bash
-git clone <dieses-repo> wetterstation && cd wetterstation
-mkdir -p config
-cp config/config.example.yaml config/config.yaml   # Entity-IDs anpassen
-cp .env.example .env                               # HA_TOKEN eintragen
-docker compose up -d --build
+mkdir -p wetterstation/config wetterstation/data
+cd wetterstation
 ```
 
-Danach ist die Seite unter `http://<host>:47813` erreichbar.
-
-**Ohne Konfiguration ausprobieren:** Fehlt `config/config.yaml`, startet der Container im Demo-Modus mit synthetischen Daten.
+### 2. Get the example configuration
 
 ```bash
-docker build -t wetterstation .
-docker run --rm -p 47813:47813 wetterstation
+curl -o config/config.yaml https://raw.githubusercontent.com/0xvisualiris/ecowitt-weather-dashboard/main/config/config.example.yaml
 ```
 
-## Konfiguration
+Open `config/config.yaml` and adjust it to your setup. At minimum:
 
-Alles wird in `config/config.yaml` eingestellt. Die Datei [`config/config.example.yaml`](config/config.example.yaml) erklärt jede Option. Die wichtigsten Punkte:
+- `homeassistant.url`: the address of your Home Assistant, e.g. `http://192.168.1.10:8123`
+- `sensors`: your entity IDs. You'll find them in Home Assistant under *Developer tools → States*. Remove any sensors you don't have; the matching cards are then hidden automatically.
 
-1. **`homeassistant`**: URL und Token. Den Token am besten per Umgebungsvariable `HA_TOKEN` übergeben, in der YAML steht dann `token: ${HA_TOKEN}`.
-2. **`sensors`**: Die Entity-IDs deiner Sensoren, zu finden in HA unter *Entwicklerwerkzeuge → Zustände*. Sensoren, die du nicht hast, lässt du einfach weg; die zugehörigen Karten werden dann ausgeblendet.
-3. **`station.devices`**: Die Geräte mit Batterie- und Signal-Entitäten. Diese erscheinen auf der Details-Seite und in der Fußzeile.
-4. **`alerts`**: Die Warnregeln mit ihren Schwellwerten. Sie werden nur serverseitig ausgewertet, der Verlauf wird in `/data` gespeichert.
-5. **`forecast.entity`**: Eine `weather.*`-Entität für die 5-Tage-Vorhersage.
+Every option is explained in the comments of the example file.
 
-Einheiten werden automatisch erkannt und umgerechnet (°F, mph, inHg, in, mi usw.). Besucher wählen ihre Anzeige-Einheiten selbst; das wird nur in ihrem Browser gespeichert.
+### 3. Store your token in a `.env` file
 
-Nach Änderungen an der Konfiguration: `docker compose restart`.
+```bash
+echo "HA_TOKEN=your-long-lived-access-token" > .env
+```
 
-### Umgebungsvariablen
+Never share this file or commit it to Git.
 
-| Variable      | Bedeutung                                           | Standard              |
-|---------------|-----------------------------------------------------|-----------------------|
-| `HA_TOKEN`    | Long-Lived Access Token                             | –                     |
-| `HA_URL`      | überschreibt `homeassistant.url`                    | –                     |
-| `CONFIG_PATH` | Pfad zur YAML                                       | `/config/config.yaml` |
-| `DATA_DIR`    | Speicherort des Warnungs-Verlaufs                   | `/data`               |
-| `PORT`        | Port im Container                                   | `47813`                |
-| `DEMO`        | `1` erzwingt den Demo-Modus                         | –                     |
-| `TZ`          | Zeitzone (sonst `station.timezone` bzw. die aus HA) | –                     |
-
-### Voraussetzungen in Home Assistant
-
-- **Recorder aktiv:** Er liefert den 24-h-Verlauf. Für Woche, Monat, Jahr und die Rekorde werden die Langzeitstatistiken genutzt; dafür brauchen die Sensoren eine `state_class`, was bei der Ecowitt-Integration der Fall ist.
-- **Regen und Blitze als Tageszähler:** Diese Werte werden aus Zählern berechnet, die um Mitternacht zurückgesetzt werden (`rain_daily`, `lightning_count`).
-- **Eigener Benutzer empfohlen:** Lege in HA einen eigenen Benutzer ohne Admin-Rechte an und erstelle den Token für diesen Benutzer.
-
-## Kiosk / Tablet
-
-Mit `http://<host>:47813/?kiosk=1` wird nur die Übersicht ohne Navigation angezeigt. Ein Tipp auf den Stationsnamen schaltet in den Vollbildmodus. Die Werte aktualisieren sich automatisch.
-
-## TrueNAS SCALE
-
-Unter *Apps → Discover Apps → ⋮ → Install via YAML* lässt sich der Container als eigene App installieren:
-
-1. Das Image bauen und in eine Registry pushen, z. B. `docker build -t ghcr.io/<user>/wetterstation:latest . && docker push …`. Alternativ auf dem NAS selbst per Shell bauen.
-2. Ein Dataset für die Konfiguration anlegen, z. B. `/mnt/pool/apps/wetterstation/config`, und dort die `config.yaml` ablegen.
-3. Folgende YAML einfügen und anpassen:
+### 4. Create `compose.yaml`
 
 ```yaml
 services:
   wetterstation:
-    image: ghcr.io/<user>/wetterstation:latest
+    image: ghcr.io/0xvisualiris/ecowitt-weather-dashboard:latest
+    container_name: wetterstation
+    user: "1000:1000"
     restart: unless-stopped
-    ports: ["47813:47813"]
+    ports:
+      - "47813:47813"
     environment:
-      HA_TOKEN: "<token>"
+      HA_TOKEN: ${HA_TOKEN}
       TZ: Europe/Berlin
     volumes:
-      - /mnt/pool/apps/wetterstation/config:/config:ro
-      - /mnt/pool/apps/wetterstation/data:/data
+      - ./config:/config:ro
+      - ./data:/data
 ```
 
-Der Container läuft als Benutzer `node` (UID 1000). Das Daten-Dataset muss für UID 1000 beschreibbar sein.
+The container runs as an unprivileged user, never as root. The `user:` line must match the owner of your `config` and `data` folders, otherwise the container can't read the config or save the alert history. You can check the owner with `ls -ln`; the first two numbers are the user and group ID. Either put those numbers in the `user:` line, or give the folders to UID 1000:
 
-## Öffentlich erreichbar machen
+```bash
+sudo chown -R 1000:1000 config data
+```
 
-Den Container hinter einen Reverse Proxy mit HTTPS stellen (z. B. Nginx Proxy Manager, Traefik, Caddy oder Cloudflare Tunnel). Die API ist ausschließlich lesend, gibt keine Koordinaten, Tokens oder Entity-IDs heraus und setzt eine strikte Content-Security-Policy. Die Schriften werden aus dem Container ausgeliefert, es gibt also keine Anfragen an Google Fonts.
+### 5. Start it
+
+```bash
+docker compose up -d
+docker compose logs -f
+```
+
+In the logs you should see `[config] loaded /config/config.yaml` and `[ha] authenticated`. The dashboard is then available at `http://<your-host>:47813`.
+
+If you want a different port, only change the left number, e.g. `"8090:47813"`.
+
+> [!TIP]
+> **Just want to try it?** If there is no `config/config.yaml`, the container starts in **demo mode** with synthetic data, so you can look around before connecting Home Assistant.
+
+## Configuration overview
+
+Everything lives in `config/config.yaml`. The most important sections:
+
+| Section           | What it's for                                                                  |
+|-------------------|--------------------------------------------------------------------------------|
+| `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities |
+| `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment)              |
+| `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, …                 |
+| `forecast`        | A `weather.*` entity for the daily forecast                                    |
+| `alerts`          | Alert rules with thresholds and messages                                       |
+| `ui`              | Refresh interval, "stale" timeout, default units for new visitors              |
+
+After changing the config, restart the container:
+
+```bash
+docker compose restart
+```
+
+If your station reports every 60 seconds, these settings work well:
+
+```yaml
+ui:
+  refresh_seconds: 30
+  stale_after_seconds: 300
+```
+
+### Environment variables
+
+| Variable      | Meaning                                                  | Default               |
+|---------------|----------------------------------------------------------|-----------------------|
+| `HA_TOKEN`    | Home Assistant long-lived access token                   | –                     |
+| `HA_URL`      | Overrides `homeassistant.url`                            | –                     |
+| `TZ`          | Time zone (otherwise `station.timezone` or the one from HA) | –                  |
+| `PORT`        | Port inside the container                                | `47813`               |
+| `CONFIG_PATH` | Path to the config file                                  | `/config/config.yaml` |
+| `DATA_DIR`    | Where the alert history is stored                        | `/data`               |
+| `DEMO`        | `1` forces demo mode                                     | –                     |
+
+## Updating
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+`pull` alone only downloads the new image; `up -d` replaces the running container with it.
+
+## Kiosk / tablet mode
+
+Open `http://<your-host>:47813/?kiosk=1` to show only the overview without navigation. Tapping the station name toggles fullscreen. Values refresh automatically.
+
+## Making it public
+
+Put the container behind a reverse proxy with HTTPS (e.g. Nginx Proxy Manager, Traefik, Caddy or a Cloudflare Tunnel).
+
+The API is strictly read-only. It never returns your token, coordinates or entity IDs, and it sends a strict Content Security Policy. Fonts are served from the container itself, so there are no requests to Google Fonts.
 
 ## API
 
-Alle Endpunkte sind `GET`. Werte kommen in °C, km/h, hPa, mm und km zurück.
+All endpoints are `GET`. Values are returned in °C, km/h, hPa, mm and km.
 
-| Endpunkt                                          | Inhalt                                                                        |
-|---------------------------------------------------|-------------------------------------------------------------------------------|
-| `/api/config`                                     | Stationsinfo, verfügbare Messwerte, UI-Einstellungen                          |
-| `/api/current`                                    | aktuelle Werte, Tages-Min/Max, Regensummen, Sparklines, Vorhersage, Sonne/Mond, aktive Warnungen |
-| `/api/history?metric=temp&range=day`              | Verlauf und Kennzahlen; `metric` = temp, hum, wind, rain, press, solar, uv, light; `range` = day, week, month, year |
-| `/api/detail?metric=temp`                         | Tageswerte, Rekorde, Sensorinfo                                               |
-| `/api/records`                                    | Rekorde seit Inbetriebnahme                                                   |
-| `/api/alerts`                                     | Status der Warnregeln und Verlauf                                             |
-| `/healthz`                                        | Healthcheck                                                                   |
+| Endpoint                               | Content                                                                        |
+|----------------------------------------|--------------------------------------------------------------------------------|
+| `/api/config`                          | Station info, available measurements, UI settings                              |
+| `/api/current`                         | Current values, today's min/max, rain totals, sparklines, forecast, sun/moon, active alerts |
+| `/api/history?metric=temp&range=day`   | History and statistics. `metric`: temp, hum, wind, rain, press, solar, uv, light. `range`: day, week, month, year |
+| `/api/detail?metric=temp`              | Today's values, records, sensor info                                           |
+| `/api/records`                         | All-time records                                                               |
+| `/api/alerts`                          | Alert rule status and history                                                  |
+| `/healthz`                             | Health check                                                                   |
 
-## Entwicklung
+## Contributing & ideas
+
+Since this is a hobby project, any help is appreciated: bug reports, feature ideas, translations (the interface is currently German only), support for other weather stations, or code improvements.
+
+- **Found a bug or have an idea?** Open an [issue](../../issues).
+- **Want to change something yourself?** Pull requests are welcome.
+
+Please be patient with response times. This runs in my spare time.
+
+### Local development
 
 ```bash
-# Server im Demo-Modus (Port 47813)
+# Server in demo mode (port 47813)
 cd server && npm install && DEMO=1 npm run dev
-# Frontend mit Hot Reload, leitet /api an :47813 weiter
+
+# Frontend with hot reload, forwards /api to :47813
 cd web && npm install && npm run dev
 ```
 
-**Aufbau:**
+**Project structure:**
 
-- `server/`: Node 22 ohne Framework, nur `yaml` und `suncalc` als Abhängigkeiten. Die Verbindung zu HA läuft über den eingebauten WebSocket-Client.
-- `web/`: Vite, React und TypeScript. Diagramme sind eigenes SVG ohne Chart-Bibliothek.
-
-Die Oberfläche ist auf Deutsch.
+- `server/`: Node 22 without a framework; only `yaml` and `suncalc` as dependencies. Talks to Home Assistant via its WebSocket API.
+- `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
+- `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.

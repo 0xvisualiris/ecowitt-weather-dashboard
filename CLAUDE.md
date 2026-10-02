@@ -49,8 +49,8 @@ The `v*` tag makes CI build and publish the image as `ghcr.io/0xvisualiris/ecowi
 
 Only when the user asks for a production release.
 
-1. Bump `version` in `server/package.json` and `web/package.json` (and their lockfiles via `npm version <x.y.z> --no-git-tag-version`) on `dev`.
-2. Add the release section to `CHANGELOG.md` (newest on top), summarising all dev pre-releases since the last production version.
+1. Create `release/vX.Y.Z` from `dev`. Bump `version` in `server/package.json` and `web/package.json` (and their lockfiles) with `npm version <x.y.z> --no-git-tag-version`; npm reformats `"engines"` in `server/package.json`, so restore the one-line form.
+2. Add the release section to `CHANGELOG.md` (newest on top), summarising all dev pre-releases since the last production version. Merge `release/vX.Y.Z` into `dev` via PR. This release-prep merge does **not** get its own `-dev.N` tag.
 3. Open a PR `dev` → `main` titled `Release vX.Y.Z` and merge it with a **merge commit** (not squash), so `dev` and `main` stay in sync.
 4. Tag the merge commit on `main` as `vX.Y.Z`, push the tag, and create a full GitHub release: `gh release create vX.Y.Z --target main --title "vX.Y.Z" --notes-file <file>`.
 

@@ -5,6 +5,7 @@ import zlib from 'node:zlib';
 import { loadConfig } from './config.js';
 import { HomeAssistantSource } from './ha.js';
 import { DemoSource, DEMO_SENSORS, DEMO_DEVICES } from './demo.js';
+import { DwdForecast } from './dwd.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
 
@@ -39,7 +40,13 @@ source.on('config', c => {
   }
 });
 
-const svc = new WeatherService(cfg, source);
+let dwd = null;
+if (cfg.forecast.dwdStationId) {
+  dwd = new DwdForecast(cfg.forecast.dwdStationId, { label: cfg.forecast.label });
+  dwd.start();
+}
+
+const svc = new WeatherService(cfg, source, dwd);
 const alerts = new AlertEngine(cfg, svc);
 let evalTimer = null;
 source.on('update', () => {
@@ -88,7 +95,7 @@ function publicConfig() {
     demo: cfg.server.demo,
     metrics,
     sensors: Object.keys(cfg.sensors),
-    hasForecast: !!(cfg.forecast.entity || cfg.server.demo),
+    hasForecast: !!(cfg.forecast.entity || cfg.forecast.dwdStationId || cfg.server.demo),
     alertRules: cfg.alerts.map(a => ({ id: a.id, label: a.label, description: a.description, level: a.level })),
     ui: cfg.ui,
   };

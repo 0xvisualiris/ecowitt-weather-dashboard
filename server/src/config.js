@@ -153,9 +153,10 @@ export function loadConfig() {
     return { level: 'warning', label: a.id, description: '', ...a };
   });
 
-  if (!cfg.server.demo) {
-    if (!cfg.homeassistant.url) throw new Error('[config] homeassistant.url (or HA_URL env) is required unless server.demo is true');
-    if (!cfg.homeassistant.token) throw new Error('[config] homeassistant.token (or HA_TOKEN env) is required unless server.demo is true');
-  }
+  // homeassistant.url/token are no longer required here even when not in demo
+  // mode: they may still arrive from the admin-settings store, merged in by
+  // index.js after loadConfig() returns. index.js falls back to demo mode if
+  // they're still missing once that merge happens, rather than this function
+  // crashing the process before the admin login page could ever be reached.
   return cfg;
 }

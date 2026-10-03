@@ -114,8 +114,8 @@ Everything lives in `config/config.yaml`. The most important sections:
 | Section           | What it's for                                                                  |
 |-------------------|--------------------------------------------------------------------------------|
 | `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities |
-| `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment)              |
-| `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, …                 |
+| `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment) — or set via the admin page |
+| `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages                                       |
 | `ui`              | Refresh interval, "stale" timeout, default units for new visitors              |
@@ -130,6 +130,22 @@ a DWD station ID from [DWD's station list](https://opendata.dwd.de/weather/local
 (look up the one nearest you by name). If it's left unset, or DWD can't be
 reached, the dashboard falls back to a Home Assistant `weather.*` entity
 (`forecast.entity`), the same as before.
+
+### Admin page
+
+As an alternative to editing `config.yaml`, the Home Assistant URL/token,
+sensor entity IDs and DWD station ID can be set from the dashboard itself at
+`/#/admin/login` (a small "Admin" link sits in the footer). Default login is
+**admin / admin**, and you're required to change the password before doing
+anything else. Saving settings there restarts the container (same as editing
+`config.yaml` would) to apply them.
+
+Anything already set in `config.yaml` always wins and shows as locked on the
+admin page — the two are alternatives per field, not a UI on top of the file.
+If the dashboard is reachable beyond your own LAN, put it behind HTTPS (see
+"Making it public" below) before relying on the admin login: the session
+cookie is `HttpOnly`/`SameSite=Strict` but not marked `Secure`, since many
+setups are plain HTTP on a LAN.
 
 After changing the config, restart the container:
 

@@ -107,6 +107,7 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/dwd.js                DwdForecast: fetches/parses a DWD MOSMIX_L station KMZ, bias-corrects near-term with the live reading
   src/service.js            WeatherService: all data shaping (current, history, records, detail) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, persists log to DATA_DIR/alerts.json
+  src/admin.js              AdminStore: login/session/password hashing, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
   src/units.js              unit normalisation to canonical units, compass, German number format
   src/astro.js              sunrise/sunset/day length/sun position/moon via suncalc
   src/util.js               local-time helpers, TTL cache, counter→increment conversion, round()
@@ -114,11 +115,11 @@ web/                        Vite + React 19 + TypeScript, no UI framework, no ch
   index.html                favicon link (/favicon.svg – add ?v=N to bust browser favicon cache)
   public/favicon.svg        app icon (also used in README)
   src/main.tsx              entry
-  src/App.tsx               shell: hash router, header (live dot, clock), nav, footer, units context
-  src/lib.ts                types, useApi hook, units + conversion, METRIC_META, formatting, SVG path helpers
+  src/App.tsx               shell: hash router, header (live dot, clock), nav, footer, units context, AdminGate
+  src/lib.ts                types, useApi/postJson, units + conversion, METRIC_META, formatting, SVG path helpers
   src/styles.css            design tokens + all styles (CSS classes, no CSS-in-JS)
   src/components/Chart.tsx  Chart (hover crosshair/tooltip) and Spark (sparklines)
-  src/screens/              Dashboard, History, Detail, Alerts, Settings
+  src/screens/              Dashboard, History, Detail, Alerts, Settings, AdminLogin, AdminPassword, Admin
 ```
 
 ## Commands
@@ -227,7 +228,18 @@ Dashboard sparklines: temp, humidity and pressure in 15-minute buckets, rain in 
 - The log is persisted to `DATA_DIR/alerts.json` (max 200 entries). If the file isn't writable it logs a warning and keeps the log in memory.
 - If `alerts:` is omitted, `DEFAULT_ALERTS` applies: lightning < 15 km within 30 min, frost, gust > 60 km/h, rain rate > 10 mm/h, UV ≥ 6. `alerts: []` disables all alerts.
 
-### API (GET only; anything else returns 405)
+### Admin (`admin.js`)
+
+- `AdminStore` persists `DATA_DIR/admin.json`: username, scrypt password hash + salt, `mustChangePassword`, a session-signing secret, and the admin-settable `settings` (HA url/token, sensor entity IDs, forecast entity/DWD station id/bias hours/label). Unlike `alerts.js`, a failed write here **blocks** the action (password change / settings save respond with an error) instead of silently continuing in memory — losing this file is a real security footgun (reverts to `admin`/`admin`), not just a minor UX gap.
+- **Precedence**: `config.yaml` always wins, per field. `index.js` computes a `locked` map right after `loadConfig()` (which fields `config.yaml` already set) and merges in `AdminStore`'s settings only for the fields it left blank, before `source`/`dwd` are constructed — so `ha.js`/`dwd.js`/`service.js` need no changes, they just see the final merged `cfg`. `saveSettings()` ignores any field the `locked` map marks, server-side, not just in the UI.
+- If, after that merge, Home Assistant is still unconfigured anywhere and `server.demo` isn't set, `index.js` falls back to demo mode with a warning instead of crashing — `config.js` no longer throws on a missing HA url/token, specifically so the admin login page stays reachable to fix it.
+- Sessions are an HMAC-SHA256-signed cookie (`node:crypto`, zero new dependencies) over an expiry timestamp, verified with `timingSafeEqual`; a simple in-memory per-IP backoff throttles repeated failed logins/password attempts. There's no per-session store, so revocation works by rotating the shared `sessionSecret` (invalidating every outstanding token at once) — `changePassword()` does this and re-issues a fresh cookie for the caller so they stay logged in, and `logout()` does the same without re-issuing one. With a single admin account, "log out" and "log out everywhere" are the same operation.
+- Settings changes only take effect at boot (same as `config.yaml`), so a successful `POST /api/admin/settings` responds first, then the process exits after a short delay, relying on the container's restart policy to reload with the new settings — password changes don't restart anything.
+- Every `/api/admin/*` route except `/login` and `/session` requires a valid session; every one except `/password` additionally requires `mustChangePassword` to already be false — enforced server-side (`requireSession` in `index.js`), not just hidden in the UI.
+
+### API
+
+Everything under `/api/*` except `/api/admin/*` is GET-only (anything else returns 405):
 
 | Endpoint | Returns |
 |---|---|
@@ -239,11 +251,14 @@ Dashboard sparklines: temp, humidity and pressure in 15-minute buckets, rain in 
 | `/api/alerts` | `{ rules, log }` |
 | `/healthz` | `{ ok, connected, lastMessage }` |
 
+`/api/admin/*` (see above) is the one authenticated, non-read-only surface:
+`POST /login`, `POST /logout`, `GET /session`, `POST /password`, `GET`/`POST /settings`.
+
 The response types in `web/src/lib.ts` are maintained by hand. There is no shared schema, so any change to an API response shape must be mirrored there.
 
 ## Frontend conventions
 
-- **Routing** uses the URL hash: `#/`, `#/verlauf?m=<metric>&r=<day|week|month|year>`, `#/details/<metric>`, `#/warnungen`, `#/einstellungen`. `?kiosk=1` (query string, not hash) shows only the overview; clicking the header toggles fullscreen.
+- **Routing** uses the URL hash: `#/`, `#/verlauf?m=<metric>&r=<day|week|month|year>`, `#/details/<metric>`, `#/warnungen`, `#/einstellungen`, `#/admin/login`, `#/admin/password`, `#/admin`. `?kiosk=1` (query string, not hash) shows only the overview; clicking the header toggles fullscreen. The three admin routes render without the normal header/nav/footer chrome (`AdminGate` in `App.tsx`) and redirect between themselves based on `GET /api/admin/session` — a UX convenience only, the real enforcement is server-side.
 - **Data:** `useApi(url, intervalMs)` polls and also refetches when the tab becomes visible.
 - **Formatting:**
   - Always use `fmt()`: de-DE format, grouping only from 5 digits (`useGrouping: 'min2'`), and a real minus sign (U+2212).
@@ -261,9 +276,9 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 
 ## Hard constraints – do not break
 
-- **No secrets in the browser.** Never expose the HA URL, token, coordinates or entity IDs through any API response.
+- **No secrets in the browser.** The public API never exposes the HA URL, token, coordinates or entity IDs. The one deliberate, narrow exception is the authenticated admin surface: `GET /api/admin/settings` still never echoes the real HA token back (only a `tokenSet` boolean) — admin or not, nobody downloads the actual secret through the API.
 - **Content-Security-Policy** (`index.js`) allows only `'self'` (plus inline styles and data: images). Don't add CDNs, Google Fonts, analytics or any external requests; bundle assets instead.
-- **The API stays read-only.** No endpoint may change HA or the config.
+- **The public API stays read-only.** Everything under `/api/*` is GET-only except `/api/admin/*`, which is the one deliberate exception: authenticated (session cookie, enforced server-side), restart-required to take effect, and always overridden by anything already set in `config.yaml`. No other endpoint may change HA or the config.
 - **Keep the dependency footprint small.** The server depends only on `yaml` and `suncalc`; the frontend has no UI or chart libraries. Discuss before adding any.
 - **Non-root container.** The image runs as `node` (UID 1000) and deployments may override this with `user:`, so code must never assume root or write anywhere except `DATA_DIR`.
 - **Keep `DemoSource` in sync** with any change to the data-source interface; demo mode is the main way to test.
@@ -271,10 +286,10 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 
 ## Configuration & environment
 
-- Config file: `CONFIG_PATH` (default `/config/config.yaml`). If it's missing (or unreadable for the container user), the server starts in **demo mode**.
+- Config file: `CONFIG_PATH` (default `/config/config.yaml`). If it's missing (or unreadable for the container user), the server starts in **demo mode**. It also falls back to demo mode (with a warning, not a crash) if, after merging in any admin-set settings, Home Assistant still isn't configured anywhere.
 - Environment overrides: `HA_URL`, `HA_TOKEN`, `PORT`, `DEMO`, `DATA_DIR` (default `/data`), `PUBLIC_DIR` (default `/app/public` in the image), `TZ`.
 - `config/config.example.yaml` is the single source of truth for options. When adding an option, update it, `config.js` and the README together.
-- `config/config.yaml` and `.env` are gitignored and must never be committed.
+- `config/config.yaml` and `.env` are gitignored and must never be committed. `DATA_DIR/admin.json` (password hash, session secret, admin-set HA/sensor/DWD settings) is runtime state, same category as `DATA_DIR/alerts.json` — never committed either, and never seed it by hand.
 
 ## Maintainer's deployment (for context)
 
@@ -294,3 +309,6 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 - `dwd.js`'s `ww` → condition mapping is an approximate grouping of DWD's documented code ranges, not an exact WMO table lookup; edge codes fall into the nearest sensible bucket.
 - DWD's `R101` (precipitation probability) drives `pop` for the DWD forecast path; if a future MOSMIX revision renames/drops that element, `pop` silently falls back to `null` per day (frontend already renders that as blank) rather than erroring.
 - `station.devices[].signal` is shown as `n/4` when it is an integer 0–4 (Ecowitt convention).
+- The admin username is fixed as `admin` (no UI to change it, only the password). There's also no live reconnect: any settings save restarts the whole process, same as editing `config.yaml` would.
+- In demo mode with no `config.yaml` sensors and nothing saved via the admin page, `cfg.sensors` gets filled with `DEMO_SENSORS` only if it was completely empty beforehand — so saving even one sensor via the admin page while otherwise relying on demo mode leaves the rest of `DEMO_SENSORS` unfilled. Not an issue outside of demo mode.
+- Per-IP login/password-change throttling uses `req.socket.remoteAddress`, which is the proxy's address, not the real client's, behind a reverse proxy — it still throttles, just coarser (shared across everyone behind that proxy) than per-visitor.

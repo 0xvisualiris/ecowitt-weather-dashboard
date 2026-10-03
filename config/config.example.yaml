@@ -48,6 +48,12 @@ station:
 
 # ---------------------------------------------------------------------
 # Home Assistant – bleibt auf dem Server, nie im Browser
+#
+# Alternative zu dieser Datei: URL, Token, Sensor-Entitäten und die
+# DWD-Stations-ID können auch über die Admin-Seite (/#/admin/login,
+# Standard admin/admin, Passwortänderung beim ersten Login Pflicht) gesetzt
+# werden. Was hier in config.yaml steht, hat immer Vorrang – die Admin-Seite
+# kann nur Felder setzen, die hier leer/weggelassen sind.
 # ---------------------------------------------------------------------
 homeassistant:
   url: ${HA_URL:-http://homeassistant.local:8123}
@@ -56,7 +62,8 @@ homeassistant:
 # ---------------------------------------------------------------------
 # Sensoren – Entity-IDs aus Home Assistant
 # (Entwicklerwerkzeuge → Zustände). Nicht vorhandene Sensoren einfach
-# weglassen oder auskommentieren – die zugehörigen Karten verschwinden dann.
+# weglassen oder auskommentieren – die zugehörigen Karten verschwinden dann,
+# oder stattdessen über die Admin-Seite setzen (siehe oben).
 # Einheiten werden automatisch umgerechnet (°F, mph, inHg, in … sind ok).
 # ---------------------------------------------------------------------
 sensors:

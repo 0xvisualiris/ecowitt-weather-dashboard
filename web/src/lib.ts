@@ -64,6 +64,27 @@ export function useApi<T>(url: string | null, intervalMs = 0) {
   return { data, error, loadedAt };
 }
 
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j as T;
+}
+
+// ---------------- admin ----------------
+export interface AdminSession { loggedIn: boolean; mustChangePassword: boolean }
+export interface AdminSettings {
+  locked: { haUrl: boolean; haToken: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean };
+  homeassistant: { url: string; tokenSet: boolean };
+  sensors: Record<string, string>;
+  forecast: { entity: string; dwdStationId: string; biasHours: number; label: string };
+}
+
 // ---------------- units ----------------
 export interface Units { temp: '°C' | '°F'; wind: 'km/h' | 'm/s' | 'mph' | 'Bft'; press: 'hPa' | 'mmHg' | 'inHg'; rain: 'mm' | 'l/m²' | 'in' }
 export const UNIT_OPTIONS: { key: keyof Units; label: string; opts: string[] }[] = [

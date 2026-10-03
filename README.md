@@ -116,9 +116,20 @@ Everything lives in `config/config.yaml`. The most important sections:
 | `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities |
 | `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment)              |
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, …                 |
-| `forecast`        | A `weather.*` entity for the daily forecast                                    |
+| `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages                                       |
 | `ui`              | Refresh interval, "stale" timeout, default units for new visitors              |
+
+### Forecast
+
+The "Vorhersage" card is calculated from [DWD](https://www.dwd.de) MOSMIX (a
+numerical weather model with statistical post-processing) for a station you
+pick, with the next few hours nudged toward what your own Ecowitt station is
+actually reading right now. Set `forecast.dwd_station_id` in `config.yaml` to
+a DWD station ID from [DWD's station list](https://opendata.dwd.de/weather/local_forecasts/poi/poi.txt)
+(look up the one nearest you by name). If it's left unset, or DWD can't be
+reached, the dashboard falls back to a Home Assistant `weather.*` entity
+(`forecast.entity`), the same as before.
 
 After changing the config, restart the container:
 

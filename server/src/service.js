@@ -25,9 +25,10 @@ const FORECAST_DE = {
 };
 
 export class WeatherService {
-  constructor(cfg, source) {
+  constructor(cfg, source, dwd = null) {
     this.cfg = cfg;
     this.src = source;
+    this.dwd = dwd;
     this.cache = makeCache();
     this.entityToKey = Object.fromEntries(Object.entries(cfg.sensors).map(([k, id]) => [id, k]));
   }
@@ -207,6 +208,23 @@ export class WeatherService {
   }
 
   forecast() {
+    if (this.dwd) {
+      const dwd = this.dwd.days(this.value('temperature'), this.cfg.forecast.days, this.cfg.forecast.biasHours, this.location());
+      if (dwd) {
+        return {
+          source: dwd.source,
+          days: dwd.days.map(d => ({
+            date: d.date,
+            condition: FORECAST_DE[d.conditionCode] || d.conditionCode || '—',
+            conditionCode: d.conditionCode,
+            pop: d.pop,
+            lo: d.lo,
+            hi: d.hi,
+          })),
+        };
+      }
+    }
+
     const f = this.src.forecast;
     if (!f?.length) return null;
     const entity = this.cfg.forecast.entity ? this.src.states[this.cfg.forecast.entity] : null;

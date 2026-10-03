@@ -104,6 +104,7 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/config.js             loads YAML, ${ENV} substitution, defaults, validation, SENSOR_KEYS, DEFAULT_ALERTS
   src/ha.js                 HomeAssistantSource: HA WebSocket client
   src/demo.js               DemoSource: synthetic data, same interface as HomeAssistantSource
+  src/dwd.js                DwdForecast: fetches/parses a DWD MOSMIX_L station KMZ, bias-corrects near-term with the live reading
   src/service.js            WeatherService: all data shaping (current, history, records, detail) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, persists log to DATA_DIR/alerts.json
   src/units.js              unit normalisation to canonical units, compass, German number format
@@ -152,6 +153,8 @@ There are **no automated tests and no linter config**. Verify changes by running
 ```
 Ecowitt → HA (Ecowitt integration, ~60 s) → HA WebSocket push → server (in-memory states)
 browser polls /api/current every ui.refresh_seconds; charts fetch /api/history etc.
+forecast: DWD MOSMIX_L KMZ (opendata.dwd.de, hourly poll) + live reading → bias-corrected daily forecast
+          (falls back to the HA weather.* entity if dwd_station_id isn't set or DWD is unreachable)
 ```
 
 ### Data source interface (`ha.js` and `demo.js` must stay compatible)
@@ -182,6 +185,14 @@ Never convert units anywhere else. Exception: alert messages are formatted serve
 ### Time zone
 
 `process.env.TZ` is set at startup from `station.timezone`, otherwise from HA's `get_config.time_zone`, so plain `Date` methods in the server use station time. The frontend formats every date and time with the station time zone from `/api/config` (`setTimeZone`, `parts()` in `lib.ts`).
+
+### Forecast (`dwd.js`)
+
+- `WeatherService.forecast()` tries `DwdForecast.days()` first (when `forecast.dwd_station_id` is configured); if that returns nothing it falls back to the original HA `weather.*`-entity logic (`src.forecast`, populated via `weather/subscribe_forecast` in `ha.js`) unchanged.
+- `DwdForecast` fetches `MOSMIX_L_LATEST_<station_id>.kmz` from `opendata.dwd.de` hourly (background `setInterval`, not awaited by `service.js`— same "populate a field, read synchronously" pattern as `ha.js`'s `forecast`/`states`). A KMZ's one entry is read via the zip central-directory record (DWD leaves the local header's size fields at 0) and inflated with Node's built-in `zlib`; the XML is parsed with a couple of targeted regexes (`TimeStep`, `TTT`, `ww`, `R101`), not a general XML library — no new dependency.
+- `ww` (DWD's significant-weather code) maps to the same condition vocabulary HA emits (`sunny`, `rainy`, `lightning-rainy`, …), so `FORECAST_DE` and the frontend are untouched by the DWD path. A day's representative condition is its hourly rows' most severe `ww`; same-severity ties prefer a daytime hour (so a calm clear day reads "Sonnig", not "Klar").
+- Bias correction: the offset between the live reading and DWD's own value for "now" is applied to the next `forecast.bias_hours` (default 6) of hourly temps, fading to 0 — only the near-term trajectory is nudged; day 2+ stays unmodified MOSMIX. `pop`/condition are never bias-corrected.
+- On fetch/parse failure, a warning is logged and the last good result keeps being served (nothing overwrites `DwdForecast.hourly` on failure).
 
 ### Caching (`makeCache` in `util.js`: TTL + in-flight dedupe + serve-stale-on-error)
 
@@ -280,4 +291,6 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 - Lightning distance is always shown in km (no miles option).
 - No automated tests. Unit tests for `counterIncrements`, `_bucketLine`/`_bucketCounter`, `normalize` and the alert engine would be the most valuable first step.
 - Forecast condition names are mapped to German in `FORECAST_DE` (`service.js`); there are no condition icons yet.
+- `dwd.js`'s `ww` → condition mapping is an approximate grouping of DWD's documented code ranges, not an exact WMO table lookup; edge codes fall into the nearest sensible bucket.
+- DWD's `R101` (precipitation probability) drives `pop` for the DWD forecast path; if a future MOSMIX revision renames/drops that element, `pop` silently falls back to `null` per day (frontend already renders that as blank) rather than erroring.
 - `station.devices[].signal` is shown as `n/4` when it is an integer 0–4 (Ecowitt convention).

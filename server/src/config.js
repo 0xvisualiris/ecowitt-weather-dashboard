@@ -116,6 +116,8 @@ export function loadConfig() {
     sensors: {},
     forecast: {
       entity: raw.forecast?.entity || null,
+      dwdStationId: raw.forecast?.dwd_station_id ? String(raw.forecast.dwd_station_id).trim() : null,
+      biasHours: Number(raw.forecast?.bias_hours ?? 6),
       label: raw.forecast?.label || null,
       days: Number(raw.forecast?.days ?? 5),
     },

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { go } from '../App';
 import { Spark } from '../components/Chart';
+import { ConditionIcon } from '../components/ConditionIcon';
 import {
   type AppConfig, type Current, type MetricKey, beaufort, compass, convFor, fmt, fmtC, hhmm, trendText, useUnits, uvLabel, dateFmt, dayKey, weekday,
 } from '../lib';
@@ -101,6 +102,7 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
               {fc.map((f, i) => (
                 <div className="fc-row" key={f.date}>
                   <span style={{ fontWeight: 500 }}>{dayKey(f.date) === dayKey(Date.now()) || (i === 0 && f.date < Date.now()) ? 'Heute' : weekday(f.date)}</span>
+                  <span className="fc-icon"><ConditionIcon code={f.conditionCode} /></span>
                   <span className="cond">{f.condition}</span>
                   <span className="pop">{f.pop != null ? `${f.pop} %` : ''}</span>
                   <span className="lo">{deg(f.lo, 0)}</span>

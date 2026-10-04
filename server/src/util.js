@@ -50,3 +50,34 @@ export function counterIncrements(points) {
 }
 
 export const round = (v, d = 2) => (v == null || !Number.isFinite(v) ? null : Math.round(v * 10 ** d) / 10 ** d);
+
+// Buckets a mean-aggregated series (temp, humidity, pressure, …) into fixed-size
+// windows, holding the last known value across gaps so a bucket with no fresh
+// points still carries forward the prior reading instead of going null.
+export function bucketLine(points, start, end, size) {
+  const n = Math.ceil((end - start) / size);
+  const out = [];
+  let i = 0, held = null;
+  while (i < points.length && points[i].t < start) { held = points[i].v; i++; }
+  for (let b = 0; b < n; b++) {
+    const bs = start + b * size, be = bs + size;
+    const vals = held != null ? [held] : [];
+    while (i < points.length && points[i].t < be) { vals.push(points[i].v); held = points[i].v; i++; }
+    if (!vals.length) { out.push({ t: bs, v: null }); continue; }
+    out.push({ t: bs, v: vals.reduce((a, c) => a + c, 0) / vals.length, lo: Math.min(...vals), hi: Math.max(...vals) });
+  }
+  return out;
+}
+
+// Buckets a counter series (rain, lightning strikes, …) by summing increments
+// (see counterIncrements) that fall into each fixed-size window.
+export function bucketCounter(points, start, end, size) {
+  const inc = counterIncrements(points);
+  const n = Math.ceil((end - start) / size);
+  const out = Array.from({ length: n }, (_, b) => ({ t: start + b * size, v: 0 }));
+  for (const p of inc) {
+    if (p.t < start || p.t >= end) continue;
+    out[Math.floor((p.t - start) / size)].v += p.v;
+  }
+  return out;
+}

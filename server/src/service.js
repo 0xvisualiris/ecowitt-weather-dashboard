@@ -2,7 +2,7 @@ import { normalize, toNumber, SENSOR_DIMENSION } from './units.js';
 import { astro } from './astro.js';
 import {
   HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour,
-  makeCache, counterIncrements, round,
+  makeCache, counterIncrements, bucketLine, bucketCounter, round,
 } from './util.js';
 
 // Fixed metric set the UI knows about. Which ones are shown depends on the configured sensors.
@@ -107,32 +107,6 @@ export class WeatherService {
     return rows.map((r, i) => ({ ...r, amount: inc[i]?.v ?? 0 }));
   }
 
-  // ---------- bucketing helpers ----------
-  _bucketLine(points, start, end, size) {
-    const n = Math.ceil((end - start) / size);
-    const out = [];
-    let i = 0, held = null;
-    while (i < points.length && points[i].t < start) { held = points[i].v; i++; }
-    for (let b = 0; b < n; b++) {
-      const bs = start + b * size, be = bs + size;
-      const vals = held != null ? [held] : [];
-      while (i < points.length && points[i].t < be) { vals.push(points[i].v); held = points[i].v; i++; }
-      if (!vals.length) { out.push({ t: bs, v: null }); continue; }
-      out.push({ t: bs, v: vals.reduce((a, c) => a + c, 0) / vals.length, lo: Math.min(...vals), hi: Math.max(...vals) });
-    }
-    return out;
-  }
-
-  _bucketCounter(points, start, end, size) {
-    const inc = counterIncrements(points);
-    const n = Math.ceil((end - start) / size);
-    const out = Array.from({ length: n }, (_, b) => ({ t: start + b * size, v: 0 }));
-    for (const p of inc) {
-      if (p.t < start || p.t >= end) continue;
-      out[Math.floor((p.t - start) / size)].v += p.v;
-    }
-    return out;
-  }
 
   // ---------- /api/current ----------
   async current() {
@@ -159,10 +133,10 @@ export class WeatherService {
       const end = now, start = now - DAY;
       const spark = {};
       for (const [m, key, size] of [['temp', 'temperature', 15], ['hum', 'humidity', 15], ['press', 'pressure', 15]]) {
-        if (raw[key]) spark[m] = this._bucketLine(raw[key], start, end, size * 60000).map(p => round(p.v, 2));
+        if (raw[key]) spark[m] = bucketLine(raw[key], start, end, size * 60000).map(p => round(p.v, 2));
       }
-      if (raw.rain_daily) spark.rain = this._bucketCounter(raw.rain_daily, start, end, 30 * 60000).map(p => round(p.v, 2));
-      if (raw.lightning_count) spark.light = this._bucketCounter(raw.lightning_count, start, end, HOUR).map(p => p.v);
+      if (raw.rain_daily) spark.rain = bucketCounter(raw.rain_daily, start, end, 30 * 60000).map(p => round(p.v, 2));
+      if (raw.lightning_count) spark.light = bucketCounter(raw.lightning_count, start, end, HOUR).map(p => p.v);
 
       // pressure trend over 3 h
       let pressureTrend = null;
@@ -271,9 +245,9 @@ export class WeatherService {
         const start = now - DAY;
         if (M.agg === 'counter') {
           const size = metric === 'light' ? HOUR : 30 * 60000;
-          points = this._bucketCounter(raw[M.sensor] || [], start, now, size);
+          points = bucketCounter(raw[M.sensor] || [], start, now, size);
         } else {
-          points = this._bucketLine(raw[M.sensor] || [], start, now, 10 * 60000);
+          points = bucketLine(raw[M.sensor] || [], start, now, 10 * 60000);
         }
         if (metric === 'light') {
           const d = (raw.lightning_distance || []).filter(p => p.t >= start).map(p => p.v);
@@ -415,7 +389,7 @@ export class WeatherService {
         const sum = inc.reduce((a, p) => a + p.v, 0);
         const y = yRow(M.sensor);
         if (metric === 'rain') {
-          const buckets = this._bucketCounter(pts, sod, Date.now(), 30 * 60000);
+          const buckets = bucketCounter(pts, sod, Date.now(), 30 * 60000);
           const best = buckets.reduce((a, b) => (b.v > (a?.v ?? 0) ? b : a), null);
           today.push({ k: 'Summe heute', v: round(sum, 1), kind: 'rain' });
           today.push({ k: 'Stärkste 30 min', v: best ? round(best.v, 1) : 0, kind: 'rain', t: best?.t ?? null });
@@ -433,16 +407,20 @@ export class WeatherService {
         }
       } else {
         const pts = (raw[M.sensor] || []).filter(p => p.t >= sod);
+        const live = this.value(M.sensor);
+        if (live != null) pts.push({ t: Date.now(), v: live });
         if (pts.length) {
           const mn = pts.reduce((a, p) => (p.v < a.v ? p : a));
           const mx = pts.reduce((a, p) => (p.v > a.v ? p : a));
-          const mean = this._bucketLine(raw[M.sensor], sod, Date.now(), 10 * 60000).filter(p => p.v != null);
+          const mean = bucketLine(raw[M.sensor], sod, Date.now(), 10 * 60000).filter(p => p.v != null);
           today.push({ k: 'Minimum', v: mn.v, kind: 'metric', t: mn.t });
           today.push({ k: 'Maximum', v: mx.v, kind: 'metric', t: mx.t });
           today.push({ k: 'Mittelwert', v: mean.length ? round(mean.reduce((a, p) => a + p.v, 0) / mean.length, 2) : null, kind: 'metric' });
         }
         if (metric === 'wind' && this.has('wind_gust')) {
           const g = (raw.wind_gust || []).filter(p => p.t >= sod);
+          const liveGust = this.value('wind_gust');
+          if (liveGust != null) g.push({ t: Date.now(), v: liveGust });
           if (g.length) { const mx = g.reduce((a, p) => (p.v > a.v ? p : a)); today.push({ k: 'Stärkste Böe', v: mx.v, kind: 'metric', t: mx.t }); }
         }
         const y = yRow(M.sensor);

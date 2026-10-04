@@ -108,11 +108,12 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
       <form onSubmit={submit} className="stack">
         <section className="card lg stack">
           <div className="eyebrow"><span>Home Assistant</span></div>
-          <Field label="URL" locked={data.locked.haUrl}>
+          <Field label="URL" locked={data.locked.haUrl} lockedReason={data.locked.haUrlEnv ? 'durch Umgebungsvariable HA_URL festgelegt' : undefined}>
             <input className="input" value={haUrl} onChange={e => setHaUrl(e.target.value)} disabled={data.locked.haUrl}
               placeholder="http://homeassistant.local:8123" />
           </Field>
-          <Field label={`Long-Lived Access Token${data.homeassistant.tokenSet ? ' (bereits gesetzt)' : ''}`} locked={data.locked.haToken}>
+          <Field label={`Long-Lived Access Token${data.homeassistant.tokenSet ? ' (bereits gesetzt)' : ''}`} locked={data.locked.haToken}
+            lockedReason={data.locked.haTokenEnv ? 'durch Umgebungsvariable HA_TOKEN festgelegt' : undefined}>
             <input className="input" type="password" value={haToken} onChange={e => setHaToken(e.target.value)} disabled={data.locked.haToken}
               placeholder={data.homeassistant.tokenSet ? 'Leer lassen = unverändert' : 'Token einfügen'} autoComplete="off" />
           </Field>
@@ -201,10 +202,10 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   );
 }
 
-function Field({ label, locked, children }: { label: string; locked: boolean; children: React.ReactNode }) {
+function Field({ label, locked, lockedReason, children }: { label: string; locked: boolean; lockedReason?: string; children: React.ReactNode }) {
   return (
     <div className="field">
-      <label className="label">{label}{locked && <span className="faint"> · in config.yaml festgelegt</span>}</label>
+      <label className="label">{label}{locked && <span className="faint"> · {lockedReason || 'in config.yaml festgelegt'}</span>}</label>
       {children}
     </div>
   );

@@ -3,6 +3,20 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.2.0 – 2026-10-05
+
+### New
+- **Language toggle.** The interface can now be switched between German and English, for visitors and the admin alike, from Einstellungen/Settings and from the admin page header. The choice is saved per browser, independently of the units preference. Alert rule content (its own label, description and message text — whether the built-in defaults or your own) is never machine-translated; it's shown exactly as written. (#17)
+- Station info (timezone, demo-mode indicator) moved from the Einstellungen/Settings screen to the admin page's existing Station section, alongside name/subtitle/altitude/devices. (#16)
+
+### Fixed
+- Corrected the documented and example hardware name from "Ecowitt WS90" to the actual "Ecowitt WH90" throughout the README, `CLAUDE.md`, the example config and demo data. (#15)
+
+### Upgrade
+No `config.yaml` changes required. If you've customized `config/config.example.yaml`'s commented-out `ws90_*` entity-ID examples, those placeholders are now named `wh90_*` — update your own config to match if you copied them literally (your actual entity IDs from Home Assistant are unaffected either way).
+
+    docker compose pull && docker compose up -d
+
 ## v1.1.0 – 2026-10-04
 
 ### New

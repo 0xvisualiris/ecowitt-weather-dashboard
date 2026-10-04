@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { type AdminSession, type AppConfig, type Current, type MetricKey, type Range, type Units, UnitsContext, setTimeZone, useApi, longDate, clock, hhmm } from './lib';
+import { type AdminSession, type AppConfig, type Current, type MetricKey, type Range, type Units, UnitsContext, setTimeZone, useApi, longDate, clock, hhmm, fmtDeviceReading, fmtSignal } from './lib';
+import { LangContext, setLang as setLibLang, t, type Lang } from './i18n';
 import { Dashboard } from './screens/Dashboard';
 import { HistoryScreen } from './screens/History';
 import { DetailScreen } from './screens/Detail';
@@ -51,12 +52,13 @@ export function toHash(r: Route) {
 export const go = (r: Route) => { location.hash = toHash(r); };
 
 const UNITS_KEY = 'wetterstation.units';
+const LANG_KEY = 'wetterstation.lang';
 const kiosk = new URLSearchParams(location.search).has('kiosk');
 
 export function App() {
   const { data: cfg, error: cfgError } = useApi<AppConfig>('/api/config');
   if (!cfg) {
-    return <div className="page"><div className="center-msg">{cfgError ? `Server nicht erreichbar: ${cfgError}` : 'Lade …'}</div></div>;
+    return <div className="page"><div className="center-msg">{cfgError ? t('app.serverUnreachable', { error: cfgError }) : t('app.loading')}</div></div>;
   }
   return <Loaded cfg={cfg} />;
 }
@@ -69,6 +71,20 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, [cfg.metrics]);
+
+  // Language, read once from localStorage and applied to the module-level
+  // LANG variable (lib.ts/i18n.ts) synchronously, before anything below
+  // renders – same "set it, then render" pattern as setTimeZone() above.
+  // LangContext exists so deep components (the switcher in Settings/Admin)
+  // can call setLang without prop-drilling; everything else just calls t()
+  // directly and picks up the new value because this component re-renders
+  // its whole subtree on a language change (nothing downstream is memoized).
+  const [lang, setLangState] = useState<Lang>(() => {
+    try { return (localStorage.getItem(LANG_KEY) as Lang) || 'de'; } catch { return 'de'; }
+  });
+  setLibLang(lang);
+  const setLang = (l: Lang) => { setLibLang(l); setLangState(l); try { localStorage.setItem(LANG_KEY, l); } catch { /* private mode */ } };
+  const langCtx = useMemo(() => ({ lang, setLang }), [lang]);
 
   // First-ever boot (nothing configured in config.yaml or the admin page):
   // land directly on the admin login instead of an empty demo dashboard.
@@ -98,13 +114,19 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
 
   useEffect(() => { document.title = cfg.station.name; }, [cfg.station.name]);
 
-  if (isAdmin) return <AdminGate screen={route.screen as 'adminLogin' | 'adminPassword' | 'admin'} />;
+  if (isAdmin) {
+    return (
+      <LangContext.Provider value={langCtx}>
+        <AdminGate screen={route.screen as 'adminLogin' | 'adminPassword' | 'admin'} />
+      </LangContext.Provider>
+    );
+  }
 
   const staleMs = cfg.ui.stale_after_seconds * 1000;
   const stale = !cur || !!curError || !cur.updated || now - cur.updated > staleMs || now - loadedAt > staleMs;
   const screen = kiosk ? 'dash' : route.screen;
 
-  const nav: [Route['screen'], string][] = [['dash', 'Übersicht'], ['hist', 'Verlauf'], ['detail', 'Details'], ['alerts', 'Warnungen'], ['settings', 'Einstellungen']];
+  const nav: [Route['screen'], string][] = [['dash', t('nav.dash')], ['hist', t('nav.hist')], ['detail', t('nav.detail')], ['alerts', t('nav.alerts')], ['settings', t('nav.settings')]];
   const navTo = (s: Route['screen']) => {
     const metric = 'metric' in route ? route.metric : cfg.metrics[0];
     if (s === 'hist') go({ screen: 'hist', metric, range: 'day' });
@@ -120,48 +142,50 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
   const devices = cur?.devices ?? cfg.station.devices;
 
   return (
-    <UnitsContext.Provider value={unitsCtx}>
-      <div className="page">
-        <header className="header">
-          <button className="kiosk-btn stack" style={{ gap: 4, cursor: kiosk ? 'pointer' : 'default' }} onClick={toggleFullscreen} tabIndex={kiosk ? 0 : -1}>
-            <div className="title">{cfg.station.name}</div>
-            <div className="status">
-              <span className={'dot' + (stale ? ' stale' : '')} />
-              <span>
-                {stale ? `Veraltet${cur?.updated ? ' · letztes Update ' + hhmm(cur.updated) : ''}` : 'Live'}
-                {' · '}{longDate(now)}{' · '}{clock(now)}
-              </span>
-              {cfg.station.subtitle && <span className="faint">{cfg.station.subtitle}</span>}
-            </div>
-          </button>
+    <LangContext.Provider value={langCtx}>
+      <UnitsContext.Provider value={unitsCtx}>
+        <div className="page">
+          <header className="header">
+            <button className="kiosk-btn stack" style={{ gap: 4, cursor: kiosk ? 'pointer' : 'default' }} onClick={toggleFullscreen} tabIndex={kiosk ? 0 : -1}>
+              <div className="title">{cfg.station.name}</div>
+              <div className="status">
+                <span className={'dot' + (stale ? ' stale' : '')} />
+                <span>
+                  {stale ? `${t('app.stale')}${cur?.updated ? t('app.lastUpdate', { time: hhmm(cur.updated) }) : ''}` : t('app.live')}
+                  {' · '}{longDate(now)}{' · '}{clock(now)}
+                </span>
+                {cfg.station.subtitle && <span className="faint">{cfg.station.subtitle}</span>}
+              </div>
+            </button>
+            {!kiosk && (
+              <nav className="nav" aria-label={t('nav.mainAria')}>
+                {nav.map(([k, label]) => (
+                  <button key={k} className={'seg' + (screen === k ? ' on' : '')} aria-current={screen === k ? 'page' : undefined} onClick={() => navTo(k)}>{label}</button>
+                ))}
+                <a href="#/admin/login" className="seg">Admin</a>
+              </nav>
+            )}
+          </header>
+
+          {screen === 'dash' && <Dashboard cfg={cfg} cur={cur} error={curError} />}
+          {screen === 'hist' && route.screen === 'hist' && <HistoryScreen cfg={cfg} cur={cur} metric={route.metric} range={route.range} />}
+          {screen === 'detail' && route.screen === 'detail' && <DetailScreen cfg={cfg} cur={cur} metric={route.metric} />}
+          {screen === 'alerts' && <AlertsScreen />}
+          {screen === 'settings' && <SettingsScreen cfg={cfg} />}
+
           {!kiosk && (
-            <nav className="nav" aria-label="Hauptnavigation">
-              {nav.map(([k, label]) => (
-                <button key={k} className={'seg' + (screen === k ? ' on' : '')} aria-current={screen === k ? 'page' : undefined} onClick={() => navTo(k)}>{label}</button>
-              ))}
-              <a href="#/admin/login" className="seg">Admin</a>
-            </nav>
+            <footer className="footer">
+              {devices.map(d => {
+                const parts = [d.name];
+                if (d.battery) parts.push(t('app.footerBattery', { v: fmtDeviceReading(d.battery) }));
+                if (d.signal) parts.push(t('app.footerSignal', { v: fmtSignal(d.signal) }));
+                return <span key={d.id}>{parts.join(' · ')}</span>;
+              })}
+            </footer>
           )}
-        </header>
-
-        {screen === 'dash' && <Dashboard cfg={cfg} cur={cur} error={curError} />}
-        {screen === 'hist' && route.screen === 'hist' && <HistoryScreen cfg={cfg} cur={cur} metric={route.metric} range={route.range} />}
-        {screen === 'detail' && route.screen === 'detail' && <DetailScreen cfg={cfg} cur={cur} metric={route.metric} />}
-        {screen === 'alerts' && <AlertsScreen />}
-        {screen === 'settings' && <SettingsScreen cfg={cfg} />}
-
-        {!kiosk && (
-          <footer className="footer">
-            {devices.map(d => {
-              const parts = [d.name];
-              if (d.battery) parts.push(`Batterie ${d.battery}`);
-              if (d.signal) parts.push(`Signal ${/^[0-4]$/.test(d.signal) ? d.signal + '/4' : d.signal}`);
-              return <span key={d.id}>{parts.join(' · ')}</span>;
-            })}
-          </footer>
-        )}
-      </div>
-    </UnitsContext.Provider>
+        </div>
+      </UnitsContext.Provider>
+    </LangContext.Provider>
   );
 }
 
@@ -197,8 +221,8 @@ function AdminGate({ screen }: { screen: 'adminLogin' | 'adminPassword' | 'admin
     else if (session.loggedIn && !session.mustChangePassword && screen === 'adminLogin') go({ screen: 'admin' });
   }, [session, screen]);
 
-  if (error) return <div className="auth-page"><div className="center-msg">Server nicht erreichbar: {error}</div></div>;
-  if (!session) return <div className="auth-page"><div className="center-msg">Lade …</div></div>;
+  if (error) return <div className="auth-page"><div className="center-msg">{t('app.serverUnreachable', { error })}</div></div>;
+  if (!session) return <div className="auth-page"><div className="center-msg">{t('app.loading')}</div></div>;
   if (!session.loggedIn) return screen === 'adminLogin' ? <AdminLoginScreen onSession={setSession} /> : null;
   if (session.mustChangePassword) return screen === 'adminPassword' ? <AdminPasswordScreen forced onSession={setSession} /> : null;
   if (screen === 'adminPassword') return <AdminPasswordScreen forced={false} onSession={setSession} />;

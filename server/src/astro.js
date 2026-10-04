@@ -1,11 +1,14 @@
 import SunCalc from 'suncalc';
 
+// Stable English slugs – a shared, cached response can't bake in a
+// visitor's language, so translation happens client-side via i18n.ts's
+// moon.* keys.
 function moonName(phase) {
-  if (phase < 0.03 || phase > 0.97) return 'Neumond';
-  if (Math.abs(phase - 0.5) < 0.03) return 'Vollmond';
-  if (Math.abs(phase - 0.25) < 0.03) return 'Erstes Viertel';
-  if (Math.abs(phase - 0.75) < 0.03) return 'Letztes Viertel';
-  return phase < 0.5 ? 'zunehmend' : 'abnehmend';
+  if (phase < 0.03 || phase > 0.97) return 'new-moon';
+  if (Math.abs(phase - 0.5) < 0.03) return 'full-moon';
+  if (Math.abs(phase - 0.25) < 0.03) return 'first-quarter';
+  if (Math.abs(phase - 0.75) < 0.03) return 'last-quarter';
+  return phase < 0.5 ? 'waxing' : 'waning';
 }
 
 // Coordinates stay on the server – only derived times and fractions are returned.

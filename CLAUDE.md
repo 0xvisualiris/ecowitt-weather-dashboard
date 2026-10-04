@@ -223,6 +223,8 @@ Dashboard sparklines: temp, humidity and pressure in 15-minute buckets, rain in 
 
 `_rangeStats` returns stat objects `{ k: label, v: value, kind }`. `kind` (`metric | rain | count | km | rate | time | rainDay | strikes`) tells the frontend how to format the value (`fmtStat` in `lib.ts`).
 
+**CSV export** (`History.tsx`'s `buildCsv`/`downloadCsv`): client-side only, no server endpoint — builds a CSV string from the already-fetched `History.points` for whatever metric/range is currently on screen, in the visitor's currently selected unit (so the file always matches the chart), and triggers a download via a `Blob` + temporary `<a download>`. Semicolon-delimited with German comma-decimal numbers (`fmt()`) and a UTF-8 BOM prefix, so it opens correctly in a German-locale Excel/LibreOffice — consistent with the rest of the UI's formatting, not plain international CSV.
+
 ### Alerts (`alerts.js`)
 
 - Rules come from config `alerts:`. Each rule has `all:` or `any:` conditions. A condition has `sensor:` (a sensor key, compared in canonical units) or `entity:` (a raw HA entity), plus a comparison `above | below | at_least | at_most | equals` and an optional `recent: { sensor|entity, minutes }`. `recent` uses the timestamp in the entity's state if there is one, otherwise its `lc`.

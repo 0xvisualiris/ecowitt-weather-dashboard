@@ -110,7 +110,7 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/admin.js              AdminStore: login/session/password hashing, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
   src/units.js              unit normalisation to canonical units, compass, German number format
   src/astro.js              sunrise/sunset/day length/sun position/moon via suncalc
-  src/util.js               local-time helpers, TTL cache, counter→increment conversion, round()
+  src/util.js               local-time helpers, TTL cache, counter→increment conversion, time-bucketing (bucketLine/bucketCounter), round()
 web/                        Vite + React 19 + TypeScript, no UI framework, no chart library
   index.html                favicon link (/favicon.svg – add ?v=N to bust browser favicon cache)
   public/favicon.svg        app icon (also used in README)
@@ -119,6 +119,7 @@ web/                        Vite + React 19 + TypeScript, no UI framework, no ch
   src/lib.ts                types, useApi/postJson, units + conversion, METRIC_META, formatting, SVG path helpers
   src/styles.css            design tokens + all styles (CSS classes, no CSS-in-JS)
   src/components/Chart.tsx  Chart (hover crosshair/tooltip) and Spark (sparklines)
+  src/components/ConditionIcon.tsx  small hand-drawn forecast-condition icons, keyed by conditionCode
   src/screens/              Dashboard, History, Detail, Alerts, Settings, AdminLogin, AdminPassword, Admin
 ```
 
@@ -138,6 +139,9 @@ cd web && npm install && npm run dev
 # Type-check + production build of the frontend (output: web/dist)
 cd web && npm run build
 
+# Run the backend test suite (util.js, units.js, alerts.js)
+cd server && npm test
+
 # Run backend serving the built frontend
 cd server && DEMO=1 PUBLIC_DIR=../web/dist node src/index.js
 
@@ -145,7 +149,7 @@ cd server && DEMO=1 PUBLIC_DIR=../web/dist node src/index.js
 docker compose up -d --build
 ```
 
-There are **no automated tests and no linter config**. Verify changes by running in demo mode and checking `/api/*` with curl plus the UI in a browser. `npx tsc -b` in `web/` must pass (strict mode, `noUnusedLocals`).
+There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic), not the HTTP layer or React components. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser. `npx tsc -b` in `web/` must pass (strict mode, `noUnusedLocals`).
 
 **Every push to `main` publishes a new `latest` image to GHCR**, so merging to `main` is a production release. Follow the release process above.
 
@@ -304,8 +308,8 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 - Detail "Heute" min/max comes from cached raw history (≤ 60 s old) and doesn't merge the live value.
 - Alert messages use canonical units, not the visitor's units.
 - Lightning distance is always shown in km (no miles option).
-- No automated tests. Unit tests for `counterIncrements`, `_bucketLine`/`_bucketCounter`, `normalize` and the alert engine would be the most valuable first step.
-- Forecast condition names are mapped to German in `FORECAST_DE` (`service.js`); there are no condition icons yet.
+- Test coverage is still deliberately narrow (`util.js`/`units.js`/`alerts.js` pure logic only, via `node:test`) — the HTTP layer, `dwd.js`, `admin.js`, and every React component remain untested; `detail()`'s Heute min/max now folds in the live reading, same as `current()`'s `todayRange` already did.
+- Forecast condition names are mapped to German in `FORECAST_DE` (`service.js`). Each day also gets a small hand-drawn icon (`web/src/components/ConditionIcon.tsx`, switched on `conditionCode`), same convention as the wind compass/sun arc in `Dashboard.tsx` — covers every DWD-reachable slug plus the HA-fallback-only `partlycloudy`/`windy`/`windy-variant`, with an unstyled cloud as the fallback for anything unrecognized.
 - `dwd.js`'s `ww` → condition mapping is an approximate grouping of DWD's documented code ranges, not an exact WMO table lookup; edge codes fall into the nearest sensible bucket.
 - DWD's `R101` (precipitation probability) drives `pop` for the DWD forecast path; if a future MOSMIX revision renames/drops that element, `pop` silently falls back to `null` per day (frontend already renders that as blank) rather than erroring.
 - `station.devices[].signal` is shown as `n/4` when it is an integer 0–4 (Ecowitt convention).

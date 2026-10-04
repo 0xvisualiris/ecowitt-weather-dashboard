@@ -95,7 +95,8 @@ button { font-family: inherit; }
 .banner.info button { background: oklch(0.2 0.03 230); color: oklch(0.9 0.08 230); }
 
 /* forecast */
-.fc-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px 36px minmax(60px, 1.2fr) 36px; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.fc-row { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) 44px 36px minmax(60px, 1.2fr) 36px; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.fc-icon { display: flex; align-items: center; }
 .fc-row .cond { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fc-row .pop { font-family: var(--mono); font-size: 12px; color: var(--blue); }
 .fc-row .lo { text-align: right; color: var(--muted); }

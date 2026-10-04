@@ -19,7 +19,7 @@ export interface Current {
   rain: { rate: number | null; day: number | null; event: number | null; week: number | null; month: number | null; year: number | null };
   pressureTrend: number | null;
   spark: Partial<Record<'temp' | 'hum' | 'press' | 'rain' | 'light', (number | null)[]>>;
-  forecast: { source: string; days: { date: number; condition: string; pop: number | null; lo: number | null; hi: number | null }[] } | null;
+  forecast: { source: string; days: { date: number; condition: string; conditionCode: string | null; pop: number | null; lo: number | null; hi: number | null }[] } | null;
   astro: { sunrise: number | null; sunset: number | null; dayLengthMin: number | null; sunFraction: number | null; moon: { phase: number; illumination: number; name: string } } | null;
   devices: Device[];
   alerts: ActiveAlert[];

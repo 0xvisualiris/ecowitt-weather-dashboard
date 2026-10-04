@@ -7,7 +7,7 @@ export type Range = 'day' | 'week' | 'month' | 'year';
 export interface Device { id: string; name: string; short: string; role: string; metrics: string[]; battery?: string | null; signal?: string | null }
 export interface AppConfig {
   station: { name: string; subtitle: string; altitude_m: number | null; since: string | null; devices: Device[] };
-  timezone: string; demo: boolean; metrics: MetricKey[]; sensors: string[]; hasForecast: boolean;
+  timezone: string; demo: boolean; needsSetup: boolean; metrics: MetricKey[]; sensors: string[]; hasForecast: boolean;
   alertRules: { id: string; label: string; description: string; level: string }[];
   ui: { stale_after_seconds: number; refresh_seconds: number; default_units: Units };
 }

@@ -17,13 +17,6 @@ export const METRICS = {
   light: { sensor: 'lightning_count', agg: 'counter', currentSensor: 'lightning_distance' },
 };
 
-const FORECAST_DE = {
-  'clear-night': 'Klar', cloudy: 'Bewölkt', exceptional: 'Unwetter', fog: 'Nebel', hail: 'Hagel',
-  lightning: 'Gewitter', 'lightning-rainy': 'Gewitter', partlycloudy: 'Heiter', pouring: 'Starkregen',
-  rainy: 'Regen', snowy: 'Schnee', 'snowy-rainy': 'Schneeregen', sunny: 'Sonnig', windy: 'Windig',
-  'windy-variant': 'Windig, bewölkt',
-};
-
 export class WeatherService {
   constructor(cfg, source, dwd = null) {
     this.cfg = cfg;
@@ -189,7 +182,6 @@ export class WeatherService {
           source: dwd.source,
           days: dwd.days.map(d => ({
             date: d.date,
-            condition: FORECAST_DE[d.conditionCode] || d.conditionCode || '—',
             conditionCode: d.conditionCode,
             pop: d.pop,
             lo: d.lo,
@@ -206,7 +198,6 @@ export class WeatherService {
       source: this.cfg.forecast.label || entity?.attributes?.attribution?.replace(/^Weather forecast from /i, '') || 'Vorhersage',
       days: f.slice(0, this.cfg.forecast.days).map(d => ({
         date: Date.parse(d.datetime),
-        condition: FORECAST_DE[d.condition] || d.condition || '—',
         conditionCode: d.condition,
         pop: d.precipitation_probability ?? null,
         lo: d.templow != null ? normalize('temperature', d.templow, entity?.attributes?.temperature_unit || '°C') : null,
@@ -215,20 +206,22 @@ export class WeatherService {
     };
   }
 
+  // Raw value + unit, not a pre-formatted string: this is a shared, cached
+  // response served to every visitor regardless of their chosen language, so
+  // locale-aware number formatting (comma vs. period decimal) has to happen
+  // client-side via fmt(), same as every other measurement already works.
   devices() {
-    const fmt = id => {
+    const read = id => {
       if (!id) return null;
       const e = this.src.states[id];
       if (!e || e.state === 'unknown' || e.state === 'unavailable') return null;
       const n = toNumber(e.state);
-      const u = e.attributes?.unit_of_measurement || '';
-      if (n == null) return e.state;
-      const s = n.toLocaleString('de-DE', { maximumFractionDigits: 2 });
-      return u === '%' ? `${s} %` : u ? `${s} ${u}` : s;
+      const unit = e.attributes?.unit_of_measurement || '';
+      return { value: n == null ? e.state : n, unit };
     };
     return this.cfg.station.devices.map(d => ({
       id: d.id, name: d.name, short: d.short, role: d.role, metrics: d.metrics,
-      battery: fmt(d.battery), signal: fmt(d.signal),
+      battery: read(d.battery), signal: read(d.signal),
     }));
   }
 
@@ -288,23 +281,23 @@ export class WeatherService {
       const groups = [...group.values()];
       if (metric === 'rain') {
         return [
-          { k: 'Summe', v: round(sum, 1), kind: 'rain' },
-          range === 'day' ? { k: 'Stärkste 30 min', v: round(Math.max(...vals.map(p => p.v)), 1), kind: 'rain' }
-            : { k: 'Max. Tag', v: round(Math.max(...groups), 1), kind: 'rain' },
-          { k: range === 'day' ? 'Stunden mit Regen' : 'Regentage', v: groups.filter(g => g >= (range === 'day' ? 0.1 : 0.2)).length, kind: 'count' },
+          { k: 'sum', v: round(sum, 1), kind: 'rain' },
+          range === 'day' ? { k: 'strongest30min', v: round(Math.max(...vals.map(p => p.v)), 1), kind: 'rain' }
+            : { k: 'maxDay', v: round(Math.max(...groups), 1), kind: 'rain' },
+          { k: range === 'day' ? 'rainHours' : 'rainDays', v: groups.filter(g => g >= (range === 'day' ? 0.1 : 0.2)).length, kind: 'count' },
         ];
       }
       return [
-        { k: 'Einschläge', v: Math.round(sum), kind: 'count' },
-        { k: 'Nächster', v: nearest, kind: 'km' },
-        { k: range === 'day' ? 'Stunden mit Blitzen' : 'Gewittertage', v: groups.filter(g => g > 0).length, kind: 'count' },
+        { k: 'strikes', v: Math.round(sum), kind: 'count' },
+        { k: 'nearest', v: nearest, kind: 'km' },
+        { k: range === 'day' ? 'lightningHours' : 'thunderDays', v: groups.filter(g => g > 0).length, kind: 'count' },
       ];
     }
     const mins = vals.map(p => p.lo ?? p.v), maxs = vals.map(p => p.hi ?? p.v);
     return [
-      { k: 'Min', v: round(Math.min(...mins), 2), kind: 'metric' },
-      { k: 'Mittel', v: round(vals.reduce((a, p) => a + p.v, 0) / vals.length, 2), kind: 'metric' },
-      { k: 'Max', v: round(Math.max(...maxs), 2), kind: 'metric' },
+      { k: 'minShort', v: round(Math.min(...mins), 2), kind: 'metric' },
+      { k: 'meanShort', v: round(vals.reduce((a, p) => a + p.v, 0) / vals.length, 2), kind: 'metric' },
+      { k: 'maxShort', v: round(Math.max(...maxs), 2), kind: 'metric' },
     ];
   }
 
@@ -355,7 +348,7 @@ export class WeatherService {
               max: Math.max(...mrows.map(r => r.max).filter(x => x != null)),
             };
           }
-          if (M.recordSensor && this.has(M.recordSensor)) rec.maxLabel = 'Böe';
+          if (M.recordSensor && this.has(M.recordSensor)) rec.maxLabel = 'gust';
         }
         out[metric] = rec;
       }
@@ -391,19 +384,19 @@ export class WeatherService {
         if (metric === 'rain') {
           const buckets = bucketCounter(pts, sod, Date.now(), 30 * 60000);
           const best = buckets.reduce((a, b) => (b.v > (a?.v ?? 0) ? b : a), null);
-          today.push({ k: 'Summe heute', v: round(sum, 1), kind: 'rain' });
-          today.push({ k: 'Stärkste 30 min', v: best ? round(best.v, 1) : 0, kind: 'rain', t: best?.t ?? null });
-          if (this.has('rain_rate')) today.push({ k: 'Regenrate', v: this.value('rain_rate'), kind: 'rate' });
-          today.push({ k: 'Gestern', v: y ? round(y.amount, 1) : null, kind: 'rain' });
+          today.push({ k: 'sumToday', v: round(sum, 1), kind: 'rain' });
+          today.push({ k: 'strongest30min', v: best ? round(best.v, 1) : 0, kind: 'rain', t: best?.t ?? null });
+          if (this.has('rain_rate')) today.push({ k: 'rainRate', v: this.value('rain_rate'), kind: 'rate' });
+          today.push({ k: 'yesterday', v: y ? round(y.amount, 1) : null, kind: 'rain' });
         } else {
           const d = (raw.lightning_distance || []).filter(p => p.t >= sod);
           const near = sum > 0 && d.length ? d.reduce((a, p) => (p.v < a.v ? p : a)) : null;
-          today.push({ k: 'Einschläge heute', v: Math.round(sum), kind: 'count' });
-          today.push({ k: 'Nächster heute', v: near?.v ?? null, kind: 'km', t: near?.t ?? null });
+          today.push({ k: 'strikesToday', v: Math.round(sum), kind: 'count' });
+          today.push({ k: 'nearestToday', v: near?.v ?? null, kind: 'km', t: near?.t ?? null });
           const lt = this.entity('lightning_time');
           const lts = lt && Date.parse(lt.state);
-          today.push({ k: 'Letzter Einschlag', v: null, kind: 'time', t: Number.isFinite(lts) ? lts : null });
-          today.push({ k: 'Gestern', v: y ? Math.round(y.amount) : null, kind: 'count' });
+          today.push({ k: 'lastStrike', v: null, kind: 'time', t: Number.isFinite(lts) ? lts : null });
+          today.push({ k: 'yesterday', v: y ? Math.round(y.amount) : null, kind: 'count' });
         }
       } else {
         const pts = (raw[M.sensor] || []).filter(p => p.t >= sod);
@@ -413,18 +406,18 @@ export class WeatherService {
           const mn = pts.reduce((a, p) => (p.v < a.v ? p : a));
           const mx = pts.reduce((a, p) => (p.v > a.v ? p : a));
           const mean = bucketLine(raw[M.sensor], sod, Date.now(), 10 * 60000).filter(p => p.v != null);
-          today.push({ k: 'Minimum', v: mn.v, kind: 'metric', t: mn.t });
-          today.push({ k: 'Maximum', v: mx.v, kind: 'metric', t: mx.t });
-          today.push({ k: 'Mittelwert', v: mean.length ? round(mean.reduce((a, p) => a + p.v, 0) / mean.length, 2) : null, kind: 'metric' });
+          today.push({ k: 'min', v: mn.v, kind: 'metric', t: mn.t });
+          today.push({ k: 'max', v: mx.v, kind: 'metric', t: mx.t });
+          today.push({ k: 'mean', v: mean.length ? round(mean.reduce((a, p) => a + p.v, 0) / mean.length, 2) : null, kind: 'metric' });
         }
         if (metric === 'wind' && this.has('wind_gust')) {
           const g = (raw.wind_gust || []).filter(p => p.t >= sod);
           const liveGust = this.value('wind_gust');
           if (liveGust != null) g.push({ t: Date.now(), v: liveGust });
-          if (g.length) { const mx = g.reduce((a, p) => (p.v > a.v ? p : a)); today.push({ k: 'Stärkste Böe', v: mx.v, kind: 'metric', t: mx.t }); }
+          if (g.length) { const mx = g.reduce((a, p) => (p.v > a.v ? p : a)); today.push({ k: 'strongestGust', v: mx.v, kind: 'metric', t: mx.t }); }
         }
         const y = yRow(M.sensor);
-        today.push({ k: 'Gestern Ø', v: y?.mean ?? null, kind: 'metric' });
+        today.push({ k: 'yesterdayMean', v: y?.mean ?? null, kind: 'metric' });
       }
 
       const recs = await this.records().catch(() => ({ records: {} }));

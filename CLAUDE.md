@@ -90,7 +90,7 @@ A public, read-only web dashboard for a personal weather station whose data live
 - Hardware it was built for: Ecowitt WH90 (temp, humidity, ultrasonic wind, piezo rain, solar/UV), Ecowitt WH57 (lightning) and an Ecowitt gateway (pressure), via the HA Ecowitt integration. Any HA sensors work.
 - Hobby project, vibe-coded with AI, not actively maintained. Keep changes simple and dependency-light.
 - Repo: `0xvisualiris/ecowitt-weather-dashboard`. Image: `ghcr.io/0xvisualiris/ecowitt-weather-dashboard:latest`.
-- **UI language is German** (labels, dates, numbers). Code, comments and docs are in English.
+- **UI supports German and English**, switchable per visitor (`web/src/i18n.ts`). Code, comments and docs are in English.
 
 ## Repository layout
 
@@ -115,8 +115,9 @@ web/                        Vite + React 19 + TypeScript, no UI framework, no ch
   index.html                favicon link (/favicon.svg – add ?v=N to bust browser favicon cache)
   public/favicon.svg        app icon (also used in README)
   src/main.tsx              entry
-  src/App.tsx               shell: hash router, header (live dot, clock), nav, footer, units context, AdminGate
-  src/lib.ts                types, useApi/postJson, units + conversion, METRIC_META, formatting, SVG path helpers
+  src/App.tsx               shell: hash router, header (live dot, clock), nav, footer, units + lang context, AdminGate
+  src/lib.ts                types, useApi/postJson, units + conversion, METRIC_META, locale-aware formatting, SVG path helpers
+  src/i18n.ts                German/English string dictionary, LANG/setLang/t(), LangContext, translateApiError()
   src/styles.css            design tokens + all styles (CSS classes, no CSS-in-JS)
   src/components/Chart.tsx  Chart (hover crosshair/tooltip) and Spark (sparklines)
   src/components/ConditionIcon.tsx  small hand-drawn forecast-condition icons, keyed by conditionCode
@@ -191,11 +192,22 @@ Never convert units anywhere else. Exception: alert messages are formatted serve
 
 `process.env.TZ` is set at startup from `station.timezone`, otherwise from HA's `get_config.time_zone`, so plain `Date` methods in the server use station time. The frontend formats every date and time with the station time zone from `/api/config` (`setTimeZone`, `parts()` in `lib.ts`).
 
+### Language (`web/src/i18n.ts`)
+
+- German and English, chosen per visitor and persisted to `localStorage` key `wetterstation.lang` (default `de`). Covers the entire frontend, including the admin screens.
+- `LANG` is a module-level mutable variable (`setLang()`), read synchronously by `t(key, vars?)` and by `lib.ts`'s locale-aware formatting functions (`fmt`, `hhmm`, `dateShort`, `dateFmt`, `parts`, `longDate`, `compass`, `uvLabel`, `trendText`, `fmtStat`) — the same pattern already used for time zone (`TZ`/`setTimeZone`). No component needs to subscribe to a context just to call `t()`: `App.tsx`'s `Loaded()` calls `setLang()` once per render before any child renders (same spot as `setTimeZone(cfg.timezone)`), and since nothing downstream is `React.memo`-wrapped, a language change re-renders the whole subtree.
+- `LangContext`/`useLang()` exist only so the visible switcher (in `Settings.tsx` for visitors, in `Admin.tsx`'s header for the admin) can call `setLang` without prop-drilling. `LangContext.Provider` wraps *both* branches of `Loaded()` — the admin branch and the visitor branch — unlike `UnitsContext`, which is scoped to the visitor branch only (units are irrelevant to admin screens).
+- Three kinds of string, three different treatments:
+  - **Static UI chrome** (labels, buttons, headings): a flat dictionary in `i18n.ts`, looked up via `t('namespaced.key', vars?)`. `METRIC_META`'s per-metric labels and `UNIT_OPTIONS`'s group labels are dictionary keys too (`metricLabel()`, and `UNIT_OPTIONS()` is a function, not a static array, since both must re-evaluate per render rather than freeze whatever `LANG` was at module load).
+  - **Small enum-like labels emitted by the server** on a shared, cached response (`service.js`'s stat-row `k` slugs, forecast `conditionCode`, `astro.js`'s moon-phase slug): the server sends a stable English slug, never localized text, and the frontend translates it (`statLabel()`, `cond.*`, `moon.*` keys) — safe because a slug carries no language, so the cache stays valid for every visitor regardless of their choice. `service.js`'s `devices()` similarly sends a raw `{value, unit}` reading instead of a pre-formatted string, formatted client-side via `fmtDeviceReading()`/`fmtSignal()`, for the same reason.
+  - **Free text** (alert rule label/description/message/banner, whether `DEFAULT_ALERTS` or admin/config-authored): never translated — see "Alerts" below and the Known-gaps note.
+- Admin API error messages (`admin.js`'s `{error}` strings) are a small, stable, already-English set — `translateApiError()` in `i18n.ts` pattern-matches them to a translated string rather than the backend emitting error codes, since that set essentially never changes.
+
 ### Forecast (`dwd.js`)
 
 - `WeatherService.forecast()` tries `DwdForecast.days()` first (when `forecast.dwd_station_id` is configured); if that returns nothing it falls back to the original HA `weather.*`-entity logic (`src.forecast`, populated via `weather/subscribe_forecast` in `ha.js`) unchanged.
 - `DwdForecast` fetches `MOSMIX_L_LATEST_<station_id>.kmz` from `opendata.dwd.de` hourly (background `setInterval`, not awaited by `service.js`— same "populate a field, read synchronously" pattern as `ha.js`'s `forecast`/`states`). A KMZ's one entry is read via the zip central-directory record (DWD leaves the local header's size fields at 0) and inflated with Node's built-in `zlib`; the XML is parsed with a couple of targeted regexes (`TimeStep`, `TTT`, `ww`, `R101`), not a general XML library — no new dependency.
-- `ww` (DWD's significant-weather code) maps to the same condition vocabulary HA emits (`sunny`, `rainy`, `lightning-rainy`, …), so `FORECAST_DE` and the frontend are untouched by the DWD path. A day's representative condition is its hourly rows' most severe `ww`; same-severity ties prefer a daytime hour (so a calm clear day reads "Sonnig", not "Klar").
+- `ww` (DWD's significant-weather code) maps to the same condition vocabulary HA emits (`sunny`, `rainy`, `lightning-rainy`, …) via `conditionCode`; the frontend translates that slug itself (`i18n.ts`'s `cond.*` keys) rather than the server sending localized condition text. A day's representative condition is its hourly rows' most severe `ww`; same-severity ties prefer a daytime hour (so a calm clear day reads as sunny, not merely clear).
 - Bias correction: the offset between the live reading and DWD's own value for "now" is applied to the next `forecast.bias_hours` (default 6) of hourly temps, fading to 0 — only the near-term trajectory is nudged; day 2+ stays unmodified MOSMIX. `pop`/condition are never bias-corrected.
 - On fetch/parse failure, a warning is logged and the last good result keeps being served (nothing overwrites `DwdForecast.hourly` on failure).
 
@@ -233,6 +245,7 @@ Dashboard sparklines: temp, humidity and pressure in 15-minute buckets, rain in 
 - Evaluation is debounced 2 s after updates, and also runs every 30 s.
 - The log is persisted to `DATA_DIR/alerts.json` (max 200 entries). If the file isn't writable it logs a warning and keeps the log in memory.
 - If `alerts:` is omitted, `DEFAULT_ALERTS` applies: lightning < 15 km within 30 min, frost, gust > 60 km/h, rain rate > 10 mm/h, UV ≥ 6. `alerts: []` disables all alerts.
+- Rule content (`label`/`description`/`message`/`banner`) is never translated by the language switcher, default or admin/config-authored alike — it's free text, shown exactly as written. The `{sensor_key|time}` filter also always formats in `de-DE` (`alerts.js`), since a composed, persisted log entry has no per-visitor language to re-render in later.
 
 ### Admin (`admin.js`)
 
@@ -271,8 +284,8 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 - **Routing** uses the URL hash: `#/`, `#/verlauf?m=<metric>&r=<day|week|month|year>`, `#/details/<metric>`, `#/warnungen`, `#/einstellungen`, `#/admin/login`, `#/admin/password`, `#/admin`. `?kiosk=1` (query string, not hash) shows only the overview; clicking the header toggles fullscreen. The three admin routes render without the normal header/nav/footer chrome (`AdminGate` in `App.tsx`) and redirect between themselves based on session state obtained once on a cold admin visit, then updated directly from each login/logout/password-change response (never re-fetched right after, which used to race) — a UX convenience only, the real enforcement is server-side. An "Admin" link lives in the header nav, next to the other tabs. If `cfg.needsSetup` is true, landing on the bare dashboard (`#/` or no hash) redirects once to `#/admin/login` instead, so a freshly started container with nothing configured opens on setup rather than an empty demo dashboard; logging out always goes to the dashboard (`#/`), not back to the login screen.
 - **Data:** `useApi(url, intervalMs)` polls and also refetches when the tab becomes visible.
 - **Formatting:**
-  - Always use `fmt()`: de-DE format, grouping only from 5 digits (`useGrouping: 'min2'`), and a real minus sign (U+2212).
-  - Dates use `parts()` / `longDate()` / `clock()` / `hhmm()` with German short names without dots (`Mi`, `Sep`).
+  - Always use `fmt()`: locale-aware (de-DE comma decimal / grouping only from 5 digits, or en-US period decimal / normal grouping, per the current language), and a real minus sign (U+2212) in both.
+  - Dates use `parts()` / `longDate()` / `clock()` / `hhmm()`, which switch between German and English short names without dots (`Mi`/`Wed`, `Sep`) and date-part ordering based on the current language. Clock stays 24-hour in both languages.
 - **Live indicator:** grey and "Veraltet" if `now − current.updated > ui.stale_after_seconds`. `updated` is the max `lu` of the configured sensors, which only changes when a value changes, so on calm nights use 300 s or more.
 - **Design tokens** (in `styles.css`):
   - Background `oklch(0.16 0.008 250)`, card `oklch(0.2 0.008 250)`, border `oklch(0.27 0.01 250)`
@@ -310,7 +323,7 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 
 ## Known gaps / ideas backlog
 
-- UI is German only. i18n would need string extraction from `screens/` and `lib.ts`.
+- Alert rule content (label/description/message/banner) is never translated — it's free text written by whoever configured the rule (default or admin/config-authored), shown exactly as written regardless of the visitor's chosen language. Same for the `'de-DE'`-formatted number embedded inside an already-composed, persisted alert log entry (`alerts.js`) — there is no per-visitor language for a shared, immutable log entry to be re-rendered in.
 - Detail "Heute" min/max comes from cached raw history (≤ 60 s old) and doesn't merge the live value.
 - Alert messages use canonical units, not the visitor's units.
 - Lightning distance is always shown in km (no miles option).

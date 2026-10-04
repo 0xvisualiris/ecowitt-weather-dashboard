@@ -23,13 +23,15 @@ A single Docker container serves the web interface plus a small, read-only API. 
 
 Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic wind, piezo rain, solar/UV), an **Ecowitt WH57** (lightning) and an Ecowitt gateway (pressure) via the Home Assistant Ecowitt integration. Other sensors work as well, as long as they are in Home Assistant.
 
-**Screens** (the interface is in German):
+**Screens** (German and English, switchable per visitor in Einstellungen/Settings):
 
-- **Übersicht (overview):** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
-- **Verlauf (history):** charts for day / week / month / year, plus all-time records and CSV export
+- **Übersicht/Overview:** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
+- **Verlauf/History:** charts for day / week / month / year, plus all-time records and CSV export
 - **Details:** one measurement in depth, with today's values, records and sensor/battery info
-- **Warnungen (alerts):** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
-- **Einstellungen (settings):** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in)
+- **Warnungen/Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
+- **Einstellungen/Settings:** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in) and interface language
+
+Alert rules themselves (their label, description and message text, whether default or configured by you) are shown exactly as written, in whichever language you wrote them — they aren't machine-translated.
 
 Units from Home Assistant are converted automatically, so it doesn't matter whether your HA runs metric or imperial.
 
@@ -216,7 +218,7 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 
 ## Contributing & ideas
 
-Since this is a hobby project, any help is appreciated: bug reports, feature ideas, translations (the interface is currently German only), support for other weather stations, or code improvements.
+Since this is a hobby project, any help is appreciated: bug reports, feature ideas, support for other weather stations, or code improvements.
 
 - **Found a bug or have an idea?** Open an [issue](../../issues).
 - **Want to change something yourself?** Pull requests are welcome.

@@ -159,7 +159,12 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
 // a UX convenience only – every /api/admin/* endpoint enforces the same
 // rules server-side regardless of what the UI shows.
 function AdminGate({ screen }: { screen: 'adminLogin' | 'adminPassword' | 'admin' }) {
-  const { data: session, error } = useApi<AdminSession>('/api/admin/session');
+  // useApi only refetches when the URL string changes, not on every render –
+  // folding `screen` into it forces a fresh session check on every
+  // navigation between admin screens (login, logout and the forced password
+  // change all work by changing `screen`), instead of reusing whatever
+  // session state happened to be fetched when this page first loaded.
+  const { data: session, error } = useApi<AdminSession>(`/api/admin/session?for=${screen}`);
   useEffect(() => {
     if (!session) return;
     if (!session.loggedIn && screen !== 'adminLogin') go({ screen: 'adminLogin' });

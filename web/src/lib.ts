@@ -7,7 +7,7 @@ export type Range = 'day' | 'week' | 'month' | 'year';
 export interface Device { id: string; name: string; short: string; role: string; metrics: string[]; battery?: string | null; signal?: string | null }
 export interface AppConfig {
   station: { name: string; subtitle: string; altitude_m: number | null; since: string | null; devices: Device[] };
-  timezone: string; demo: boolean; metrics: MetricKey[]; sensors: string[]; hasForecast: boolean;
+  timezone: string; demo: boolean; needsSetup: boolean; metrics: MetricKey[]; sensors: string[]; hasForecast: boolean;
   alertRules: { id: string; label: string; description: string; level: string }[];
   ui: { stale_after_seconds: number; refresh_seconds: number; default_units: Units };
 }
@@ -19,7 +19,7 @@ export interface Current {
   rain: { rate: number | null; day: number | null; event: number | null; week: number | null; month: number | null; year: number | null };
   pressureTrend: number | null;
   spark: Partial<Record<'temp' | 'hum' | 'press' | 'rain' | 'light', (number | null)[]>>;
-  forecast: { source: string; days: { date: number; condition: string; pop: number | null; lo: number | null; hi: number | null }[] } | null;
+  forecast: { source: string; days: { date: number; condition: string; conditionCode: string | null; pop: number | null; lo: number | null; hi: number | null }[] } | null;
   astro: { sunrise: number | null; sunset: number | null; dayLengthMin: number | null; sunFraction: number | null; moon: { phase: number; illumination: number; name: string } } | null;
   devices: Device[];
   alerts: ActiveAlert[];
@@ -62,6 +62,42 @@ export function useApi<T>(url: string | null, intervalMs = 0) {
     return () => { alive = false; clearInterval(id); document.removeEventListener('visibilitychange', vis); };
   }, [url, intervalMs]);
   return { data, error, loadedAt };
+}
+
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const r = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j as T;
+}
+
+// ---------------- admin ----------------
+export interface AdminSession { loggedIn: boolean; mustChangePassword: boolean }
+export interface AlertCondition {
+  sensor?: string; entity?: string;
+  above?: number; below?: number; at_least?: number; at_most?: number; equals?: number;
+  recent?: { sensor?: string; entity?: string; minutes?: number };
+}
+export interface AlertRule {
+  id: string; label: string; description: string; level: 'warning' | 'info'; banner?: string; message: string;
+  all?: AlertCondition[]; any?: AlertCondition[];
+}
+export interface AdminSettings {
+  locked: {
+    haUrl: boolean; haUrlEnv: boolean; haToken: boolean; haTokenEnv: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
+    alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationDevices: boolean;
+  };
+  homeassistant: { url: string; tokenSet: boolean };
+  sensors: Record<string, string>;
+  forecast: { entity: string; dwdStationId: string; biasHours: number; label: string };
+  alerts: AlertRule[];
+  defaultAlerts: AlertRule[];
+  station: { name: string; subtitle: string; altitude_m: number | null; since: string; devices: Device[] };
 }
 
 // ---------------- units ----------------

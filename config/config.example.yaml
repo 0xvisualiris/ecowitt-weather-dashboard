@@ -8,6 +8,10 @@
 
 # ---------------------------------------------------------------------
 # Station – wird öffentlich angezeigt (Kopfzeile, Einstellungen, Fußzeile)
+#
+# Name, Unterzeile, Höhe, Inbetriebnahmedatum und die Geräteliste können
+# alternativ auch über die Admin-Seite gesetzt werden, wenn sie hier
+# weggelassen werden (devices: als Ganzes – nicht Gerät für Gerät).
 # ---------------------------------------------------------------------
 station:
   name: Wetterstation Garten
@@ -48,6 +52,12 @@ station:
 
 # ---------------------------------------------------------------------
 # Home Assistant – bleibt auf dem Server, nie im Browser
+#
+# Alternative zu dieser Datei: URL, Token, Sensor-Entitäten und die
+# DWD-Stations-ID können auch über die Admin-Seite (/#/admin/login,
+# Standard admin/admin, Passwortänderung beim ersten Login Pflicht) gesetzt
+# werden. Was hier in config.yaml steht, hat immer Vorrang – die Admin-Seite
+# kann nur Felder setzen, die hier leer/weggelassen sind.
 # ---------------------------------------------------------------------
 homeassistant:
   url: ${HA_URL:-http://homeassistant.local:8123}
@@ -56,7 +66,8 @@ homeassistant:
 # ---------------------------------------------------------------------
 # Sensoren – Entity-IDs aus Home Assistant
 # (Entwicklerwerkzeuge → Zustände). Nicht vorhandene Sensoren einfach
-# weglassen oder auskommentieren – die zugehörigen Karten verschwinden dann.
+# weglassen oder auskommentieren – die zugehörigen Karten verschwinden dann,
+# oder stattdessen über die Admin-Seite setzen (siehe oben).
 # Einheiten werden automatisch umgerechnet (°F, mph, inHg, in … sind ok).
 # ---------------------------------------------------------------------
 sensors:
@@ -86,11 +97,19 @@ sensors:
   lightning_count: sensor.wh57_lightning_strikes # Tageszähler Einschläge
 
 # ---------------------------------------------------------------------
-# Vorhersage (weather-Entität, täglich)
+# Vorhersage (täglich)
+#
+# Primär: DWD MOSMIX (ICON-Modell + statistische Aufbereitung) für eine
+# DWD-Station, die du hier festlegst. Die nächsten ~6 Stunden werden mit dem
+# aktuellen Live-Messwert abgeglichen (bias_hours), die weiteren Tage bleiben
+# unverändertes MOSMIX. "entity" bleibt als Rückfallebene erhalten, falls
+# dwd_station_id nicht gesetzt ist oder DWD gerade nicht erreichbar ist.
 # ---------------------------------------------------------------------
 forecast:
-  entity: weather.forecast_home
-  # label: Open-Meteo      # Quellenangabe in der Karte; sonst aus "attribution"
+  dwd_station_id: "10384"   # DWD-Stations-ID. Liste: https://opendata.dwd.de/weather/local_forecasts/poi/poi.txt
+  # bias_hours: 6            # wie viele Stunden der Live-Messwert die Vorhersage korrigiert
+  entity: weather.forecast_home   # Rückfallebene, falls dwd_station_id leer/nicht erreichbar ist
+  # label: DWD MOSMIX        # Quellenangabe in der Karte; sonst aus "attribution" bzw. Standardtext
   days: 5
 
 # ---------------------------------------------------------------------
@@ -103,6 +122,8 @@ forecast:
 # message: Platzhalter {sensor_schlüssel}, {…|time}, {…|compass}
 # level: warning (bernsteinfarben) oder info (blau)
 # Den ganzen Block weglassen = Standardregeln; "alerts: []" = keine Warnungen.
+# Weglassen erlaubt außerdem, die Regeln stattdessen über die Admin-Seite zu
+# verwalten – wird "alerts:" hier gesetzt (auch leer), hat das immer Vorrang.
 # ---------------------------------------------------------------------
 alert_settings:
   clear_after_minutes: 10   # so lange muss eine Regel "aus" sein, bevor die Warnung endet

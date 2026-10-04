@@ -13,7 +13,7 @@ export const SENSOR_KEYS = [
   'lightning_distance', 'lightning_time', 'lightning_count',
 ];
 
-const DEFAULT_ALERTS = [
+export const DEFAULT_ALERTS = [
   {
     id: 'lightning', label: 'Blitz in der Nähe', description: 'Einschlag näher als 15 km',
     level: 'warning', banner: 'Gewitter in der Nähe',
@@ -45,6 +45,21 @@ const DEFAULT_ALERTS = [
     message: 'UV-Index {uv_index} · Sonnenschutz empfohlen',
   },
 ];
+
+// Shared validation/defaulting for an alert-rule array, used both for the
+// config.yaml path (loadConfig, below) and the admin-UI path (admin.js's
+// saveSettings) so a rule entered through either route is held to the same
+// standard before it can ever reach disk or a running AlertEngine.
+export function normalizeAlerts(raw) {
+  return raw.map((a, i) => {
+    if (!a.id) a.id = `alert${i}`;
+    if (!a.all && !a.any) throw new Error(`alert "${a.id}" needs "all:" or "any:" conditions`);
+    for (const c of [...(a.all || []), ...(a.any || [])]) {
+      if (!c.sensor && !c.entity) throw new Error(`alert "${a.id}": each condition needs "sensor:" (key) or "entity:" (HA entity id)`);
+    }
+    return { level: 'warning', label: a.id, description: '', ...a };
+  });
+}
 
 function substituteEnv(value) {
   if (typeof value === 'string') {
@@ -116,6 +131,8 @@ export function loadConfig() {
     sensors: {},
     forecast: {
       entity: raw.forecast?.entity || null,
+      dwdStationId: raw.forecast?.dwd_station_id ? String(raw.forecast.dwd_station_id).trim() : null,
+      biasHours: Number(raw.forecast?.bias_hours ?? 6),
       label: raw.forecast?.label || null,
       days: Number(raw.forecast?.days ?? 5),
     },
@@ -141,19 +158,33 @@ export function loadConfig() {
     if (!SENSOR_KEYS.includes(key)) console.warn(`[config] unknown sensor key "${key}" ignored (allowed: ${SENSOR_KEYS.join(', ')})`);
   }
 
-  // Validate alerts
-  cfg.alerts = cfg.alerts.map((a, i) => {
-    if (!a.id) a.id = `alert${i}`;
-    if (!a.all && !a.any) throw new Error(`[config] alert "${a.id}" needs "all:" or "any:" conditions`);
-    for (const c of [...(a.all || []), ...(a.any || [])]) {
-      if (!c.sensor && !c.entity) throw new Error(`[config] alert "${a.id}": each condition needs "sensor:" (key) or "entity:" (HA entity id)`);
-    }
-    return { level: 'warning', label: a.id, description: '', ...a };
-  });
+  cfg.alerts = normalizeAlerts(cfg.alerts);
 
-  if (!cfg.server.demo) {
-    if (!cfg.homeassistant.url) throw new Error('[config] homeassistant.url (or HA_URL env) is required unless server.demo is true');
-    if (!cfg.homeassistant.token) throw new Error('[config] homeassistant.token (or HA_TOKEN env) is required unless server.demo is true');
-  }
+  // Which fields config.yaml explicitly set, for index.js to compute its
+  // `locked` map from – config.js already applies its own defaults above
+  // (DEFAULT_ALERTS, 'Wetterstation', …) before index.js ever sees `cfg`, so
+  // a plain truthiness check on cfg.station.name/cfg.alerts can't tell
+  // "config.yaml set this" apart from "config.js's own default kicked in"
+  // the way it can for e.g. homeassistant.url (null until something sets it).
+  cfg._locked = {
+    alerts: raw.alerts !== undefined,
+    stationName: !!station.name,
+    stationSubtitle: !!station.subtitle,
+    stationAltitude: station.altitude_m != null,
+    stationSince: !!station.since,
+    // homeassistant.url/token are the only two fields that can also be
+    // locked by an environment variable (not just config.yaml) – HA_URL/
+    // HA_TOKEN always win the `||` in cfg.homeassistant above when set, so
+    // this alone tells the admin UI the real reason a field is locked,
+    // rather than always blaming "config.yaml" even when that's not it.
+    haUrlEnv: !!process.env.HA_URL,
+    haTokenEnv: !!process.env.HA_TOKEN,
+  };
+
+  // homeassistant.url/token are no longer required here even when not in demo
+  // mode: they may still arrive from the admin-settings store, merged in by
+  // index.js after loadConfig() returns. index.js falls back to demo mode if
+  // they're still missing once that merge happens, rather than this function
+  // crashing the process before the admin login page could ever be reached.
   return cfg;
 }

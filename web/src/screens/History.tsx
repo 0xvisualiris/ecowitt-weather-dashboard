@@ -5,6 +5,39 @@ import {
   METRIC_META, dateFmt, extent, parts, fmt, fmtStat, metricConv, useApi, useUnits, hhmm, dateShort,
 } from '../lib';
 
+// CSV for the metric/range currently on screen – semicolon-delimited, German
+// comma-decimal numbers (reusing fmt()), so it opens correctly in a
+// German-locale Excel/LibreOffice, matching the rest of the UI's formatting.
+// Values are exported in the visitor's currently selected unit, so the file
+// always matches what's on screen. A UTF-8 BOM keeps umlauts intact.
+function buildCsv(data: History, metric: MetricKey, u: Units): string {
+  const c = metricConv(metric, u);
+  const fmtVal = (v: number | null | undefined) => (v == null ? '' : metric === 'light' ? fmt(v, 0) : fmt(c.f(v), c.d));
+  const hasRange = data.points.some(p => p.lo != null && p.hi != null);
+  const valueHeader = metric === 'light' ? 'Einschläge' : `${METRIC_META[metric].label}${c.unit ? ` (${c.unit})` : ''}`;
+  const header = ['Zeit', valueHeader, ...(hasRange ? ['Min', 'Max'] : [])];
+  const rows = data.points.map(p => {
+    const t = parts(p.t);
+    const cells = [`${t.d}.${t.m}.${t.y} ${t.H}:${t.M}`, fmtVal(p.v)];
+    if (hasRange) cells.push(fmtVal(p.lo), fmtVal(p.hi));
+    return cells;
+  });
+  const csvLine = (cells: string[]) => cells.map(v => `"${v.replace(/"/g, '""')}"`).join(';');
+  return '﻿' + [csvLine(header), ...rows.map(csvLine)].join('\r\n');
+}
+
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export const RANGES: [Range, string][] = [['day', 'Tag'], ['week', 'Woche'], ['month', 'Monat'], ['year', 'Jahr']];
 
 export function axisLabels(range: Range, times: number[]) {
@@ -71,6 +104,11 @@ export function HistoryScreen({ cfg, cur, metric, range }: { cfg: AppConfig; cur
   const since = rec?.since ? dateFmt(Date.parse(rec.since), { month: '2-digit', year: 'numeric' }) : null;
   const rows = cfg.metrics.map(m => ({ m, r: rec?.records[m] })).filter(x => x.r && (x.r.max != null || x.r.min != null));
 
+  const exportCsv = () => {
+    if (!data) return;
+    downloadCsv(`wetterstation-${metric}-${range}-${dateShort(Date.now()).replace(/\./g, '-')}.csv`, buildCsv(data, metric, u));
+  };
+
   return (
     <div className="stack">
       <div className="hist-top">
@@ -79,10 +117,13 @@ export function HistoryScreen({ cfg, cur, metric, range }: { cfg: AppConfig; cur
             <button key={m} role="tab" aria-selected={m === metric} className={'chip' + (m === metric ? ' on' : '')} onClick={() => go({ screen: 'hist', metric: m, range })}>{METRIC_META[m].label}</button>
           ))}
         </div>
-        <div className="segs" role="tablist" aria-label="Zeitraum">
-          {RANGES.map(([k, l]) => (
-            <button key={k} role="tab" aria-selected={k === range} className={'seg sm' + (k === range ? ' on' : '')} onClick={() => go({ screen: 'hist', metric, range: k })}>{l}</button>
-          ))}
+        <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
+          <div className="segs" role="tablist" aria-label="Zeitraum">
+            {RANGES.map(([k, l]) => (
+              <button key={k} role="tab" aria-selected={k === range} className={'seg sm' + (k === range ? ' on' : '')} onClick={() => go({ screen: 'hist', metric, range: k })}>{l}</button>
+            ))}
+          </div>
+          <button type="button" className="btn-ghost" disabled={!data} onClick={exportCsv}>CSV exportieren</button>
         </div>
       </div>
 

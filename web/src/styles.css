@@ -95,7 +95,8 @@ button { font-family: inherit; }
 .banner.info button { background: oklch(0.2 0.03 230); color: oklch(0.9 0.08 230); }
 
 /* forecast */
-.fc-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px 36px minmax(60px, 1.2fr) 36px; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.fc-row { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) 44px 36px minmax(60px, 1.2fr) 36px; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.fc-icon { display: flex; align-items: center; }
 .fc-row .cond { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fc-row .pop { font-family: var(--mono); font-size: 12px; color: var(--blue); }
 .fc-row .lo { text-align: right; color: var(--muted); }
@@ -163,3 +164,20 @@ button { font-family: inherit; }
 .footer { margin-top: auto; padding-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--faint); }
 .center-msg { padding: 60px 0; text-align: center; color: var(--muted); }
 .kiosk-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+
+/* admin: forms + the login/password-change page shell */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.label { font-size: 13px; font-weight: 500; color: var(--text-2); }
+.label .faint { font-weight: 400; }
+.input { font: inherit; font-size: 14px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; width: 100%; }
+.input:hover { border-color: var(--border-hover); }
+.input:disabled { color: var(--faint); cursor: not-allowed; }
+.input::placeholder { color: var(--faint); }
+.btn-primary { cursor: pointer; padding: 10px 16px; border-radius: 9px; border: 1px solid var(--text); background: var(--text); color: var(--bg); font-size: 14px; font-weight: 500; }
+.btn-primary:hover { background: var(--text-2); border-color: var(--text-2); }
+.btn-primary:disabled { cursor: not-allowed; background: var(--border); border-color: var(--border); color: var(--faint); }
+.form-error { font-size: 13px; color: var(--amber); }
+.form-note { font-size: 13px; color: var(--green); }
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-card { width: 100%; max-width: 360px; }
+.admin-page { max-width: 760px; margin: 0 auto; padding: clamp(14px, 3vw, 32px); display: flex; flex-direction: column; gap: 20px; }

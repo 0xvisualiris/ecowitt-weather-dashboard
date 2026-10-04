@@ -216,7 +216,7 @@ export class AdminStore {
   // locked field shows the config.yaml value actually in effect, not a stale
   // admin-store value from before it was locked) – the token is the one
   // exception, never echoed back, only whether one is set.
-  getPublicSettings(locked, cfg) {
+  getPublicSettings(locked, cfg, timezone) {
     return {
       locked,
       homeassistant: { url: cfg.homeassistant.url, tokenSet: !!cfg.homeassistant.token },
@@ -233,6 +233,8 @@ export class AdminStore {
         name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m,
         since: cfg.station.since || '', devices: cfg.station.devices,
       },
+      timezone,
+      demo: cfg.server.demo,
     };
   }
 

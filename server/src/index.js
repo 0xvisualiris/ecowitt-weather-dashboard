@@ -211,7 +211,8 @@ async function handleAdmin(req, res, url) {
 
     if (url.pathname === '/api/admin/settings' && req.method === 'GET') {
       requireSession(req, true);
-      return send(req, res, 200, admin.getPublicSettings(locked, cfg), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+      const timezone = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+      return send(req, res, 200, admin.getPublicSettings(locked, cfg, timezone), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
     }
 
     if (url.pathname === '/api/admin/settings' && req.method === 'POST') {

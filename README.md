@@ -15,6 +15,8 @@
 
 ---
 
+![Screenshot of the overview screen, showing current conditions, a 5-day forecast and sensor cards](docs/screenshot.png)
+
 ## What it does
 
 A single Docker container serves the web interface plus a small, read-only API. Your Home Assistant URL and access token stay on the server; visitors' browsers only ever see finished measurements, never the token, your coordinates or your entity IDs.
@@ -24,7 +26,7 @@ Built and tested with an **Ecowitt WS90** (temperature, humidity, ultrasonic win
 **Screens** (the interface is in German):
 
 - **Übersicht (overview):** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
-- **Verlauf (history):** charts for day / week / month / year, plus all-time records
+- **Verlauf (history):** charts for day / week / month / year, plus all-time records and CSV export
 - **Details:** one measurement in depth, with today's values, records and sensor/battery info
 - **Warnungen (alerts):** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
 - **Einstellungen (settings):** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in)
@@ -113,11 +115,11 @@ Everything lives in `config/config.yaml`. The most important sections:
 
 | Section           | What it's for                                                                  |
 |-------------------|--------------------------------------------------------------------------------|
-| `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities |
+| `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities — or set via the admin page |
 | `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment) — or set via the admin page |
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
-| `alerts`          | Alert rules with thresholds and messages                                       |
+| `alerts`          | Alert rules with thresholds and messages — or set via the admin page           |
 | `ui`              | Refresh interval, "stale" timeout, default units for new visitors              |
 
 ### Forecast
@@ -141,8 +143,13 @@ you're required to change the password before doing anything else. Saving
 settings there restarts the container (same as editing `config.yaml` would)
 to apply them.
 
-Anything already set in `config.yaml` always wins and shows as locked on the
-admin page — the two are alternatives per field, not a UI on top of the file.
+Anything already set in `config.yaml` (or an `HA_URL`/`HA_TOKEN` environment
+variable) always wins and shows as locked on the admin page — the two are
+alternatives per field, not a UI on top of the file. A freshly started
+container with nothing configured anywhere opens directly on this login page
+instead of an empty demo dashboard, so first-time setup is the first thing
+you see.
+
 If the dashboard is reachable beyond your own LAN, put it behind HTTPS (see
 "Making it public" below) before relying on the admin login: the session
 cookie is `HttpOnly`/`SameSite=Strict` but not marked `Secure`, since many
@@ -195,7 +202,7 @@ The API is strictly read-only. It never returns your token, coordinates or entit
 
 ## API
 
-All endpoints are `GET`. Values are returned in °C, km/h, hPa, mm and km.
+All public endpoints are `GET` and read-only. Values are returned in °C, km/h, hPa, mm and km. (The separate, authenticated `/api/admin/*` surface behind the admin page is the one exception — see "Admin page" above.)
 
 | Endpoint                               | Content                                                                        |
 |----------------------------------------|--------------------------------------------------------------------------------|
@@ -224,6 +231,9 @@ cd server && npm install && DEMO=1 npm run dev
 
 # Frontend with hot reload, forwards /api to :47813
 cd web && npm install && npm run dev
+
+# Backend test suite
+cd server && npm test
 ```
 
 **Project structure:**

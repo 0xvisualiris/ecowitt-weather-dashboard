@@ -70,6 +70,16 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
     return () => window.removeEventListener('hashchange', on);
   }, [cfg.metrics]);
 
+  // First-ever boot (nothing configured in config.yaml or the admin page):
+  // land directly on the admin login instead of an empty demo dashboard.
+  // Checked once against the route the page was loaded with, not on every
+  // change, so navigating back to the dashboard from the admin page later
+  // doesn't bounce right back here.
+  useEffect(() => {
+    if (cfg.needsSetup && !kiosk && route.screen === 'dash') go({ screen: 'adminLogin' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Admin routes get their own chrome-less pages, but the early return happens
   // below (after every hook has run) to keep hook order stable across
   // navigations between admin and visitor screens – only the /api/current
@@ -129,6 +139,7 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
               {nav.map(([k, label]) => (
                 <button key={k} className={'seg' + (screen === k ? ' on' : '')} aria-current={screen === k ? 'page' : undefined} onClick={() => navTo(k)}>{label}</button>
               ))}
+              <a href="#/admin/login" className="seg">Admin</a>
             </nav>
           )}
         </header>
@@ -147,7 +158,6 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
               if (d.signal) parts.push(`Signal ${/^[0-4]$/.test(d.signal) ? d.signal + '/4' : d.signal}`);
               return <span key={d.id}>{parts.join(' · ')}</span>;
             })}
-            <a href="#/admin/login" className="faint">Admin</a>
           </footer>
         )}
       </div>

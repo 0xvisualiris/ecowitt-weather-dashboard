@@ -63,7 +63,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   const logout = async () => {
     await postJson('/api/admin/logout', {});
     onSession({ loggedIn: false, mustChangePassword: false });
-    go({ screen: 'adminLogin' });
+    go({ screen: 'dash' });
   };
 
   if (restarting) {

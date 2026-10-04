@@ -37,13 +37,21 @@ const locked = {
   if (!cfg.forecast.dwdStationId) cfg.forecast.dwdStationId = s.forecast.dwdStationId || null;
 }
 
-// Nothing configured anywhere yet (no config.yaml HA section, nothing saved
-// via the admin page either) – start in demo mode instead of crashing, so
-// the admin login page is still reachable to set it up. Saving real settings
-// there restarts the server, which then picks the HomeAssistantSource path.
-if (!cfg.server.demo && !(cfg.homeassistant.url && cfg.homeassistant.token)) {
+// No HA credentials anywhere (neither config.yaml nor the admin page) –
+// force demo mode instead of crashing, so the admin login page is still
+// reachable to set it up. This also covers config.yaml being entirely
+// absent, which config.js already defaults to demo mode for on its own.
+// `needsSetup` (exposed via /api/config) is true exactly when demo mode is
+// active *because* nothing is configured – not when `server.demo: true` was
+// deliberately set in config.yaml alongside real HA credentials being beside
+// the point – so the frontend can land first-time visitors on the admin page
+// without ever bothering a deployment that's fully configured via
+// config.yaml and simply doesn't use the admin page at all.
+const haConfigured = !!(cfg.homeassistant.url && cfg.homeassistant.token);
+if (!haConfigured) cfg.server.demo = true;
+const needsSetup = cfg.server.demo && !haConfigured;
+if (needsSetup) {
   console.warn('[server] Home Assistant is not configured yet (config.yaml or the admin page) – starting in DEMO MODE until set up at /#/admin/login');
-  cfg.server.demo = true;
 }
 
 let source;
@@ -223,6 +231,7 @@ function publicConfig() {
     },
     timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone,
     demo: cfg.server.demo,
+    needsSetup,
     metrics,
     sensors: Object.keys(cfg.sensors),
     hasForecast: !!(cfg.forecast.entity || cfg.forecast.dwdStationId || cfg.server.demo),

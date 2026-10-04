@@ -1,28 +1,30 @@
-import { useEffect, useState } from 'react';
-import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type MetricKey, METRIC_META, postJson, useApi } from '../lib';
+import { useContext, useEffect, useState } from 'react';
+import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
 import { go } from '../App';
+import { LangContext, t, translateApiError, type Lang } from '../i18n';
 
-const SENSOR_FIELDS: [string, string][] = [
-  ['temperature', 'Temperatur'], ['feels_like', 'Gefühlte Temperatur'], ['dew_point', 'Taupunkt'], ['humidity', 'Luftfeuchte'],
-  ['wind_speed', 'Windgeschwindigkeit'], ['wind_gust', 'Windböe'], ['wind_direction', 'Windrichtung'],
-  ['rain_rate', 'Regenrate'], ['rain_event', 'Regen (Ereignis)'], ['rain_daily', 'Regen (Tag)'],
-  ['rain_weekly', 'Regen (Woche)'], ['rain_monthly', 'Regen (Monat)'], ['rain_yearly', 'Regen (Jahr)'],
-  ['pressure', 'Luftdruck'], ['solar_radiation', 'Solarstrahlung'], ['uv_index', 'UV-Index'],
-  ['lightning_distance', 'Blitz-Entfernung'], ['lightning_time', 'Letzter Blitz (Zeitstempel)'], ['lightning_count', 'Blitze (Tageszähler)'],
+const SENSOR_FIELDS = (): [string, string][] => [
+  ['temperature', t('admin.sensor.temperature')], ['feels_like', t('admin.sensor.feels_like')], ['dew_point', t('admin.sensor.dew_point')], ['humidity', t('admin.sensor.humidity')],
+  ['wind_speed', t('admin.sensor.wind_speed')], ['wind_gust', t('admin.sensor.wind_gust')], ['wind_direction', t('admin.sensor.wind_direction')],
+  ['rain_rate', t('admin.sensor.rain_rate')], ['rain_event', t('admin.sensor.rain_event')], ['rain_daily', t('admin.sensor.rain_daily')],
+  ['rain_weekly', t('admin.sensor.rain_weekly')], ['rain_monthly', t('admin.sensor.rain_monthly')], ['rain_yearly', t('admin.sensor.rain_yearly')],
+  ['pressure', t('admin.sensor.pressure')], ['solar_radiation', t('admin.sensor.solar_radiation')], ['uv_index', t('admin.sensor.uv_index')],
+  ['lightning_distance', t('admin.sensor.lightning_distance')], ['lightning_time', t('admin.sensor.lightning_time')], ['lightning_count', t('admin.sensor.lightning_count')],
 ];
 
-const METRIC_FIELDS = (Object.keys(METRIC_META) as MetricKey[]).map(k => [k, METRIC_META[k].label] as const);
+const METRIC_FIELDS = (): [MetricKey, string][] => (Object.keys(METRIC_META) as MetricKey[]).map(k => [k, metricLabel(k)]);
 
-const COMPARISONS: [keyof AlertCondition, string][] = [
-  ['above', 'Über'], ['below', 'Unter'], ['at_least', 'Mindestens'], ['at_most', 'Höchstens'], ['equals', 'Gleich'],
+const COMPARISONS = (): [keyof AlertCondition, string][] => [
+  ['above', t('admin.cmpAbove')], ['below', t('admin.cmpBelow')], ['at_least', t('admin.cmpAtLeast')], ['at_most', t('admin.cmpAtMost')], ['equals', t('admin.cmpEquals')],
 ];
 
-const newCondition = (): AlertCondition => ({ sensor: SENSOR_FIELDS[0][0], above: 0 });
+const newCondition = (): AlertCondition => ({ sensor: SENSOR_FIELDS()[0][0], above: 0 });
 const newRule = (): AlertRule => ({ id: '', label: '', description: '', level: 'warning', message: '', all: [newCondition()] });
 const newDevice = (): Device => ({ id: '', name: '', short: '', role: '', battery: null, signal: null, metrics: [] });
 
 export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => void }) {
   const { data, error: loadError } = useApi<AdminSettings>('/api/admin/settings');
+  const { lang, setLang } = useContext(LangContext);
   const [haUrl, setHaUrl] = useState('');
   const [haToken, setHaToken] = useState('');
   const [sensors, setSensors] = useState<Record<string, string>>({});
@@ -56,8 +58,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
     setAlerts(data.alerts);
   }, [data]);
 
-  if (loadError) return <div className="admin-page"><div className="center-msg">Fehler: {loadError}</div></div>;
-  if (!data) return <div className="admin-page"><div className="center-msg">Lade …</div></div>;
+  if (loadError) return <div className="admin-page"><div className="center-msg">{t('admin.loadError', { error: loadError })}</div></div>;
+  if (!data) return <div className="admin-page"><div className="center-msg">{t('app.loading')}</div></div>;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +81,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         } catch { /* still restarting */ }
       }, 1500);
     } catch (e) {
-      setError((e as Error).message);
+      setError(translateApiError((e as Error).message));
       setSaving(false);
     }
   };
@@ -91,54 +93,60 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   };
 
   if (restarting) {
-    return <div className="auth-page"><div className="card lg auth-card center-msg">Gespeichert – der Server startet neu …</div></div>;
+    return <div className="auth-page"><div className="card lg auth-card center-msg">{t('admin.restarting')}</div></div>;
   }
 
   return (
     <div className="admin-page">
       <div className="header">
-        <div className="title">Admin-Einstellungen</div>
+        <div className="title">{t('admin.title')}</div>
         <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
-          <button type="button" className="btn-ghost" onClick={() => go({ screen: 'adminPassword' })}>Passwort ändern</button>
-          <button type="button" className="btn-ghost" onClick={logout}>Abmelden</button>
-          <button type="button" className="btn-ghost" onClick={() => go({ screen: 'dash' })}>Zum Dashboard</button>
+          <div className="segs inset" role="radiogroup" aria-label={t('settings.language')}>
+            {(['de', 'en'] as Lang[]).map(l => (
+              <button key={l} type="button" role="radio" aria-checked={lang === l} className={'seg xs' + (lang === l ? ' on' : '')}
+                onClick={() => setLang(l)}>{l === 'de' ? 'Deutsch' : 'English'}</button>
+            ))}
+          </div>
+          <button type="button" className="btn-ghost" onClick={() => go({ screen: 'adminPassword' })}>{t('adminPassword.title')}</button>
+          <button type="button" className="btn-ghost" onClick={logout}>{t('admin.logout')}</button>
+          <button type="button" className="btn-ghost" onClick={() => go({ screen: 'dash' })}>{t('admin.toDashboard')}</button>
         </div>
       </div>
 
       <form onSubmit={submit} className="stack">
         <section className="card lg stack">
-          <div className="eyebrow"><span>Home Assistant</span></div>
-          <Field label="URL" locked={data.locked.haUrl} lockedReason={data.locked.haUrlEnv ? 'durch Umgebungsvariable HA_URL festgelegt' : undefined}>
+          <div className="eyebrow"><span>{t('admin.ha')}</span></div>
+          <Field label={t('admin.haUrl')} locked={data.locked.haUrl} lockedReason={data.locked.haUrlEnv ? t('admin.lockedEnvUrl') : undefined}>
             <input className="input" value={haUrl} onChange={e => setHaUrl(e.target.value)} disabled={data.locked.haUrl}
               placeholder="http://homeassistant.local:8123" />
           </Field>
-          <Field label={`Long-Lived Access Token${data.homeassistant.tokenSet ? ' (bereits gesetzt)' : ''}`} locked={data.locked.haToken}
-            lockedReason={data.locked.haTokenEnv ? 'durch Umgebungsvariable HA_TOKEN festgelegt' : undefined}>
+          <Field label={`${t('admin.token')}${data.homeassistant.tokenSet ? t('admin.tokenSetSuffix') : ''}`} locked={data.locked.haToken}
+            lockedReason={data.locked.haTokenEnv ? t('admin.lockedEnvToken') : undefined}>
             <input className="input" type="password" value={haToken} onChange={e => setHaToken(e.target.value)} disabled={data.locked.haToken}
-              placeholder={data.homeassistant.tokenSet ? 'Leer lassen = unverändert' : 'Token einfügen'} autoComplete="off" />
+              placeholder={data.homeassistant.tokenSet ? t('admin.tokenPlaceholderUnchanged') : t('admin.tokenPlaceholderEnter')} autoComplete="off" />
           </Field>
         </section>
 
         <section className="card lg stack">
-          <div className="eyebrow"><span>Vorhersage</span></div>
-          <Field label="DWD-Stations-ID" locked={data.locked.dwdStationId}>
-            <input className="input" value={dwdStationId} onChange={e => setDwdStationId(e.target.value)} disabled={data.locked.dwdStationId} placeholder="z. B. 10384" />
+          <div className="eyebrow"><span>{t('admin.forecast')}</span></div>
+          <Field label={t('admin.dwdStationId')} locked={data.locked.dwdStationId}>
+            <input className="input" value={dwdStationId} onChange={e => setDwdStationId(e.target.value)} disabled={data.locked.dwdStationId} placeholder={t('admin.egStationId')} />
           </Field>
-          <Field label="Ausgleichsstunden (Live-Messwert)" locked={data.locked.dwdStationId}>
+          <Field label={t('admin.biasHours')} locked={data.locked.dwdStationId}>
             <input className="input" type="number" min={0} max={24} value={biasHours} disabled={data.locked.dwdStationId}
               onChange={e => setBiasHours(Number(e.target.value))} />
           </Field>
-          <Field label="Home-Assistant-Wetter-Entität (Rückfallebene)" locked={data.locked.forecastEntity}>
+          <Field label={t('admin.forecastEntity')} locked={data.locked.forecastEntity}>
             <input className="input" value={entity} onChange={e => setEntity(e.target.value)} disabled={data.locked.forecastEntity} placeholder="weather.forecast_home" />
           </Field>
-          <Field label="Quellenangabe (optional)" locked={false}>
-            <input className="input" value={label} onChange={e => setLabel(e.target.value)} placeholder="z. B. DWD MOSMIX" />
+          <Field label={t('admin.sourceLabel')} locked={false}>
+            <input className="input" value={label} onChange={e => setLabel(e.target.value)} placeholder={t('admin.egDwd')} />
           </Field>
         </section>
 
         <section className="card lg stack">
-          <div className="eyebrow"><span>Sensoren</span></div>
-          {SENSOR_FIELDS.map(([key, labelText]) => (
+          <div className="eyebrow"><span>{t('admin.sensors')}</span></div>
+          {SENSOR_FIELDS().map(([key, labelText]) => (
             <Field key={key} label={labelText} locked={!!data.locked.sensors[key]}>
               <input className="input" value={sensors[key] || ''} disabled={!!data.locked.sensors[key]}
                 onChange={e => setSensors({ ...sensors, [key]: e.target.value })} placeholder={`sensor.${key}`} />
@@ -147,23 +155,25 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         </section>
 
         <section className="card lg stack">
-          <div className="eyebrow"><span>Station</span></div>
-          <Field label="Name" locked={data.locked.stationName}>
+          <div className="eyebrow"><span>{t('admin.station')}</span></div>
+          <Field label={t('admin.name')} locked={data.locked.stationName}>
             <input className="input" value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
           </Field>
-          <Field label="Unterzeile (optional)" locked={data.locked.stationSubtitle}>
+          <Field label={t('admin.subtitle')} locked={data.locked.stationSubtitle}>
             <input className="input" value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
           </Field>
-          <Field label="Höhe ü. NN in m (optional)" locked={data.locked.stationAltitude}>
+          <Field label={t('admin.altitude')} locked={data.locked.stationAltitude}>
             <input className="input" type="number" value={stationAltitude} disabled={data.locked.stationAltitude}
               onChange={e => setStationAltitude(e.target.value === '' ? '' : Number(e.target.value))} />
           </Field>
-          <Field label="In Betrieb seit (JJJJ-MM-TT, optional)" locked={data.locked.stationSince}>
+          <Field label={t('admin.since')} locked={data.locked.stationSince}>
             <input className="input" value={stationSince} onChange={e => setStationSince(e.target.value)} disabled={data.locked.stationSince} placeholder="2024-04-01" />
           </Field>
+          <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.timezone')}</span><span className="v" style={{ fontWeight: 500 }}>{data.timezone}</span></div>
+          {data.demo && <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.dataSource')}</span><span className="v" style={{ fontWeight: 500 }}>{t('admin.demoMode')}</span></div>}
 
           <div className="field">
-            <label className="label">Geräte{data.locked.stationDevices && <span className="faint"> · in config.yaml festgelegt</span>}</label>
+            <label className="label">{t('admin.devices')}{data.locked.stationDevices && <span className="faint"> · {t('admin.lockedConfig')}</span>}</label>
             <div className="stack">
               {devices.map((d, i) => (
                 <DeviceEditor key={i} device={d} locked={data.locked.stationDevices}
@@ -172,17 +182,17 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
               ))}
             </div>
             {!data.locked.stationDevices && (
-              <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={() => setDevices([...devices, newDevice()])}>Gerät hinzufügen</button>
+              <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={() => setDevices([...devices, newDevice()])}>{t('admin.addDevice')}</button>
             )}
           </div>
         </section>
 
         <section className="card lg stack">
           <div className="eyebrow">
-            <span>Warnungen</span>
-            {!data.locked.alerts && <button type="button" className="btn-ghost" onClick={() => setAlerts(data.defaultAlerts)}>Standardregeln wiederherstellen</button>}
+            <span>{t('admin.alertsHeader')}</span>
+            {!data.locked.alerts && <button type="button" className="btn-ghost" onClick={() => setAlerts(data.defaultAlerts)}>{t('admin.restoreDefaults')}</button>}
           </div>
-          {data.locked.alerts && <div className="note">In config.yaml festgelegt.</div>}
+          {data.locked.alerts && <div className="note">{t('admin.alertsLocked')}</div>}
           <div className="stack">
             {alerts.map((r, i) => (
               <RuleEditor key={i} rule={r} locked={data.locked.alerts}
@@ -191,12 +201,12 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
             ))}
           </div>
           {!data.locked.alerts && (
-            <button type="button" className="btn-ghost" onClick={() => setAlerts([...alerts, newRule()])}>Regel hinzufügen</button>
+            <button type="button" className="btn-ghost" onClick={() => setAlerts([...alerts, newRule()])}>{t('admin.addRule')}</button>
           )}
         </section>
 
         {error && <div className="form-error">{error}</div>}
-        <button className="btn-primary" type="submit" disabled={saving}>Speichern &amp; neu starten</button>
+        <button className="btn-primary" type="submit" disabled={saving}>{t('admin.save')}</button>
       </form>
     </div>
   );
@@ -205,7 +215,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
 function Field({ label, locked, lockedReason, children }: { label: string; locked: boolean; lockedReason?: string; children: React.ReactNode }) {
   return (
     <div className="field">
-      <label className="label">{label}{locked && <span className="faint"> · {lockedReason || 'in config.yaml festgelegt'}</span>}</label>
+      <label className="label">{label}{locked && <span className="faint"> · {lockedReason || t('admin.lockedConfig')}</span>}</label>
       {children}
     </div>
   );
@@ -215,23 +225,23 @@ function DeviceEditor({ device, locked, onChange, onRemove }: { device: Device; 
   return (
     <div className="card stack">
       <div className="row" style={{ border: 0, padding: 0 }}>
-        <span className="label" style={{ fontWeight: 500 }}>{device.name || 'Neues Gerät'}</span>
-        {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>Entfernen</button>}
+        <span className="label" style={{ fontWeight: 500 }}>{device.name || t('admin.newDevice')}</span>
+        {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
-      <Field label="ID" locked={locked}><input className="input" value={device.id} disabled={locked} onChange={e => onChange({ ...device, id: e.target.value })} /></Field>
-      <Field label="Name" locked={locked}><input className="input" value={device.name} disabled={locked} onChange={e => onChange({ ...device, name: e.target.value })} /></Field>
-      <Field label="Rolle" locked={locked}><input className="input" value={device.role} disabled={locked} onChange={e => onChange({ ...device, role: e.target.value })} placeholder="z. B. Außensensor" /></Field>
-      <Field label="Kurzname" locked={locked}><input className="input" value={device.short} disabled={locked} onChange={e => onChange({ ...device, short: e.target.value })} /></Field>
-      <Field label="Batterie-Entität (optional)" locked={locked}>
+      <Field label={t('admin.id')} locked={locked}><input className="input" value={device.id} disabled={locked} onChange={e => onChange({ ...device, id: e.target.value })} /></Field>
+      <Field label={t('admin.name')} locked={locked}><input className="input" value={device.name} disabled={locked} onChange={e => onChange({ ...device, name: e.target.value })} /></Field>
+      <Field label={t('admin.role')} locked={locked}><input className="input" value={device.role} disabled={locked} onChange={e => onChange({ ...device, role: e.target.value })} placeholder={t('admin.rolePlaceholder')} /></Field>
+      <Field label={t('admin.shortName')} locked={locked}><input className="input" value={device.short} disabled={locked} onChange={e => onChange({ ...device, short: e.target.value })} /></Field>
+      <Field label={t('admin.batteryEntity')} locked={locked}>
         <input className="input" value={device.battery || ''} disabled={locked} onChange={e => onChange({ ...device, battery: e.target.value || null })} placeholder="sensor.xxx_battery" />
       </Field>
-      <Field label="Signal-Entität (optional)" locked={locked}>
+      <Field label={t('admin.signalEntity')} locked={locked}>
         <input className="input" value={device.signal || ''} disabled={locked} onChange={e => onChange({ ...device, signal: e.target.value || null })} placeholder="sensor.xxx_signal" />
       </Field>
       <div className="field">
-        <label className="label">Messwerte</label>
+        <label className="label">{t('admin.metrics')}</label>
         <div className="chips">
-          {METRIC_FIELDS.map(([k, l]) => (
+          {METRIC_FIELDS().map(([k, l]) => (
             <button key={k} type="button" disabled={locked} className={'chip' + (device.metrics.includes(k) ? ' on' : '')}
               onClick={() => onChange({ ...device, metrics: device.metrics.includes(k) ? device.metrics.filter(m => m !== k) : [...device.metrics, k] })}>
               {l}
@@ -244,7 +254,7 @@ function DeviceEditor({ device, locked, onChange, onRemove }: { device: Device; 
 }
 
 function conditionComparison(c: AlertCondition): keyof AlertCondition {
-  return COMPARISONS.find(([k]) => c[k] != null)?.[0] || 'above';
+  return (['above', 'below', 'at_least', 'at_most', 'equals'] as (keyof AlertCondition)[]).find(k => c[k] != null) || 'above';
 }
 
 function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCondition; locked: boolean; onChange: (c: AlertCondition) => void; onRemove: () => void }) {
@@ -262,36 +272,36 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
     <div className="row" style={{ flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '8px 0' }}>
       <select className="input" style={{ width: 'auto' }} disabled={locked} value={isEntity ? '__entity__' : cond.sensor || ''}
         onChange={e => (e.target.value === '__entity__' ? onChange({ ...cond, sensor: undefined, entity: '' }) : onChange({ ...cond, entity: undefined, sensor: e.target.value }))}>
-        {SENSOR_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-        <option value="__entity__">Eigene HA-Entität…</option>
+        {SENSOR_FIELDS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        <option value="__entity__">{t('admin.customEntity')}</option>
       </select>
       {isEntity && (
         <input className="input" style={{ width: 'auto' }} disabled={locked} value={cond.entity || ''} onChange={e => onChange({ ...cond, entity: e.target.value })} placeholder="sensor.xxx" />
       )}
       <select className="input" style={{ width: 'auto' }} disabled={locked} value={cmp} onChange={e => setCmp(e.target.value as keyof AlertCondition)}>
-        {COMPARISONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        {COMPARISONS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
       <input className="input" style={{ width: 80 }} disabled={locked} type="number" value={val} onChange={e => onChange({ ...cond, [cmp]: Number(e.target.value) })} />
       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
         <input type="checkbox" disabled={locked} checked={hasRecent}
           onChange={e => {
-            if (e.target.checked) onChange({ ...cond, recent: { sensor: SENSOR_FIELDS[0][0], minutes: 30 } });
+            if (e.target.checked) onChange({ ...cond, recent: { sensor: SENSOR_FIELDS()[0][0], minutes: 30 } });
             else { const { recent: _recent, ...rest } = cond; onChange(rest); }
           }} />
-        Nur wenn aktuell
+        {t('admin.onlyIfRecent')}
       </label>
       {hasRecent && cond.recent && (
         <>
           <select className="input" style={{ width: 'auto' }} disabled={locked} value={cond.recent.sensor || ''}
             onChange={e => onChange({ ...cond, recent: { sensor: e.target.value, minutes: cond.recent?.minutes } })}>
-            {SENSOR_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            {SENSOR_FIELDS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
           </select>
           <input className="input" style={{ width: 70 }} disabled={locked} type="number" value={cond.recent.minutes ?? 30}
             onChange={e => onChange({ ...cond, recent: { ...cond.recent, minutes: Number(e.target.value) } })} />
-          <span className="faint" style={{ fontSize: 13 }}>Min.</span>
+          <span className="faint" style={{ fontSize: 13 }}>{t('admin.minutesAbbrev')}</span>
         </>
       )}
-      {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>Entfernen</button>}
+      {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
     </div>
   );
 }
@@ -304,33 +314,33 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
   return (
     <div className="card stack">
       <div className="row" style={{ border: 0, padding: 0 }}>
-        <span className="label" style={{ fontWeight: 500 }}>{rule.label || 'Neue Regel'}</span>
-        {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>Entfernen</button>}
+        <span className="label" style={{ fontWeight: 500 }}>{rule.label || t('admin.newRule')}</span>
+        {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
-      <Field label="Bezeichnung" locked={locked}><input className="input" value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
-      <Field label="Beschreibung" locked={locked}><input className="input" value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
+      <Field label={t('admin.label')} locked={locked}><input className="input" value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
+      <Field label={t('admin.description')} locked={locked}><input className="input" value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
       <div className="row" style={{ flexWrap: 'wrap', gap: 16, border: 0, padding: 0 }}>
-        <Field label="Stufe" locked={locked}>
+        <Field label={t('admin.level')} locked={locked}>
           <div className="segs inset">
-            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'warning' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'warning' })}>Warnung</button>
-            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'info' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'info' })}>Info</button>
+            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'warning' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'warning' })}>{t('admin.levelWarning')}</button>
+            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'info' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'info' })}>{t('admin.levelInfo')}</button>
           </div>
         </Field>
-        <Field label="Verknüpfung" locked={locked}>
+        <Field label={t('admin.combination')} locked={locked}>
           <div className="segs inset">
-            <button type="button" disabled={locked} className={'seg xs' + (mode === 'all' ? ' on' : '')} onClick={() => onChange({ ...rule, all: conds, any: undefined })}>Alle (UND)</button>
-            <button type="button" disabled={locked} className={'seg xs' + (mode === 'any' ? ' on' : '')} onClick={() => onChange({ ...rule, any: conds, all: undefined })}>Eine (ODER)</button>
+            <button type="button" disabled={locked} className={'seg xs' + (mode === 'all' ? ' on' : '')} onClick={() => onChange({ ...rule, all: conds, any: undefined })}>{t('admin.all')}</button>
+            <button type="button" disabled={locked} className={'seg xs' + (mode === 'any' ? ' on' : '')} onClick={() => onChange({ ...rule, any: conds, all: undefined })}>{t('admin.any')}</button>
           </div>
         </Field>
       </div>
-      <Field label="Banner (optional)" locked={locked}>
+      <Field label={t('admin.banner')} locked={locked}>
         <input className="input" value={rule.banner || ''} disabled={locked} onChange={e => onChange({ ...rule, banner: e.target.value })} placeholder={rule.label} />
       </Field>
-      <Field label="Meldungstext" locked={locked}>
-        <input className="input" value={rule.message} disabled={locked} onChange={e => onChange({ ...rule, message: e.target.value })} placeholder="z. B. Temperatur {temperature} °C" />
+      <Field label={t('admin.message')} locked={locked}>
+        <input className="input" value={rule.message} disabled={locked} onChange={e => onChange({ ...rule, message: e.target.value })} placeholder={t('admin.messagePlaceholder')} />
       </Field>
       <div className="field">
-        <label className="label">Bedingungen</label>
+        <label className="label">{t('admin.conditions')}</label>
         <div className="stack" style={{ gap: 0 }}>
           {conds.map((c, i) => (
             <ConditionEditor key={i} cond={c} locked={locked}
@@ -339,7 +349,7 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
           ))}
         </div>
         {!locked && (
-          <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={() => setConds([...conds, newCondition()])}>Bedingung hinzufügen</button>
+          <button type="button" className="btn-ghost" style={{ marginTop: 8 }} onClick={() => setConds([...conds, newCondition()])}>{t('admin.addCondition')}</button>
         )}
       </div>
     </div>

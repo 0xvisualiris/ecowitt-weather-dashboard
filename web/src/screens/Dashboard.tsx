@@ -5,6 +5,7 @@ import { ConditionIcon } from '../components/ConditionIcon';
 import {
   type AppConfig, type Current, type MetricKey, beaufort, compass, convFor, fmt, fmtC, hhmm, trendText, useUnits, uvLabel, dateFmt, dayKey, weekday,
 } from '../lib';
+import { t, type TKey } from '../i18n';
 
 const TICKS = Array.from({ length: 16 }, (_, i) => {
   const a = (i / 16) * 2 * Math.PI, r1 = i % 4 ? 47 : 44;
@@ -20,7 +21,7 @@ function Card({ metric, title, right, children, lg }: { metric?: MetricKey; titl
       className={cls}
       role="link"
       tabIndex={0}
-      aria-label={`${title} – Details öffnen`}
+      aria-label={t('dash.detailsAria', { title })}
       onClick={() => go({ screen: 'detail', metric })}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go({ screen: 'detail', metric }); } }}
     >
@@ -37,7 +38,7 @@ const Mini = ({ items }: { items: [string, string][] }) => (
 
 export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | null; error: string | null }) {
   const u = useUnits();
-  if (!cur) return <div className="center-msg">{error ? `Keine Daten: ${error}` : 'Lade aktuelle Werte …'}</div>;
+  if (!cur) return <div className="center-msg">{error ? t('dash.noData', { error }) : t('dash.loadingCurrent')}</div>;
 
   const v = cur.values;
   const has = (k: string) => cfg.sensors.includes(k);
@@ -57,10 +58,15 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
   const uv = v.uv_index;
   const astro = cur.astro;
   const sunAng = astro?.sunFraction != null ? Math.PI * (1 - astro.sunFraction) : null;
-  const dayLen = astro?.dayLengthMin != null ? `${Math.floor(astro.dayLengthMin / 60)} h ${astro.dayLengthMin % 60} min` : '';
+  const dayLen = astro?.dayLengthMin != null ? t('dash.dayLen', { h: Math.floor(astro.dayLengthMin / 60), m: astro.dayLengthMin % 60 }) : '';
 
-  const rainTotals: [string, string][] = ([['Ereignis', cur.rain.event], ['Woche', cur.rain.week], ['Monat', cur.rain.month], ['Jahr', cur.rain.year]] as [string, number | null][])
+  const rainTotals: [string, string][] = ([[t('dash.rainEvent'), cur.rain.event], [t('dash.rainWeek'), cur.rain.week], [t('dash.rainMonth'), cur.rain.month], [t('dash.rainYear'), cur.rain.year]] as [string, number | null][])
     .filter(([, x]) => x != null).map(([k, x]) => [k, fmt(R.f(x!), R.d)]);
+
+  const moonSlug = astro?.moon.name;
+  const moonValue = moonSlug == null ? '' : ['waxing', 'waning'].includes(moonSlug)
+    ? `${t(`moon.${moonSlug}` as TKey)} ${astro!.moon.illumination} %`
+    : t(`moon.${moonSlug}` as TKey);
 
   return (
     <div className="stack">
@@ -70,40 +76,40 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
             <div className="t">{alert.banner}</div>
             {alert.message && <div className="m">{alert.message}</div>}
           </div>
-          <button onClick={() => go({ screen: 'alerts' })}>Warnungen</button>
+          <button onClick={() => go({ screen: 'alerts' })}>{t('nav.alerts')}</button>
         </div>
       )}
 
       <div className="grid-hero">
         {has('temperature') && (
-          <Card metric="temp" title="Außentemperatur" right={deviceFor('temp')} lg>
+          <Card metric="temp" title={t('dash.cardTemp')} right={deviceFor('temp')} lg>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px' }}>
               <div className="hero-num">{fmt(v.temperature != null ? T.f(v.temperature) : null, 1)}<span className="u">{T.unit}</span></div>
               <div className="stack" style={{ gap: 6, fontSize: 15, color: 'var(--text-2)', paddingBottom: 6 }}>
-                {has('feels_like') && <div>Gefühlt <b className="v">{deg(v.feels_like)}</b></div>}
-                {has('dew_point') && <div>Taupunkt <b className="v">{deg(v.dew_point)}</b></div>}
+                {has('feels_like') && <div>{t('dash.feelsLike')} <b className="v">{deg(v.feels_like)}</b></div>}
+                {has('dew_point') && <div>{t('dash.dewPoint')} <b className="v">{deg(v.dew_point)}</b></div>}
                 {cur.today.temp && (
-                  <div>Heute <b style={{ color: 'var(--blue)', fontWeight: 500 }}>{deg(cur.today.temp.min)}</b> / <b style={{ color: 'var(--amber)', fontWeight: 500 }}>{deg(cur.today.temp.max)}</b></div>
+                  <div>{t('dash.today')} <b style={{ color: 'var(--blue)', fontWeight: 500 }}>{deg(cur.today.temp.min)}</b> / <b style={{ color: 'var(--amber)', fontWeight: 500 }}>{deg(cur.today.temp.max)}</b></div>
                 )}
               </div>
             </div>
             {cur.spark.temp && (
               <div className="stack" style={{ gap: 6 }}>
                 <Spark values={cur.spark.temp} height={64} color="var(--amber)" kind="line" strokeWidth={2} />
-                <div className="axis"><span>vor 24 h</span><span>jetzt</span></div>
+                <div className="axis"><span>{t('dash.ago24h')}</span><span>{t('common.now')}</span></div>
               </div>
             )}
           </Card>
         )}
 
         {fc.length > 0 && (
-          <Card title="Vorhersage" right={cur.forecast!.source} lg>
+          <Card title={t('dash.forecast')} right={cur.forecast!.source} lg>
             <div className="stack" style={{ gap: 0, marginTop: -4 }}>
               {fc.map((f, i) => (
                 <div className="fc-row" key={f.date}>
-                  <span style={{ fontWeight: 500 }}>{dayKey(f.date) === dayKey(Date.now()) || (i === 0 && f.date < Date.now()) ? 'Heute' : weekday(f.date)}</span>
+                  <span style={{ fontWeight: 500 }}>{dayKey(f.date) === dayKey(Date.now()) || (i === 0 && f.date < Date.now()) ? t('dash.today') : weekday(f.date)}</span>
                   <span className="fc-icon"><ConditionIcon code={f.conditionCode} /></span>
-                  <span className="cond">{f.condition}</span>
+                  <span className="cond">{f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : '—'}</span>
                   <span className="pop">{f.pop != null ? `${f.pop} %` : ''}</span>
                   <span className="lo">{deg(f.lo, 0)}</span>
                   <div className="fc-bar">
@@ -119,13 +125,13 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
 
       <div className="grid-cards">
         {has('wind_speed') && (
-          <Card metric="wind" title="Wind" right={wind != null ? `Bft ${beaufort(wind)}` : ''}>
+          <Card metric="wind" title={t('dash.wind')} right={wind != null ? `Bft ${beaufort(wind)}` : ''}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <svg viewBox="0 0 120 120" style={{ width: 112, height: 112, flexShrink: 0 }} aria-hidden="true">
                 <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line-strong)" strokeWidth="1" />
                 <path d={TICKS} stroke="oklch(0.45 0.01 250)" strokeWidth="1" />
-                {([['N', 60, 20, 'var(--muted)'], ['O', 103, 64, 'var(--faint)'], ['S', 60, 107, 'var(--faint)'], ['W', 17, 64, 'var(--faint)']] as const).map(([t, x, y, c]) => (
-                  <text key={t} x={x} y={y} textAnchor="middle" fontSize="10" fill={c} fontFamily="var(--mono)">{t}</text>
+                {([['N', 60, 20, 'var(--muted)'], [compass(90), 103, 64, 'var(--faint)'], ['S', 60, 107, 'var(--faint)'], ['W', 17, 64, 'var(--faint)']] as [string, number, number, string][]).map(([lbl, x, y, c]) => (
+                  <text key={lbl} x={x} y={y} textAnchor="middle" fontSize="10" fill={c} fontFamily="var(--mono)">{lbl}</text>
                 ))}
                 {dir != null && (
                   <g transform={`rotate(${dir} 60 60)`}><polygon points="60,14 66,60 60,54 54,60" fill="var(--blue)" /></g>
@@ -134,68 +140,68 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
               </svg>
               <div className="stack" style={{ gap: 6 }}>
                 <div className="num">{fmt(wind != null ? Wd.f(wind) : null, Wd.d)} <span className="u">{Wd.unit}</span></div>
-                {has('wind_gust') && <div className="kv">Böe <b>{fmtC(gust, Wd)}</b></div>}
-                {has('wind_direction') && <div className="kv">aus <b>{compass(dir)} {dir != null ? Math.round(dir) + '°' : ''}</b></div>}
-                {cur.today.gustMax != null && <div className="note">Max. Böe heute {fmtC(cur.today.gustMax, Wd)}</div>}
+                {has('wind_gust') && <div className="kv">{t('dash.gust')} <b>{fmtC(gust, Wd)}</b></div>}
+                {has('wind_direction') && <div className="kv">{t('dash.from')} <b>{compass(dir)} {dir != null ? Math.round(dir) + '°' : ''}</b></div>}
+                {cur.today.gustMax != null && <div className="note">{t('dash.maxGustToday', { v: fmtC(cur.today.gustMax, Wd) })}</div>}
               </div>
             </div>
           </Card>
         )}
 
         {has('rain_daily') && (
-          <Card metric="rain" title="Niederschlag" right={has('rain_rate') ? fmtC(cur.rain.rate, RR) : ''}>
-            <div className="num">{fmt(cur.rain.day != null ? R.f(cur.rain.day) : null, R.d)} <span className="u">{R.unit} heute</span></div>
+          <Card metric="rain" title={t('dash.rain')} right={has('rain_rate') ? fmtC(cur.rain.rate, RR) : ''}>
+            <div className="num">{fmt(cur.rain.day != null ? R.f(cur.rain.day) : null, R.d)} <span className="u">{t('hist.unitToday', { unit: R.unit })}</span></div>
             {cur.spark.rain && <Spark values={cur.spark.rain} height={40} color="var(--blue)" kind="bars" />}
             {rainTotals.length > 0 && <Mini items={rainTotals} />}
           </Card>
         )}
 
         {(has('lightning_distance') || has('lightning_count')) && (
-          <Card metric="light" title="Blitze" right={deviceFor('light')}>
+          <Card metric="light" title={t('dash.lightning')} right={deviceFor('light')}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' }}>
               <div className="num">{v.lightning_distance != null ? fmt(v.lightning_distance, 0) : '—'} <span className="u">km</span></div>
               <div className="kv" style={{ paddingBottom: 3 }}>
-                {v.lightning_time != null && <>letzter {dayKey(v.lightning_time) === dayKey(Date.now()) ? 'um' : 'am'} <b>{dayKey(v.lightning_time) === dayKey(Date.now()) ? hhmm(v.lightning_time) : dateFmt(v.lightning_time, { day: '2-digit', month: '2-digit' })}</b></>}
+                {v.lightning_time != null && <>{dayKey(v.lightning_time) === dayKey(Date.now()) ? t('dash.lastAtToday') : t('dash.lastOnDate')} <b>{dayKey(v.lightning_time) === dayKey(Date.now()) ? hhmm(v.lightning_time) : dateFmt(v.lightning_time, { day: '2-digit', month: '2-digit' })}</b></>}
                 {v.lightning_time != null && v.lightning_count != null && ' · '}
-                {v.lightning_count != null && <><b>{fmt(v.lightning_count, 0)}</b> heute</>}
+                {v.lightning_count != null && <b>{t('dash.strikesToday', { n: fmt(v.lightning_count, 0) })}</b>}
               </div>
             </div>
             {cur.spark.light && (
               <div className="stack" style={{ gap: 6 }}>
                 <Spark values={cur.spark.light} height={40} color="var(--amber)" kind="bars" />
-                <div className="axis"><span>Einschläge / h · 24 h</span><span>jetzt</span></div>
+                <div className="axis"><span>{t('dash.strikesPerHour24h')}</span><span>{t('common.now')}</span></div>
               </div>
             )}
           </Card>
         )}
 
         {has('pressure') && (
-          <Card metric="press" title="Luftdruck" right="relativ">
+          <Card metric="press" title={t('dash.pressure')} right={t('dash.relative')}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
               <div className="num">{fmt(v.pressure != null ? P.f(v.pressure) : null, P.d)} <span className="u">{P.unit}</span></div>
-              {trend && <div style={{ fontSize: 14, paddingBottom: 3, color: trend.word === 'fallend' ? 'var(--amber)' : trend.word === 'steigend' ? 'var(--blue)' : 'var(--text-2)' }}>{trend.text}</div>}
+              {trend && <div style={{ fontSize: 14, paddingBottom: 3, color: trend.word === 'falling' ? 'var(--amber)' : trend.word === 'rising' ? 'var(--blue)' : 'var(--text-2)' }}>{trend.text}</div>}
             </div>
             {cur.spark.press && <Spark values={cur.spark.press} height={44} color="var(--text)" kind="line" area={false} />}
           </Card>
         )}
 
         {has('humidity') && (
-          <Card metric="hum" title="Luftfeuchte" right={deviceFor('hum')}>
+          <Card metric="hum" title={t('dash.humidity')} right={deviceFor('hum')}>
             <div className="num">{fmt(v.humidity, 0)} <span className="u">%</span></div>
             {cur.spark.hum && <Spark values={cur.spark.hum} height={44} color="var(--blue)" kind="line" />}
-            {cur.today.hum && <div className="note">Heute {fmt(cur.today.hum.min, 0)} – {fmt(cur.today.hum.max, 0)} %</div>}
+            {cur.today.hum && <div className="note">{t('dash.todayMinMaxPct', { min: fmt(cur.today.hum.min, 0), max: fmt(cur.today.hum.max, 0) })}</div>}
           </Card>
         )}
 
         {(has('solar_radiation') || has('uv_index')) && (
-          <Card metric={has('solar_radiation') ? 'solar' : 'uv'} title="Sonne & UV" right={deviceFor('solar')}>
+          <Card metric={has('solar_radiation') ? 'solar' : 'uv'} title={t('dash.sunUv')} right={deviceFor('solar')}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 24, flexWrap: 'wrap' }}>
               {has('solar_radiation') && <div className="num">{fmt(v.solar_radiation, 0)} <span className="u">W/m²</span></div>}
               {uv != null && <div className="kv" style={{ paddingBottom: 3 }}>UV <b>{fmt(uv, 0)} · {uvLabel(uv)}</b></div>}
             </div>
             {uv != null && (
               <div className="stack" style={{ gap: 6 }}>
-                <div className="uv-scale" aria-label={`UV-Index ${fmt(uv, 0)}`}>
+                <div className="uv-scale" aria-label={t('dash.uvIndexAria', { v: fmt(uv, 0) })}>
                   <div style={{ background: 'oklch(0.8 0.13 150)', borderRadius: '3px 0 0 3px' }} />
                   <div style={{ background: 'oklch(0.8 0.13 100)' }} />
                   <div style={{ background: 'oklch(0.8 0.13 70)' }} />
@@ -210,16 +216,16 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
         )}
 
         {astro && (
-          <Card title="Sonne & Mond" right={dayLen}>
+          <Card title={t('dash.sunMoon')} right={dayLen}>
             <svg viewBox="0 0 160 80" style={{ width: '100%', maxHeight: 92, display: 'block' }} aria-hidden="true">
               <path d="M10,74 A70,70 0 0 1 150,74" fill="none" stroke="var(--line-strong)" strokeDasharray="3 4" />
               <line x1="0" y1="74" x2="160" y2="74" stroke="var(--line-strong)" />
               {sunAng != null && <circle cx={(80 + 70 * Math.cos(sunAng)).toFixed(1)} cy={(74 - 70 * Math.sin(sunAng)).toFixed(1)} r="6" fill="var(--amber)" />}
             </svg>
             <Mini items={[
-              ['Aufgang', hhmm(astro.sunrise)],
-              ['Untergang', hhmm(astro.sunset)],
-              ['Mond', ['zunehmend', 'abnehmend'].includes(astro.moon.name) ? `${astro.moon.name} ${astro.moon.illumination} %` : astro.moon.name],
+              [t('dash.sunrise'), hhmm(astro.sunrise)],
+              [t('dash.sunset'), hhmm(astro.sunset)],
+              [t('dash.moon'), moonValue],
             ]} />
           </Card>
         )}

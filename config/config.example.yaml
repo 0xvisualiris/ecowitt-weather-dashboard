@@ -8,6 +8,10 @@
 
 # ---------------------------------------------------------------------
 # Station – wird öffentlich angezeigt (Kopfzeile, Einstellungen, Fußzeile)
+#
+# Name, Unterzeile, Höhe, Inbetriebnahmedatum und die Geräteliste können
+# alternativ auch über die Admin-Seite gesetzt werden, wenn sie hier
+# weggelassen werden (devices: als Ganzes – nicht Gerät für Gerät).
 # ---------------------------------------------------------------------
 station:
   name: Wetterstation Garten
@@ -118,6 +122,8 @@ forecast:
 # message: Platzhalter {sensor_schlüssel}, {…|time}, {…|compass}
 # level: warning (bernsteinfarben) oder info (blau)
 # Den ganzen Block weglassen = Standardregeln; "alerts: []" = keine Warnungen.
+# Weglassen erlaubt außerdem, die Regeln stattdessen über die Admin-Seite zu
+# verwalten – wird "alerts:" hier gesetzt (auch leer), hat das immer Vorrang.
 # ---------------------------------------------------------------------
 alert_settings:
   clear_after_minutes: 10   # so lange muss eine Regel "aus" sein, bevor die Warnung endet

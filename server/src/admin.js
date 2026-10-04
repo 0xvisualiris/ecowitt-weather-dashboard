@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SENSOR_KEYS } from './config.js';
+import { SENSOR_KEYS, DEFAULT_ALERTS, normalizeAlerts } from './config.js';
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 h
 const MIN_PASSWORD_LENGTH = 8;
@@ -27,7 +27,62 @@ const emptySettings = () => ({
   homeassistant: { url: '', token: '' },
   sensors: {},
   forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '' },
+  alerts: null, // null = not customized, defer to config.yaml-or-DEFAULT_ALERTS; otherwise a normalizeAlerts()-validated array
+  station: { name: '', subtitle: '', altitude_m: null, since: '', devices: [] },
 });
+
+// Defensive shape-narrowing for a rule/condition/device submitted through the
+// admin API before it's handed to normalizeAlerts() (structural validation)
+// or persisted — untrusted JSON body, so every field is type-checked here
+// rather than trusted to already look like a real AlertCondition/Device.
+function sanitizeCondition(c) {
+  if (!c || typeof c !== 'object') return null;
+  const out = {};
+  if (typeof c.sensor === 'string' && c.sensor) out.sensor = c.sensor;
+  else if (typeof c.entity === 'string' && c.entity) out.entity = c.entity;
+  for (const k of ['above', 'below', 'at_least', 'at_most', 'equals']) {
+    if (typeof c[k] === 'number' && Number.isFinite(c[k])) out[k] = c[k];
+  }
+  if (c.recent && typeof c.recent === 'object') {
+    const r = {};
+    if (typeof c.recent.sensor === 'string' && c.recent.sensor) r.sensor = c.recent.sensor;
+    else if (typeof c.recent.entity === 'string' && c.recent.entity) r.entity = c.recent.entity;
+    if (typeof c.recent.minutes === 'number' && Number.isFinite(c.recent.minutes)) r.minutes = c.recent.minutes;
+    if (r.sensor || r.entity) out.recent = r;
+  }
+  return out;
+}
+
+function sanitizeAlertRule(a) {
+  if (!a || typeof a !== 'object') return {};
+  const conds = list => (Array.isArray(list) ? list.map(sanitizeCondition).filter(Boolean) : undefined);
+  const out = {
+    level: a.level === 'info' ? 'info' : 'warning',
+    message: typeof a.message === 'string' ? a.message : '',
+  };
+  if (typeof a.id === 'string' && a.id.trim()) out.id = a.id.trim();
+  if (typeof a.label === 'string' && a.label.trim()) out.label = a.label.trim();
+  if (typeof a.description === 'string') out.description = a.description.trim();
+  if (typeof a.banner === 'string' && a.banner.trim()) out.banner = a.banner.trim();
+  if (Array.isArray(a.all)) out.all = conds(a.all);
+  else if (Array.isArray(a.any)) out.any = conds(a.any);
+  return out;
+}
+
+// Mirrors config.js's own station.devices mapping, so an admin-entered
+// device ends up identical in shape to one that came from config.yaml.
+function sanitizeDevices(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((d, i) => ({
+    id: String(d?.id || `device${i}`).trim(),
+    name: String(d?.name || d?.id || `Gerät ${i + 1}`).trim(),
+    role: String(d?.role || '').trim(),
+    short: String(d?.short || d?.name || d?.id || '').trim(),
+    battery: d?.battery ? String(d.battery).trim() : null,
+    signal: d?.signal ? String(d.signal).trim() : null,
+    metrics: Array.isArray(d?.metrics) ? d.metrics.filter(m => typeof m === 'string') : [],
+  }));
+}
 
 export class AdminStore {
   constructor(dataDir) {
@@ -172,13 +227,45 @@ export class AdminStore {
         biasHours: cfg.forecast.biasHours,
         label: cfg.forecast.label || '',
       },
+      alerts: cfg.alerts,
+      defaultAlerts: DEFAULT_ALERTS,
+      station: {
+        name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m,
+        since: cfg.station.since || '', devices: cfg.station.devices,
+      },
     };
   }
 
   // `locked` (computed from the live cfg by index.js) marks fields config.yaml
   // already set – those are ignored here too, not just disabled in the UI.
+  // Returns { ok: true } or { ok: false, error } (a validation failure on
+  // alerts, or a disk-write failure) – nothing is persisted unless every
+  // section is valid, so a bad save can never reach admin.json half-applied.
   saveSettings(locked, patch) {
     const next = { ...this.state, settings: { ...this.state.settings } };
+
+    if (!locked.alerts && patch.alerts !== undefined) {
+      if (patch.alerts === null) {
+        next.settings.alerts = null; // explicit "restore defaults"
+      } else if (Array.isArray(patch.alerts)) {
+        try {
+          next.settings.alerts = normalizeAlerts(patch.alerts.map(sanitizeAlertRule));
+        } catch (e) {
+          return { ok: false, error: e.message };
+        }
+      }
+    }
+
+    if (patch.station && typeof patch.station === 'object') {
+      next.settings.station = { ...next.settings.station };
+      if (!locked.stationName && typeof patch.station.name === 'string') next.settings.station.name = patch.station.name.trim();
+      if (!locked.stationSubtitle && typeof patch.station.subtitle === 'string') next.settings.station.subtitle = patch.station.subtitle.trim();
+      if (!locked.stationAltitude && (patch.station.altitude_m === null || Number.isFinite(patch.station.altitude_m))) {
+        next.settings.station.altitude_m = patch.station.altitude_m;
+      }
+      if (!locked.stationSince && typeof patch.station.since === 'string') next.settings.station.since = patch.station.since.trim();
+      if (!locked.stationDevices && Array.isArray(patch.station.devices)) next.settings.station.devices = sanitizeDevices(patch.station.devices);
+    }
 
     if (patch.homeassistant && typeof patch.homeassistant === 'object') {
       next.settings.homeassistant = { ...next.settings.homeassistant };
@@ -207,8 +294,8 @@ export class AdminStore {
       if (typeof patch.forecast.label === 'string') next.settings.forecast.label = patch.forecast.label.trim();
     }
 
-    if (!this._save(next)) return false;
+    if (!this._save(next)) return { ok: false, error: 'could not save settings (DATA_DIR is not writable)' };
     this.state = next;
-    return true;
+    return { ok: true };
   }
 }

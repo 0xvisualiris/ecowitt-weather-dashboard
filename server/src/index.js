@@ -23,7 +23,9 @@ if (cfg.station.timezone) process.env.TZ = cfg.station.timezone;
 const admin = new AdminStore(cfg.server.data_dir);
 const locked = {
   haUrl: !!cfg.homeassistant.url,
+  haUrlEnv: cfg._locked.haUrlEnv,
   haToken: !!cfg.homeassistant.token,
+  haTokenEnv: cfg._locked.haTokenEnv,
   sensors: Object.fromEntries(Object.keys(cfg.sensors).map(k => [k, true])),
   forecastEntity: !!cfg.forecast.entity,
   dwdStationId: !!cfg.forecast.dwdStationId,

@@ -89,7 +89,7 @@ export interface AlertRule {
 }
 export interface AdminSettings {
   locked: {
-    haUrl: boolean; haToken: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
+    haUrl: boolean; haUrlEnv: boolean; haToken: boolean; haTokenEnv: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
     alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationDevices: boolean;
   };
   homeassistant: { url: string; tokenSet: boolean };

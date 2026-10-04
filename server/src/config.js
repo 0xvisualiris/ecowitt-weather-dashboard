@@ -172,6 +172,13 @@ export function loadConfig() {
     stationSubtitle: !!station.subtitle,
     stationAltitude: station.altitude_m != null,
     stationSince: !!station.since,
+    // homeassistant.url/token are the only two fields that can also be
+    // locked by an environment variable (not just config.yaml) – HA_URL/
+    // HA_TOKEN always win the `||` in cfg.homeassistant above when set, so
+    // this alone tells the admin UI the real reason a field is locked,
+    // rather than always blaming "config.yaml" even when that's not it.
+    haUrlEnv: !!process.env.HA_URL,
+    haTokenEnv: !!process.env.HA_TOKEN,
   };
 
   // homeassistant.url/token are no longer required here even when not in demo

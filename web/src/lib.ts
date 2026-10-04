@@ -98,6 +98,8 @@ export interface AdminSettings {
   alerts: AlertRule[];
   defaultAlerts: AlertRule[];
   station: { name: string; subtitle: string; altitude_m: number | null; since: string; devices: Device[] };
+  timezone: string;
+  demo: boolean;
 }
 
 // ---------------- units ----------------

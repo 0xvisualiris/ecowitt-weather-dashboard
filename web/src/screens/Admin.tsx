@@ -161,6 +161,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
           <Field label="In Betrieb seit (JJJJ-MM-TT, optional)" locked={data.locked.stationSince}>
             <input className="input" value={stationSince} onChange={e => setStationSince(e.target.value)} disabled={data.locked.stationSince} placeholder="2024-04-01" />
           </Field>
+          <div className="row" style={{ padding: '12px 0' }}><span className="k">Zeitzone</span><span className="v" style={{ fontWeight: 500 }}>{data.timezone}</span></div>
+          {data.demo && <div className="row" style={{ padding: '12px 0' }}><span className="k">Datenquelle</span><span className="v" style={{ fontWeight: 500 }}>Demo-Modus (synthetische Werte)</span></div>}
 
           <div className="field">
             <label className="label">Geräte{data.locked.stationDevices && <span className="faint"> · in config.yaml festgelegt</span>}</label>

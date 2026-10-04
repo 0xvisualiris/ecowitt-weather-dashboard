@@ -158,13 +158,28 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
 // Redirects between the three admin screens based on session state. This is
 // a UX convenience only – every /api/admin/* endpoint enforces the same
 // rules server-side regardless of what the UI shows.
+//
+// Session state is fetched from the server exactly once, when this page is
+// first reached cold (e.g. a bookmark or a fresh #/admin visit). After that,
+// login/password-change/logout update `session` directly from their own
+// response instead of asking the server again — a POST that just told us
+// "the password is changed" already IS the answer; re-fetching it a moment
+// later used to race against its own effects (a stale read landing after a
+// fresh write could show the old state), bouncing back to a screen that had
+// just been completed. Reusing the response we already hold has no such race.
 function AdminGate({ screen }: { screen: 'adminLogin' | 'adminPassword' | 'admin' }) {
-  // useApi only refetches when the URL string changes, not on every render –
-  // folding `screen` into it forces a fresh session check on every
-  // navigation between admin screens (login, logout and the forced password
-  // change all work by changing `screen`), instead of reusing whatever
-  // session state happened to be fetched when this page first loaded.
-  const { data: session, error } = useApi<AdminSession>(`/api/admin/session?for=${screen}`);
+  const [session, setSession] = useState<AdminSession | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/admin/session', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => { if (alive) setSession(j); })
+      .catch(e => { if (alive) setError((e as Error).message); });
+    return () => { alive = false; };
+  }, []); // intentionally once – see comment above
+
   useEffect(() => {
     if (!session) return;
     if (!session.loggedIn && screen !== 'adminLogin') go({ screen: 'adminLogin' });
@@ -174,9 +189,9 @@ function AdminGate({ screen }: { screen: 'adminLogin' | 'adminPassword' | 'admin
 
   if (error) return <div className="auth-page"><div className="center-msg">Server nicht erreichbar: {error}</div></div>;
   if (!session) return <div className="auth-page"><div className="center-msg">Lade …</div></div>;
-  if (!session.loggedIn) return screen === 'adminLogin' ? <AdminLoginScreen /> : null;
-  if (session.mustChangePassword) return screen === 'adminPassword' ? <AdminPasswordScreen forced /> : null;
-  if (screen === 'adminPassword') return <AdminPasswordScreen forced={false} />;
+  if (!session.loggedIn) return screen === 'adminLogin' ? <AdminLoginScreen onSession={setSession} /> : null;
+  if (session.mustChangePassword) return screen === 'adminPassword' ? <AdminPasswordScreen forced onSession={setSession} /> : null;
+  if (screen === 'adminPassword') return <AdminPasswordScreen forced={false} onSession={setSession} />;
   if (screen === 'adminLogin') return null;
-  return <AdminScreen />;
+  return <AdminScreen onSession={setSession} />;
 }

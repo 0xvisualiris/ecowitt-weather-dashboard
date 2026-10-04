@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { type AdminSettings, postJson, useApi } from '../lib';
+import { type AdminSession, type AdminSettings, postJson, useApi } from '../lib';
 import { go } from '../App';
 
 const SENSOR_FIELDS: [string, string][] = [
@@ -11,7 +11,7 @@ const SENSOR_FIELDS: [string, string][] = [
   ['lightning_distance', 'Blitz-Entfernung'], ['lightning_time', 'Letzter Blitz (Zeitstempel)'], ['lightning_count', 'Blitze (Tageszähler)'],
 ];
 
-export function AdminScreen() {
+export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => void }) {
   const { data, error: loadError } = useApi<AdminSettings>('/api/admin/settings');
   const [haUrl, setHaUrl] = useState('');
   const [haToken, setHaToken] = useState('');
@@ -60,7 +60,11 @@ export function AdminScreen() {
     }
   };
 
-  const logout = async () => { await postJson('/api/admin/logout', {}); go({ screen: 'adminLogin' }); };
+  const logout = async () => {
+    await postJson('/api/admin/logout', {});
+    onSession({ loggedIn: false, mustChangePassword: false });
+    go({ screen: 'adminLogin' });
+  };
 
   if (restarting) {
     return <div className="auth-page"><div className="card lg auth-card center-msg">Gespeichert – der Server startet neu …</div></div>;

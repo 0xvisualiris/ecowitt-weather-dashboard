@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { postJson } from '../lib';
+import { type AdminSession, postJson } from '../lib';
 import { go } from '../App';
 
-export function AdminLoginScreen() {
+export function AdminLoginScreen({ onSession }: { onSession: (s: AdminSession) => void }) {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -14,6 +14,10 @@ export function AdminLoginScreen() {
     setError(null);
     try {
       const r = await postJson<{ ok: true; mustChangePassword: boolean }>('/api/admin/login', { username, password });
+      // Already know the resulting session from this response – no need to
+      // ask the server again, which would just risk re-asking faster than
+      // this same change can be observed.
+      onSession({ loggedIn: true, mustChangePassword: r.mustChangePassword });
       go(r.mustChangePassword ? { screen: 'adminPassword' } : { screen: 'admin' });
     } catch (e) {
       setError((e as Error).message);

@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { postJson } from '../lib';
+import { type AdminSession, postJson } from '../lib';
 import { go } from '../App';
 
-export function AdminPasswordScreen({ forced }: { forced: boolean }) {
+export function AdminPasswordScreen({ forced, onSession }: { forced: boolean; onSession: (s: AdminSession) => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -17,6 +17,9 @@ export function AdminPasswordScreen({ forced }: { forced: boolean }) {
     setBusy(true);
     try {
       await postJson('/api/admin/password', { currentPassword, newPassword });
+      // The change already told us mustChangePassword is now false – update
+      // the gate's state directly instead of re-fetching it a moment later.
+      onSession({ loggedIn: true, mustChangePassword: false });
       go({ screen: 'admin' });
     } catch (e) {
       setError((e as Error).message);

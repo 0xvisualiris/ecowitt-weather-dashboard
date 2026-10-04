@@ -87,7 +87,7 @@ docker compose pull && docker compose up -d   (plus any extra steps)
 
 A public, read-only web dashboard for a personal weather station whose data lives in **Home Assistant** (HA). One Docker container serves a static React frontend plus a small Node API. The backend holds the HA URL and token; the browser never sees them, nor coordinates or entity IDs.
 
-- Hardware it was built for: Ecowitt WS90 (temp, humidity, ultrasonic wind, piezo rain, solar/UV), Ecowitt WH57 (lightning) and an Ecowitt gateway (pressure), via the HA Ecowitt integration. Any HA sensors work.
+- Hardware it was built for: Ecowitt WH90 (temp, humidity, ultrasonic wind, piezo rain, solar/UV), Ecowitt WH57 (lightning) and an Ecowitt gateway (pressure), via the HA Ecowitt integration. Any HA sensors work.
 - Hobby project, vibe-coded with AI, not actively maintained. Keep changes simple and dependency-light.
 - Repo: `0xvisualiris/ecowitt-weather-dashboard`. Image: `ghcr.io/0xvisualiris/ecowitt-weather-dashboard:latest`.
 - **UI language is German** (labels, dates, numbers). Code, comments and docs are in English.

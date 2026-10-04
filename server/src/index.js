@@ -27,6 +27,12 @@ const locked = {
   sensors: Object.fromEntries(Object.keys(cfg.sensors).map(k => [k, true])),
   forecastEntity: !!cfg.forecast.entity,
   dwdStationId: !!cfg.forecast.dwdStationId,
+  alerts: cfg._locked.alerts,
+  stationName: cfg._locked.stationName,
+  stationSubtitle: cfg._locked.stationSubtitle,
+  stationAltitude: cfg._locked.stationAltitude,
+  stationSince: cfg._locked.stationSince,
+  stationDevices: !!cfg.station.devices.length,
 };
 {
   const s = admin.getSettings();
@@ -35,6 +41,12 @@ const locked = {
   for (const [k, v] of Object.entries(s.sensors)) if (!cfg.sensors[k] && v) cfg.sensors[k] = v;
   if (!cfg.forecast.entity) cfg.forecast.entity = s.forecast.entity || null;
   if (!cfg.forecast.dwdStationId) cfg.forecast.dwdStationId = s.forecast.dwdStationId || null;
+  if (!locked.alerts && s.alerts) cfg.alerts = s.alerts;
+  if (!locked.stationName && s.station.name) cfg.station.name = s.station.name;
+  if (!locked.stationSubtitle && s.station.subtitle) cfg.station.subtitle = s.station.subtitle;
+  if (!locked.stationAltitude && s.station.altitude_m != null) cfg.station.altitude_m = s.station.altitude_m;
+  if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
+  if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
 }
 
 // No HA credentials anywhere (neither config.yaml nor the admin page) –
@@ -203,8 +215,10 @@ async function handleAdmin(req, res, url) {
     if (url.pathname === '/api/admin/settings' && req.method === 'POST') {
       requireSession(req, true);
       const patch = await readJsonBody(req);
-      if (!admin.saveSettings(locked, patch)) {
-        return send(req, res, 500, { error: 'could not save settings (DATA_DIR is not writable)' });
+      const result = admin.saveSettings(locked, patch);
+      if (!result.ok) {
+        const status = result.error.includes('DATA_DIR') ? 500 : 400;
+        return send(req, res, status, { error: result.error });
       }
       send(req, res, 200, { ok: true, restarting: true }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
       // Settings only take effect at boot (cfg/source/svc are built once) –

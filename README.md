@@ -134,11 +134,12 @@ reached, the dashboard falls back to a Home Assistant `weather.*` entity
 ### Admin page
 
 As an alternative to editing `config.yaml`, the Home Assistant URL/token,
-sensor entity IDs and DWD station ID can be set from the dashboard itself at
-`/#/admin/login` (a small "Admin" link sits in the footer). Default login is
-**admin / admin**, and you're required to change the password before doing
-anything else. Saving settings there restarts the container (same as editing
-`config.yaml` would) to apply them.
+sensor entity IDs, DWD station ID, alert rules and station/device info can
+all be set from the dashboard itself at `/#/admin/login` (an "Admin" link
+sits in the header navigation). Default login is **admin / admin**, and
+you're required to change the password before doing anything else. Saving
+settings there restarts the container (same as editing `config.yaml` would)
+to apply them.
 
 Anything already set in `config.yaml` always wins and shows as locked on the
 admin page — the two are alternatives per field, not a UI on top of the file.

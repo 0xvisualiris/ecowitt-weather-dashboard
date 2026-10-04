@@ -78,11 +78,26 @@ export async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 // ---------------- admin ----------------
 export interface AdminSession { loggedIn: boolean; mustChangePassword: boolean }
+export interface AlertCondition {
+  sensor?: string; entity?: string;
+  above?: number; below?: number; at_least?: number; at_most?: number; equals?: number;
+  recent?: { sensor?: string; entity?: string; minutes?: number };
+}
+export interface AlertRule {
+  id: string; label: string; description: string; level: 'warning' | 'info'; banner?: string; message: string;
+  all?: AlertCondition[]; any?: AlertCondition[];
+}
 export interface AdminSettings {
-  locked: { haUrl: boolean; haToken: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean };
+  locked: {
+    haUrl: boolean; haToken: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
+    alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationDevices: boolean;
+  };
   homeassistant: { url: string; tokenSet: boolean };
   sensors: Record<string, string>;
   forecast: { entity: string; dwdStationId: string; biasHours: number; label: string };
+  alerts: AlertRule[];
+  defaultAlerts: AlertRule[];
+  station: { name: string; subtitle: string; altitude_m: number | null; since: string; devices: Device[] };
 }
 
 // ---------------- units ----------------

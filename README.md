@@ -248,6 +248,19 @@ docker compose up -d
 
 Open `http://<your-host>:47813/?kiosk=1` to show only the overview without navigation. Tapping the station name toggles fullscreen. Values refresh automatically.
 
+## Add to Home Screen
+
+The dashboard is an installable web app. On iOS/iPadOS: open it in Safari,
+tap **Share → Add to Home Screen**. On Android/Chrome: tap the browser menu
+→ **Add to Home screen** (Chrome may also offer an install prompt
+automatically). Either way you get a real app icon and it launches full
+screen, without the browser's address bar.
+
+If you already had it on your home screen from before this icon/full-screen
+support was added, remove that icon and add it again — iOS/Android decide
+whether a page is "installable" (and fetch its icon) at the moment you add
+it, not on every launch.
+
 ## Making it public
 
 Put the container behind a reverse proxy with HTTPS (e.g. Nginx Proxy Manager, Traefik, Caddy or a Cloudflare Tunnel).

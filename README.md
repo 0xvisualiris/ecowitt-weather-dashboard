@@ -129,10 +129,12 @@ Everything lives in `config/config.yaml`. The most important sections:
 The "Vorhersage" card is calculated from [DWD](https://www.dwd.de) MOSMIX (a
 numerical weather model with statistical post-processing) for a station you
 pick, with the next few hours nudged toward what your own Ecowitt station is
-actually reading right now. Set `forecast.dwd_station_id` in `config.yaml` to
-a DWD station ID from [DWD's station list](https://opendata.dwd.de/weather/local_forecasts/poi/poi.txt)
-(look up the one nearest you by name). If it's left unset, or DWD can't be
-reached, the dashboard falls back to a Home Assistant `weather.*` entity
+actually reading right now. The admin page (below) lets you pick a station
+on a map instead of looking up an ID by hand; in `config.yaml` directly, set
+`forecast.dwd_station_id` to a DWD station ID (there's no current public,
+stable URL for DWD's own station list to look one up outside the app — use
+the admin page's map instead). If it's left unset, or DWD can't be reached,
+the dashboard falls back to a Home Assistant `weather.*` entity
 (`forecast.entity`), the same as before.
 
 ### Admin page
@@ -144,6 +146,11 @@ sits in the header navigation). Default login is **admin / admin**, and
 you're required to change the password before doing anything else. Saving
 settings there restarts the container (same as editing `config.yaml` would)
 to apply them.
+
+The DWD station field has a **"Auf Karte auswählen" (pick on map)** button:
+a map of ~600 DWD weather stations (Germany plus nearby Austria/Switzerland/
+border regions) to click, or search by name, instead of looking up and
+typing a station ID by hand.
 
 Anything already set in `config.yaml` (or an `HA_URL`/`HA_TOKEN` environment
 variable) always wins and shows as locked on the admin page — the two are

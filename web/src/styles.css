@@ -60,8 +60,15 @@ button { font-family: inherit; }
 .page {
   min-height: 100vh; max-width: 1440px; margin: 0 auto;
   padding: clamp(14px, 3vw, 32px);
-  padding-top: max(clamp(14px, 3vw, 32px), env(safe-area-inset-top));
-  padding-bottom: max(clamp(14px, 3vw, 32px), env(safe-area-inset-bottom));
+  /* Added to the safe area, not maxed against it: as an installed home-screen
+     app (apple-mobile-web-app-capable + status-bar-style "black-translucent"
+     in index.html) the status bar/notch overlays the page instead of
+     reserving its own space, so env(safe-area-inset-top) alone is often
+     ~50px+ on notched phones — max() against the ~14-32px clamp would then
+     just return that ~50px with zero breathing room below the status bar,
+     which is exactly the cramped look this is fixing. */
+  padding-top: calc(env(safe-area-inset-top) + clamp(14px, 3vw, 32px));
+  padding-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3vw, 32px));
   display: flex; flex-direction: column; gap: 20px;
 }
 .stack { display: flex; flex-direction: column; gap: 16px; }
@@ -272,6 +279,12 @@ button { font-family: inherit; }
 .btn-primary:disabled { cursor: not-allowed; filter: none; color: var(--faint); background: oklch(1 0 0 / 0.06); border-color: var(--glass-edge-soft); box-shadow: none; }
 .form-error { font-size: 13px; color: var(--amber); }
 .form-note { font-size: 13px; color: var(--green); }
-.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.auth-page {
+  min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  padding-top: calc(env(safe-area-inset-top) + 24px); padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+}
 .auth-card { width: 100%; max-width: 360px; }
-.admin-page { max-width: 760px; margin: 0 auto; padding: clamp(14px, 3vw, 32px); display: flex; flex-direction: column; gap: 20px; }
+.admin-page {
+  max-width: 760px; margin: 0 auto; padding: clamp(14px, 3vw, 32px); display: flex; flex-direction: column; gap: 20px;
+  padding-top: calc(env(safe-area-inset-top) + clamp(14px, 3vw, 32px)); padding-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3vw, 32px));
+}

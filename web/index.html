@@ -3,8 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#121418" />
+    <meta name="theme-color" content="#0c0e13" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- "Add to Home Screen": apple-mobile-web-app-capable is what actually
+         gets iOS Safari to launch without any browser chrome at all (not
+         just a bookmark with minimal UI) — that in turn is what makes
+         env(safe-area-inset-*) report the real notch/status-bar height for
+         styles.css's .page padding to use, instead of 0. status-bar-style
+         "black-translucent" overlays the status bar on the page instead of
+         reserving an opaque bar, matching the glass/ambient-gradient look. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Wetterstation" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
     <title>Wetterstation</title>
   </head>
   <body>

@@ -114,7 +114,8 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/util.js               local-time helpers, TTL cache, counter→increment conversion, time-bucketing (bucketLine/bucketCounter), round()
 web/                        Vite + React 19 + TypeScript, no UI framework, no chart library
   index.html                favicon link (/favicon.svg – add ?v=N to bust browser favicon cache)
-  public/favicon.svg        app icon (also used in README)
+  public/favicon.svg        app icon (also used in README); apple-touch-icon.png/icon-192.png/icon-512.png are PNG renders of it for manifest.webmanifest/iOS homescreen (regenerate by rendering favicon.svg at those sizes, e.g. via a headless browser, if the icon ever changes)
+  public/manifest.webmanifest  installable-PWA manifest (name, icons, standalone display, theme/background color)
   src/main.tsx              entry
   src/App.tsx               shell: hash router, header (live dot, clock), nav, footer, units + lang context, AdminGate
   src/lib.ts                types, useApi/postJson, units + conversion, METRIC_META, locale-aware formatting, SVG path helpers
@@ -292,6 +293,7 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
   - Always use `fmt()`: locale-aware (de-DE comma decimal / grouping only from 5 digits, or en-US period decimal / normal grouping, per the current language), and a real minus sign (U+2212) in both.
   - Dates use `parts()` / `longDate()` / `clock()` / `hhmm()`, which switch between German and English short names without dots (`Mi`/`Wed`, `Sep`) and date-part ordering based on the current language. Clock stays 24-hour in both languages.
 - **Live indicator:** grey and "Veraltet" if `now − current.updated > ui.stale_after_seconds`. `updated` is the max `lu` of the configured sensors, which only changes when a value changes, so on calm nights use 300 s or more.
+- **Installable as a home-screen app** (`index.html` + `public/manifest.webmanifest`): `apple-mobile-web-app-capable`/`mobile-web-app-capable` get iOS/Android to launch it standalone (no browser chrome) instead of a plain bookmark; `apple-mobile-web-app-status-bar-style: black-translucent` overlays the status bar on the page instead of reserving an opaque bar for it, matching the glass look. That overlay is exactly why `.page`/`.admin-page`/`.auth-page` add `env(safe-area-inset-top/bottom)` **on top of** their normal padding (`calc(env(...) + padding)`, not `max(env(...), padding)`) — on a notched/Dynamic-Island phone `env(safe-area-inset-top)` alone already exceeds the normal padding, so `max()` would leave zero breathing room below the status bar, which is the cramped look this avoids. A device that already has the icon on its home screen from before this existed needs to remove and re-add it — the installable/standalone decision and the icon are fetched once, at add-time, not on every launch.
 - **Design tokens** (in `styles.css`):
   - Background `oklch(0.16 0.008 250)`, base card tint `oklch(0.2 0.008 250)`, border `oklch(0.27 0.01 250)`
   - Accents: amber `oklch(0.8 0.13 70)` (heat, sun, lightning, warnings), blue `oklch(0.8 0.13 230)` (water, wind, cold), green `oklch(0.8 0.13 150)` (ok)

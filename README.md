@@ -166,8 +166,8 @@ settings there restarts the container (same as editing `config.yaml` would)
 to apply them.
 
 The DWD station field has a **"Auf Karte auswählen" (pick on map)** button:
-a map of ~600 DWD weather stations (Germany plus nearby Austria/Switzerland/
-border regions) to click, or search by name, instead of looking up and
+a pannable, zoomable map of ~370 DWD weather stations (Germany plus nearby
+Austria/Switzerland/border regions) to click, or search by name, instead of looking up and
 typing a station ID by hand.
 
 Anything already set in `config.yaml` (or an `HA_URL`/`HA_TOKEN` environment

@@ -113,6 +113,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         </div>
       </div>
 
+      <TotpSection initialEnabled={data.totpEnabled} />
+
       <form onSubmit={submit} className="stack">
         <section className="card lg stack">
           <div className="eyebrow"><span>{t('admin.ha')}</span></div>
@@ -209,6 +211,110 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         <button className="btn-primary" type="submit" disabled={saving}>{t('admin.save')}</button>
       </form>
     </div>
+  );
+}
+
+function TotpSection({ initialEnabled }: { initialEnabled: boolean }) {
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [setup, setSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [confirmCode, setConfirmCode] = useState('');
+  const [disablePassword, setDisablePassword] = useState('');
+  const [showDisable, setShowDisable] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startSetup = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      setSetup(await postJson<{ secret: string; otpauthUrl: string }>('/api/admin/totp/setup', {}));
+      setConfirmCode('');
+    } catch (e) {
+      setError(translateApiError((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await postJson('/api/admin/totp/enable', { code: confirmCode });
+      setEnabled(true);
+      setSetup(null);
+      setConfirmCode('');
+    } catch (e) {
+      setError(translateApiError((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await postJson('/api/admin/totp/disable', { password: disablePassword });
+      setEnabled(false);
+      setShowDisable(false);
+      setDisablePassword('');
+    } catch (e) {
+      setError(translateApiError((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card lg stack">
+      <div className="eyebrow">
+        <span>{t('admin.totpHeader')}</span>
+        <span className={'pill' + (enabled ? ' on' : '')}>{enabled ? t('admin.totpActive') : t('admin.totpInactive')}</span>
+      </div>
+
+      {!enabled && !setup && (
+        <button type="button" className="btn-ghost" disabled={busy} onClick={startSetup}>{t('admin.totpSetupStart')}</button>
+      )}
+
+      {setup && (
+        <form onSubmit={confirmSetup} className="stack">
+          <div className="note">{t('admin.totpSetupIntro')}</div>
+          <Field label={t('admin.totpSecretLabel')} locked={false}>
+            <input className="input" readOnly value={setup.secret} onFocus={e => e.target.select()} style={{ fontFamily: 'var(--mono)' }} />
+          </Field>
+          <a href={setup.otpauthUrl} className="btn-ghost" style={{ alignSelf: 'flex-start' }}>{t('admin.totpLinkLabel')}</a>
+          <Field label={t('admin.totpConfirmLabel')} locked={false}>
+            <input className="input" inputMode="numeric" maxLength={6} autoFocus value={confirmCode}
+              onChange={e => setConfirmCode(e.target.value.replace(/\D/g, ''))} />
+          </Field>
+          <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
+            <button className="btn-primary" type="submit" disabled={busy || confirmCode.length !== 6}>{t('admin.totpConfirmButton')}</button>
+            <button type="button" className="btn-ghost" onClick={() => { setSetup(null); setConfirmCode(''); }}>{t('admin.totpCancelButton')}</button>
+          </div>
+        </form>
+      )}
+
+      {enabled && !showDisable && (
+        <button type="button" className="btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setShowDisable(true)}>{t('admin.totpDisableButton')}</button>
+      )}
+
+      {enabled && showDisable && (
+        <form onSubmit={disable} className="stack">
+          <Field label={t('admin.totpDisablePasswordLabel')} locked={false}>
+            <input className="input" type="password" autoFocus value={disablePassword} onChange={e => setDisablePassword(e.target.value)} />
+          </Field>
+          <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
+            <button className="btn-primary" type="submit" disabled={busy || !disablePassword}>{t('admin.totpDisableConfirm')}</button>
+            <button type="button" className="btn-ghost" onClick={() => { setShowDisable(false); setDisablePassword(''); }}>{t('admin.totpCancelButton')}</button>
+          </div>
+        </form>
+      )}
+
+      {error && <div className="form-error">{error}</div>}
+    </section>
   );
 }
 

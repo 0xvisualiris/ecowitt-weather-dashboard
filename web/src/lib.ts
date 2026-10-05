@@ -106,6 +106,7 @@ export interface AdminSettings {
   station: { name: string; subtitle: string; altitude_m: number | null; since: string; devices: Device[] };
   timezone: string;
   demo: boolean;
+  totpEnabled: boolean;
 }
 
 // ---------------- units ----------------

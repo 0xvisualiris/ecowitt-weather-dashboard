@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { SENSOR_KEYS, DEFAULT_ALERTS, normalizeAlerts } from './config.js';
+import { generateSecret, verifyTotp, otpauthUrl } from './totp.js';
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 h
 const MIN_PASSWORD_LENGTH = 8;
@@ -22,6 +23,11 @@ function timingSafeEqualHex(a, b) {
   const bufA = Buffer.from(a, 'hex'), bufB = Buffer.from(b, 'hex');
   return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
 }
+
+// enabled/secret are only ever set by confirmTotpSetup() once a code has
+// actually been verified; pendingSecret is deliberately never persisted –
+// see beginTotpSetup()'s comment.
+const emptyTotp = () => ({ enabled: false, secret: null });
 
 const emptySettings = () => ({
   homeassistant: { url: '', token: '' },
@@ -89,13 +95,14 @@ export class AdminStore {
     this.file = path.join(dataDir, 'admin.json');
     this.state = this._load();
     this._attempts = new Map(); // ip -> { count, lockUntil }
+    this._pendingTotpSecret = null; // in-memory only until confirmed, see beginTotpSetup()
   }
 
   _load() {
     try {
       if (fs.existsSync(this.file)) {
         const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-        return { ...parsed, settings: { ...emptySettings(), ...parsed.settings } };
+        return { ...parsed, totp: { ...emptyTotp(), ...parsed.totp }, settings: { ...emptySettings(), ...parsed.settings } };
       }
     } catch (e) {
       console.warn(`[admin] could not read ${this.file}: ${e.message}`);
@@ -107,6 +114,7 @@ export class AdminStore {
       hash: hashPassword('admin', salt),
       mustChangePassword: true,
       sessionSecret: crypto.randomBytes(32).toString('hex'),
+      totp: emptyTotp(),
       settings: emptySettings(),
     };
     if (!this._save(state)) {
@@ -144,12 +152,68 @@ export class AdminStore {
   _recordSuccess(ip) { this._attempts.delete(ip); }
 
   // ---------- login / session ----------
-  verifyLogin(ip, username, password) {
+  // `code` is the 6-digit TOTP code, required only once 2FA is enabled. The
+  // caller submits username+password (+code once asked for) together each
+  // time rather than this method issuing some partial "password verified,
+  // awaiting 2FA" session of its own – simpler, and scrypt is cheap enough
+  // that re-verifying the password alongside the code costs nothing real.
+  verifyLogin(ip, username, password, code) {
     if (this._rateLimited(ip)) return { ok: false, error: 'too many attempts – try again shortly' };
     const ok = username === this.state.username && timingSafeEqualHex(hashPassword(String(password || ''), this.state.salt), this.state.hash);
     if (!ok) { this._recordFailure(ip); return { ok: false, error: 'invalid credentials' }; }
+    if (this.state.totp.enabled) {
+      if (!code) return { ok: false, needsTotp: true }; // password was right – not a failed attempt, just ask for the second factor
+      if (!verifyTotp(this.state.totp.secret, code)) {
+        this._recordFailure(ip);
+        return { ok: false, needsTotp: true, error: 'invalid 2FA code' };
+      }
+    }
     this._recordSuccess(ip);
     return { ok: true, mustChangePassword: this.state.mustChangePassword, cookie: this._issueSession() };
+  }
+
+  // ---------- two-factor authentication (TOTP) ----------
+  totpEnabled() { return this.state.totp.enabled; }
+
+  // Generates a new secret but does NOT persist it – only confirmTotpSetup()
+  // (which requires a valid code, proving the admin actually saved it in an
+  // authenticator app) ever writes a secret to disk. A server restart before
+  // confirming just means starting setup over, which is harmless.
+  beginTotpSetup() {
+    this._pendingTotpSecret = generateSecret();
+    return { secret: this._pendingTotpSecret, otpauthUrl: otpauthUrl(this._pendingTotpSecret, { label: this.state.username }) };
+  }
+
+  confirmTotpSetup(ip, code) {
+    if (this._rateLimited(ip)) return { ok: false, error: 'too many attempts – try again shortly' };
+    if (!this._pendingTotpSecret) return { ok: false, error: 'no 2FA setup in progress' };
+    if (!verifyTotp(this._pendingTotpSecret, code)) {
+      this._recordFailure(ip);
+      return { ok: false, error: 'invalid 2FA code' };
+    }
+    const next = { ...this.state, totp: { enabled: true, secret: this._pendingTotpSecret } };
+    if (!this._save(next)) return { ok: false, error: 'could not save (DATA_DIR is not writable) – 2FA was NOT enabled' };
+    this.state = next;
+    this._pendingTotpSecret = null;
+    this._recordSuccess(ip);
+    return { ok: true };
+  }
+
+  // Requires the current password (not a TOTP code – if you still have your
+  // authenticator you don't need this, and if you don't, this is the one
+  // way back in short of the full admin.json reset described in the README).
+  disableTotp(ip, password) {
+    if (this._rateLimited(ip)) return { ok: false, error: 'too many attempts – try again shortly' };
+    if (!timingSafeEqualHex(hashPassword(String(password || ''), this.state.salt), this.state.hash)) {
+      this._recordFailure(ip);
+      return { ok: false, error: 'current password is incorrect' };
+    }
+    const next = { ...this.state, totp: emptyTotp() };
+    if (!this._save(next)) return { ok: false, error: 'could not save (DATA_DIR is not writable) – 2FA was NOT disabled' };
+    this.state = next;
+    this._pendingTotpSecret = null;
+    this._recordSuccess(ip);
+    return { ok: true };
   }
 
   _issueSession() {
@@ -235,6 +299,7 @@ export class AdminStore {
       },
       timezone,
       demo: cfg.server.demo,
+      totpEnabled: this.state.totp.enabled,
     };
   }
 

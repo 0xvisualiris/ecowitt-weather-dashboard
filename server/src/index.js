@@ -178,9 +178,13 @@ function requireSession(req, requirePasswordChanged) {
 async function handleAdmin(req, res, url) {
   try {
     if (url.pathname === '/api/admin/login' && req.method === 'POST') {
-      const { username, password } = await readJsonBody(req);
-      const result = admin.verifyLogin(clientIp(req), String(username || ''), String(password || ''));
-      if (!result.ok) return send(req, res, 401, { error: result.error });
+      const { username, password, code } = await readJsonBody(req);
+      const result = admin.verifyLogin(clientIp(req), String(username || ''), String(password || ''), code ? String(code) : undefined);
+      if (!result.ok) {
+        // needsTotp without an error is the expected "password was right, now ask for the code" step, not a failure – 200, not 401.
+        if (result.needsTotp && !result.error) return send(req, res, 200, { ok: false, needsTotp: true });
+        return send(req, res, 401, { error: result.error, needsTotp: result.needsTotp || false });
+      }
       return send(req, res, 200, { ok: true, mustChangePassword: result.mustChangePassword },
         'application/json; charset=utf-8', { 'Set-Cookie': `${SESSION_COOKIE}=${result.cookie}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
     }
@@ -207,6 +211,27 @@ async function handleAdmin(req, res, url) {
       // stay logged in rather than being logged out by their own request.
       return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8',
         { 'Set-Cookie': `${SESSION_COOKIE}=${result.cookie}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
+    }
+
+    if (url.pathname === '/api/admin/totp/setup' && req.method === 'POST') {
+      requireSession(req, true);
+      return send(req, res, 200, admin.beginTotpSetup(), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+
+    if (url.pathname === '/api/admin/totp/enable' && req.method === 'POST') {
+      requireSession(req, true);
+      const { code } = await readJsonBody(req);
+      const result = admin.confirmTotpSetup(clientIp(req), String(code || ''));
+      if (!result.ok) return send(req, res, 400, { error: result.error });
+      return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+
+    if (url.pathname === '/api/admin/totp/disable' && req.method === 'POST') {
+      requireSession(req, true);
+      const { password } = await readJsonBody(req);
+      const result = admin.disableTotp(clientIp(req), password);
+      if (!result.ok) return send(req, res, 400, { error: result.error });
+      return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
     }
 
     if (url.pathname === '/api/admin/settings' && req.method === 'GET') {

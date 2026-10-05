@@ -171,6 +171,58 @@ ui:
   stale_after_seconds: 300
 ```
 
+### Two-factor authentication
+
+The admin page can require a second factor (TOTP, the standard 6-digit
+code from an authenticator app) on top of the password. It's off by
+default; turn it on from a "Zwei-Faktor-Authentifizierung" card near the
+top of the admin page, once you're logged in with the password already
+changed:
+
+1. Click **"2FA einrichten"**. A secret key and a link are shown.
+2. Add it to an authenticator app (Google Authenticator, Authy, 1Password,
+   Apple's built-in Passwords app, …) — either type the secret in manually,
+   or tap the link if you're setting this up on the same device the app is
+   on.
+3. Enter the 6-digit code the app now shows and confirm. From then on,
+   logging in asks for a fresh code after the password.
+
+No new dependency and no external service: the TOTP codes are generated
+and checked entirely on the server (`server/src/totp.js`), the same way
+every other authenticator app does it (RFC 6238). There's no QR code —
+just the secret and a tappable `otpauth://` link — to avoid pulling in a
+QR-code library or calling out to a third-party service to render one.
+
+Turning it off again (**"2FA deaktivieren"**) asks for the current
+password, not a code — if you still have your authenticator, you don't
+need to turn it off at all; if you've lost it, see below.
+
+### Forgot the admin password? Lost your 2FA device?
+
+There's no "forgot password" email flow (this app doesn't send email at
+all), so recovery is a filesystem operation: stop the container, delete
+(or move aside) `data/admin.json` — note this is the data directory you
+mounted at `/data`, not the `config/config.yaml` you mounted at `/config`,
+those are unrelated files — and start it again:
+
+```bash
+docker compose down
+rm data/admin.json   # or: mv data/admin.json data/admin.json.bak
+docker compose up -d
+```
+
+This resets the login to **admin / admin** (password-change required again
+on next login) and turns 2FA back off, exactly like a brand-new install.
+
+**What this does and doesn't affect:** `admin.json` only holds admin-page
+state — the password, the 2FA secret, and any Home Assistant/sensor/
+forecast/alert/station settings you entered *through the admin page*
+rather than `config.yaml`. Deleting it resets all of that, but never
+touches `config/config.yaml` — anything configured there (and already
+shown as "locked" on the admin page) is unaffected and doesn't need
+re-entering. If you've configured everything through `config.yaml` instead
+of the admin page, this reset has nothing else to undo.
+
 ### Environment variables
 
 | Variable      | Meaning                                                  | Default               |

@@ -107,7 +107,8 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/dwd.js                DwdForecast: fetches/parses a DWD MOSMIX_L station KMZ, bias-corrects near-term with the live reading
   src/service.js            WeatherService: all data shaping (current, history, records, detail) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, persists log to DATA_DIR/alerts.json
-  src/admin.js              AdminStore: login/session/password hashing, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
+  src/admin.js              AdminStore: login/session/password hashing, optional TOTP 2FA, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
+  src/totp.js               RFC 6238 TOTP (base32, HOTP, verify) on node:crypto only, no new dependency
   src/units.js              unit normalisation to canonical units, compass, German number format
   src/astro.js              sunrise/sunset/day length/sun position/moon via suncalc
   src/util.js               local-time helpers, TTL cache, counter→increment conversion, time-bucketing (bucketLine/bucketCounter), round()
@@ -140,7 +141,7 @@ cd web && npm install && npm run dev
 # Type-check + production build of the frontend (output: web/dist)
 cd web && npm run build
 
-# Run the backend test suite (util.js, units.js, alerts.js)
+# Run the backend test suite (util.js, units.js, alerts.js, totp.js)
 cd server && npm test
 
 # Run backend serving the built frontend
@@ -150,7 +151,7 @@ cd server && DEMO=1 PUBLIC_DIR=../web/dist node src/index.js
 docker compose up -d --build
 ```
 
-There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic), not the HTTP layer or React components. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser. `npx tsc -b` in `web/` must pass (strict mode, `noUnusedLocals`).
+There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic, `totp.js` against RFC 6238's own test vectors), not the HTTP layer or React components. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser. `npx tsc -b` in `web/` must pass (strict mode, `noUnusedLocals`).
 
 **Every push to `main` publishes a new `latest` image to GHCR**, so merging to `main` is a production release. Follow the release process above.
 
@@ -259,6 +260,10 @@ Dashboard sparklines: temp, humidity and pressure in 15-minute buckets, rain in 
 - Sessions are an HMAC-SHA256-signed cookie (`node:crypto`, zero new dependencies) over an expiry timestamp, verified with `timingSafeEqual`; a simple in-memory per-IP backoff throttles repeated failed logins/password attempts. There's no per-session store, so revocation works by rotating the shared `sessionSecret` (invalidating every outstanding token at once) — `changePassword()` does this and re-issues a fresh cookie for the caller so they stay logged in, and `logout()` does the same without re-issuing one. With a single admin account, "log out" and "log out everywhere" are the same operation.
 - Settings changes only take effect at boot (same as `config.yaml`), so a successful `POST /api/admin/settings` responds first, then the process exits after a short delay, relying on the container's restart policy to reload with the new settings — password changes don't restart anything.
 - Every `/api/admin/*` route except `/login` and `/session` requires a valid session; every one except `/password` additionally requires `mustChangePassword` to already be false — enforced server-side (`requireSession` in `index.js`), not just hidden in the UI.
+- **Two-factor authentication** (`totp.js` + `AdminStore`'s `totp` state): optional, off by default, a hand-rolled RFC 6238 TOTP implementation on `node:crypto` only (base32 encode/decode, HOTP, verify with ±1 step clock-drift tolerance) — no new dependency, no QR code (would need either a real QR encoder or an external rendering service; the admin UI shows the secret as text plus a tappable `otpauth://` link instead). `totp.test.js` checks it against RFC 6238's own published test vectors, not just internal round-trips.
+  - `beginTotpSetup()` generates a secret but keeps it **in memory only** (`AdminStore._pendingTotpSecret`, never in `this.state`) until `confirmTotpSetup()` receives a valid code against it — a secret nobody has actually saved in an app never reaches disk, and a server restart mid-setup just means starting over, not a security concern.
+  - `verifyLogin(ip, username, password, code)` re-verifies the password every time rather than issuing some partial "password OK, awaiting 2FA" session of its own: if `totp.enabled` and `code` is missing, it returns `{ok:false, needsTotp:true}` (not a failure — `index.js` answers that one with `200`, not `401`, since the password was right); a present-but-wrong code *is* a rate-limited failure (`401`, same `_attempts` throttle as password guesses — a 6-digit code is only 1e6 possibilities, brute-forcing it has to be exactly as expensive as brute-forcing the password). The frontend (`AdminLogin.tsx`) resubmits username+password+code together rather than tracking a separate "awaiting 2FA" step client-side.
+  - `disableTotp()` requires the current password, not a code — the one way back in if you've lost the authenticator but still have the password; if you've lost both, see the README's "Forgot the admin password?" (delete `admin.json`).
 
 ### API
 
@@ -275,7 +280,7 @@ Everything under `/api/*` except `/api/admin/*` is GET-only (anything else retur
 | `/healthz` | `{ ok, connected, lastMessage }` |
 
 `/api/admin/*` (see above) is the one authenticated, non-read-only surface:
-`POST /login`, `POST /logout`, `GET /session`, `POST /password`, `GET`/`POST /settings`.
+`POST /login`, `POST /logout`, `GET /session`, `POST /password`, `GET`/`POST /settings`, `POST /totp/setup`, `POST /totp/enable`, `POST /totp/disable`.
 
 The response types in `web/src/lib.ts` are maintained by hand. There is no shared schema, so any change to an API response shape must be mirrored there.
 
@@ -334,5 +339,6 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 - DWD's `R101` (precipitation probability) drives `pop` for the DWD forecast path; if a future MOSMIX revision renames/drops that element, `pop` silently falls back to `null` per day (frontend already renders that as blank) rather than erroring.
 - `station.devices[].signal` is shown as `n/4` when it is an integer 0–4 (Ecowitt convention).
 - The admin username is fixed as `admin` (no UI to change it, only the password). There's also no live reconnect: any settings save restarts the whole process, same as editing `config.yaml` would.
+- 2FA is TOTP-only (no backup/recovery codes, no WebAuthn/passkeys) and single-admin by design, same as the account itself. Losing both the password and the authenticator means the README's `admin.json` reset, same as losing just the password.
 - In demo mode with no `config.yaml` sensors and nothing saved via the admin page, `cfg.sensors` gets filled with `DEMO_SENSORS` only if it was completely empty beforehand — so saving even one sensor via the admin page while otherwise relying on demo mode leaves the rest of `DEMO_SENSORS` unfilled. Not an issue outside of demo mode.
 - Per-IP login/password-change throttling uses `req.socket.remoteAddress`, which is the proxy's address, not the real client's, behind a reverse proxy — it still throttles, just coarser (shared across everyone behind that proxy) than per-visitor.

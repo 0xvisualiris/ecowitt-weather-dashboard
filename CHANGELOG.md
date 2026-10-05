@@ -3,6 +3,16 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.3.0 – 2026-10-05
+
+### Improved
+- **Liquid Glass redesign.** Cards, navigation, buttons, chips, segmented controls, pills, banners and tooltips now render as translucent, refractive glass (matching Apple's iOS 26 design language) instead of flat dark fills. Pure visual change — no new dependencies, no behavior change, no config changes. Browsers without `backdrop-filter` support fall back to the previous flat, fully opaque look automatically. (#20)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v1.2.0 – 2026-10-05
 
 ### New

@@ -6,6 +6,7 @@ import { loadConfig } from './config.js';
 import { HomeAssistantSource } from './ha.js';
 import { DemoSource, DEMO_SENSORS, DEMO_DEVICES } from './demo.js';
 import { DwdForecast } from './dwd.js';
+import { RadarSource } from './radar.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
 import { AdminStore } from './admin.js';
@@ -34,6 +35,7 @@ const locked = {
   stationSubtitle: cfg._locked.stationSubtitle,
   stationAltitude: cfg._locked.stationAltitude,
   stationSince: cfg._locked.stationSince,
+  stationPublicLocation: cfg._locked.stationPublicLocation,
   stationDevices: !!cfg.station.devices.length,
 };
 {
@@ -48,6 +50,7 @@ const locked = {
   if (!locked.stationSubtitle && s.station.subtitle) cfg.station.subtitle = s.station.subtitle;
   if (!locked.stationAltitude && s.station.altitude_m != null) cfg.station.altitude_m = s.station.altitude_m;
   if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
+  if (!locked.stationPublicLocation && s.station.publicLocation) cfg.station.publicLocation = s.station.publicLocation;
   if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
 }
 
@@ -100,6 +103,11 @@ if (cfg.forecast.dwdStationId) {
   dwd.start();
 }
 
+// Nationwide, not tied to any per-deployment config — always on, same as
+// the rest of the public API being free/read-only with no setup required.
+const radar = new RadarSource();
+radar.start();
+
 const svc = new WeatherService(cfg, source, dwd);
 const alerts = new AlertEngine(cfg, svc);
 let evalTimer = null;
@@ -126,7 +134,9 @@ const SECURITY_HEADERS = {
 function send(req, res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
   const headers = { 'Content-Type': type, ...SECURITY_HEADERS, ...extra };
-  const compressible = /json|text|javascript|svg/.test(type) && buf.length > 1024;
+  // octet-stream here is specifically the radar grid: a sparse byte array
+  // (mostly 0/255) that gzips very well, unlike a typical opaque binary blob.
+  const compressible = /json|text|javascript|svg|octet-stream/.test(type) && buf.length > 1024;
   if (compressible && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
     headers['Content-Encoding'] = 'gzip';
     headers['Vary'] = 'Accept-Encoding';
@@ -269,6 +279,9 @@ function publicConfig() {
   return {
     station: {
       name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m, since: cfg.station.since,
+      // Deliberately coarse (~10 km) and opt-in – see config.js's cfg.station.publicLocation comment.
+      // Unlike latitude/longitude, this one is meant to reach the browser.
+      publicLocation: cfg.station.publicLocation,
       devices: cfg.station.devices.map(d => ({ id: d.id, name: d.name, short: d.short, role: d.role, metrics: d.metrics })),
     },
     timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -289,6 +302,11 @@ const routes = {
   '/api/detail': async q => svc.detail(q.get('metric')),
   '/api/records': async () => svc.records(),
   '/api/alerts': async () => alerts.view(),
+  '/api/radar': async () => {
+    if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
+    const { width, height, timestamp } = radar.latest;
+    return { width, height, timestamp };
+  },
   '/healthz': async () => ({ ok: true, connected: source.connected, lastMessage: source.lastMessage }),
 };
 
@@ -298,6 +316,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname.startsWith('/api/admin/')) return handleAdmin(req, res, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(req, res, 405, { error: 'read-only' });
+
+  // Raw binary (one byte per grid cell), not JSON — the generic `routes`
+  // table below always wraps its result as JSON, so this one short-circuits
+  // before it, same way /api/admin/ does above.
+  if (url.pathname === '/api/radar/grid') {
+    if (!radar.latest) return send(req, res, 503, { error: 'radar data not available yet' });
+    return send(req, res, 200, Buffer.from(radar.latest.grid), 'application/octet-stream', { 'Cache-Control': 'no-store' });
+  }
 
   const route = routes[url.pathname];
   if (route) {

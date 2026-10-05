@@ -11,8 +11,9 @@ export type Range = 'day' | 'week' | 'month' | 'year';
 export interface Device { id: string; name: string; short: string; role: string; metrics: string[]; battery?: string | null; signal?: string | null }
 export interface DeviceReading { value: number | string; unit: string }
 export interface CurrentDevice extends Omit<Device, 'battery' | 'signal'> { battery: DeviceReading | null; signal: DeviceReading | null }
+export interface GeoPoint { lat: number; lon: number }
 export interface AppConfig {
-  station: { name: string; subtitle: string; altitude_m: number | null; since: string | null; devices: Device[] };
+  station: { name: string; subtitle: string; altitude_m: number | null; since: string | null; publicLocation: GeoPoint | null; devices: Device[] };
   timezone: string; demo: boolean; needsSetup: boolean; metrics: MetricKey[]; sensors: string[]; hasForecast: boolean;
   alertRules: { id: string; label: string; description: string; level: string }[];
   ui: { stale_after_seconds: number; refresh_seconds: number; default_units: Units };
@@ -96,14 +97,14 @@ export interface AlertRule {
 export interface AdminSettings {
   locked: {
     haUrl: boolean; haUrlEnv: boolean; haToken: boolean; haTokenEnv: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
-    alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationDevices: boolean;
+    alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationPublicLocation: boolean; stationDevices: boolean;
   };
   homeassistant: { url: string; tokenSet: boolean };
   sensors: Record<string, string>;
   forecast: { entity: string; dwdStationId: string; biasHours: number; label: string };
   alerts: AlertRule[];
   defaultAlerts: AlertRule[];
-  station: { name: string; subtitle: string; altitude_m: number | null; since: string; devices: Device[] };
+  station: { name: string; subtitle: string; altitude_m: number | null; since: string; publicLocation: GeoPoint | null; devices: Device[] };
   timezone: string;
   demo: boolean;
   totpEnabled: boolean;

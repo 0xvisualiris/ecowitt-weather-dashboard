@@ -105,6 +105,8 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/ha.js                 HomeAssistantSource: HA WebSocket client
   src/demo.js               DemoSource: synthetic data, same interface as HomeAssistantSource
   src/dwd.js                DwdForecast: fetches/parses a DWD MOSMIX_L station KMZ, bias-corrects near-term with the live reading
+  src/radolan.js            decodeRadolan: parses a DWD RADOLAN composite (ASCII header + binary uint16 grid) into {width,height,grid}
+  src/radar.js               RadarSource: fetches+bunzip2s+decodes the DWD RY rain radar composite every 5 min, keeps the latest frame in memory
   src/service.js            WeatherService: all data shaping (current, history, records, detail) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, persists log to DATA_DIR/alerts.json
   src/admin.js              AdminStore: login/session/password hashing, optional TOTP 2FA, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
@@ -125,7 +127,10 @@ web/                        Vite + React 19 + TypeScript, no UI framework, no ch
   src/components/Chart.tsx  Chart (hover crosshair/tooltip) and Spark (sparklines)
   src/components/ConditionIcon.tsx  small hand-drawn forecast-condition icons, keyed by conditionCode
   src/components/DwdStationMap.tsx  admin-only DWD station picker: hand-drawn SVG map + search, reads public/dwd-stations.json
-  src/screens/              Dashboard, History, Detail, Alerts, Settings, AdminLogin, AdminPassword, Admin
+  src/components/germanyOutline.ts  useGermanyOutline() hook + makeOutlineProjection(), factored out of DwdStationMap.tsx, reused by PublicLocationPicker
+  src/components/PublicLocationPicker.tsx  admin-only click-to-pick map for the rain radar's approximate public home location
+  src/radolanProjection.ts  lonLatToRadolanPixel(): the RADOLAN polar-stereographic projection, lon/lat → grid pixel
+  src/screens/              Dashboard, History, Detail, Radar, Alerts, Settings, AdminLogin, AdminPassword, Admin
 ```
 
 ## Commands
@@ -144,7 +149,7 @@ cd web && npm install && npm run dev
 # Type-check + production build of the frontend (output: web/dist)
 cd web && npm run build
 
-# Run the backend test suite (util.js, units.js, alerts.js, totp.js)
+# Run the backend test suite (util.js, units.js, alerts.js, totp.js, radolan.js)
 cd server && npm test
 
 # Run backend serving the built frontend
@@ -154,7 +159,7 @@ cd server && DEMO=1 PUBLIC_DIR=../web/dist node src/index.js
 docker compose up -d --build
 ```
 
-There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic, `totp.js` against RFC 6238's own test vectors), not the HTTP layer or React components. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser. `npx tsc -b` in `web/` must pass (strict mode, `noUnusedLocals`).
+There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic, `totp.js` against RFC 6238's own test vectors, `radolan.js`'s header/grid decoding against synthetic fixtures), not the HTTP layer or React components. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser. `npx tsc -b` in `web/` must pass (strict mode, `noUnusedLocals`).
 
 **Every push to `main` publishes a new `latest` image to GHCR**, so merging to `main` is a production release. Follow the release process above.
 
@@ -165,6 +170,7 @@ Ecowitt → HA (Ecowitt integration, ~60 s) → HA WebSocket push → server (in
 browser polls /api/current every ui.refresh_seconds; charts fetch /api/history etc.
 forecast: DWD MOSMIX_L KMZ (opendata.dwd.de, hourly poll) + live reading → bias-corrected daily forecast
           (falls back to the HA weather.* entity if dwd_station_id isn't set or DWD is unreachable)
+rain radar: DWD RADOLAN RY composite (opendata.dwd.de, 5-min poll, bz2 → bunzip2 → binary grid) → /api/radar + /api/radar/grid
 ```
 
 ### Data source interface (`ha.js` and `demo.js` must stay compatible)
@@ -215,6 +221,16 @@ Never convert units anywhere else. Exception: alert messages are formatted serve
 - `ww` (DWD's significant-weather code) maps to the same condition vocabulary HA emits (`sunny`, `rainy`, `lightning-rainy`, …) via `conditionCode`; the frontend translates that slug itself (`i18n.ts`'s `cond.*` keys) rather than the server sending localized condition text. A day's representative condition is its hourly rows' most severe `ww`; same-severity ties prefer a daytime hour (so a calm clear day reads as sunny, not merely clear).
 - Bias correction: the offset between the live reading and DWD's own value for "now" is applied to the next `forecast.bias_hours` (default 6) of hourly temps, fading to 0 — only the near-term trajectory is nudged; day 2+ stays unmodified MOSMIX. `pop`/condition are never bias-corrected.
 - On fetch/parse failure, a warning is logged and the last good result keeps being served (nothing overwrites `DwdForecast.hourly` on failure).
+
+### Rain radar (`radolan.js`, `radar.js`, `web/src/screens/Radar.tsx`)
+
+- **Data**: DWD's RADOLAN RY composite — a national 900×900 km rain-rate grid (1 km/px, polar-stereographic projection), updated every 5 minutes. `RadarSource` fetches `raa01-ry_10000-latest-dwd---bin.bz2` from `opendata.dwd.de` on the same "background interval, populate a field, read synchronously" pattern as `DwdForecast`/`ha.js` — nothing in `service.js` or `index.js` awaits the fetch.
+- **Decompression**: DWD only publishes RADOLAN as bz2, and Node has no built-in bzip2 support. Rather than add an npm dependency, `radar.js`'s `bunzip2()` shells out to the system `bunzip2` binary (`child_process.spawn('bunzip2', ['-c'])`, piping the compressed bytes to stdin and collecting stdout) — the Dockerfile installs it (`apk add --no-cache bzip2`, alongside the existing `tzdata`).
+- **Decoding** (`radolan.js`'s `decodeRadolan`): a RADOLAN file is an ASCII header (`key=value` fields — `GP` grid dimensions, `PR` precision exponent, `MS` contributing station list, a `DDHHMM` timestamp) terminated by an ETX (0x03) byte, followed by a raw grid of little-endian uint16 values, one per cell. The low 12 bits are the masked value; DWD's fixed sentinel `2500` means "no data". `decodeRadolan` returns `{width, height, timestamp, grid}` where `grid` is a `Uint8Array` with one display-intensity byte per cell (255 = no data, 0 = no rain, 1–254 = `round(mm * 20)` clamped — a display class, not raw mm) rather than the raw uint16s, to keep `/api/radar/grid`'s payload and gzip-compressed size small.
+- **Projection** (`web/src/radolanProjection.ts`): RADOLAN's polar-stereographic grid (standard parallel 60°N, reference meridian 10°E, Earth radius 6370.040 km) projects to a near-perfect axis-aligned 900×900 km square. `lonLatToRadolanPixel(lon, lat)` implements DWD's documented formula; it was validated empirically (not just against the formula) by reprojecting this app's own already-verified Germany outline (`germanyOutline.ts`, shared with `DwdStationMap.tsx`) onto a rendered radar frame and confirming the outline traces neatly inside the rain-coverage mask, with the expected radar-range bulge past the political border.
+- `/api/radar` returns `{width, height, timestamp}` (503 if no frame has loaded yet); `/api/radar/grid` returns the raw `Uint8Array` as `application/octet-stream` (gzip shrinks a mostly-empty grid from 810,000 to roughly 6.5 KB — `index.js`'s `send()` compressible-type check was widened to include `octet-stream`). The frontend fetches both in parallel and draws the grid into a `<canvas>` via `ImageData`/`putImageData` with a 6-stop color ramp, `image-rendering: pixelated` scaled by CSS percentages for pan/zoom (no re-render per frame) rather than a separate tile layer.
+- **Public location / privacy**: auto-centering the radar on "home" would conflict with the hard constraint that the public API never exposes coordinates (see below), so there is a separate, admin-opt-in `station.publicLocation` (`{lat, lon}`, rounded to 0.1° / ~10 km both in the admin UI and again server-side in `admin.js`'s `saveSettings` as defense in depth) — architecturally and in code kept entirely distinct from `station.latitude`/`longitude`, which remain server-side-only and are never sent to the browser. Picked via `PublicLocationPicker.tsx` (click-on-map, reuses `germanyOutline.ts`'s `invert()`) on the admin page's Station section. If unset, the radar just opens showing all of Germany, unzoomed.
+- **Known gap**: wind isn't implemented. DWD doesn't have a "wind radar" product — radar detects precipitation, not wind — so a wind layer would need an entirely different, much larger data source (e.g. ICON-D2 GRIB2 model output), deliberately scoped out of this feature.
 
 ### Caching (`makeCache` in `util.js`: TTL + in-flight dedupe + serve-stale-on-error)
 
@@ -280,6 +296,8 @@ Everything under `/api/*` except `/api/admin/*` is GET-only (anything else retur
 | `/api/history?metric=&range=` | `{ metric, range, agg, points: [{t, v, lo?, hi?}], stats }` |
 | `/api/detail?metric=` | `{ today: Stat[], record, device }` |
 | `/api/records` | all-time records per metric, plus this month |
+| `/api/radar` | `{ width, height, timestamp }` for the current rain radar frame (503 if none loaded yet) |
+| `/api/radar/grid` | raw `Uint8Array` intensity grid (`application/octet-stream`), pairs with `/api/radar` |
 | `/api/alerts` | `{ rules, log }` |
 | `/healthz` | `{ ok, connected, lastMessage }` |
 
@@ -310,10 +328,10 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 
 ## Hard constraints – do not break
 
-- **No secrets in the browser.** The public API never exposes the HA URL, token, coordinates or entity IDs. The one deliberate, narrow exception is the authenticated admin surface: `GET /api/admin/settings` still never echoes the real HA token back (only a `tokenSet` boolean) — admin or not, nobody downloads the actual secret through the API.
+- **No secrets in the browser.** The public API never exposes the HA URL, token, coordinates or entity IDs. The one deliberate, narrow exception is the authenticated admin surface: `GET /api/admin/settings` still never echoes the real HA token back (only a `tokenSet` boolean) — admin or not, nobody downloads the actual secret through the API. The other deliberate, narrow exception is `station.publicLocation` (see "Rain radar" above): an admin-opt-in, ~10 km-rounded approximate location, architecturally separate from `station.latitude`/`longitude`, which stay server-side-only as always.
 - **Content-Security-Policy** (`index.js`) allows only `'self'` (plus inline styles and data: images). Don't add CDNs, Google Fonts, analytics or any external requests; bundle assets instead.
 - **The public API stays read-only.** Everything under `/api/*` is GET-only except `/api/admin/*`, which is the one deliberate exception: authenticated (session cookie, enforced server-side), restart-required to take effect, and always overridden by anything already set in `config.yaml`. No other endpoint may change HA or the config.
-- **Keep the dependency footprint small.** The server depends only on `yaml` and `suncalc`; the frontend has no UI or chart libraries. Discuss before adding any.
+- **Keep the dependency footprint small.** The server depends only on `yaml` and `suncalc`; the frontend has no UI or chart libraries. Discuss before adding any. (The rain radar's bz2 decompression shells out to the image's `bunzip2` binary instead of an npm package — see "Rain radar" above — which is the same spirit, not an exception to it.)
 - **Non-root container.** The image runs as `node` (UID 1000) and deployments may override this with `user:`, so code must never assume root or write anywhere except `DATA_DIR`.
 - **Keep `DemoSource` in sync** with any change to the data-source interface; demo mode is the main way to test.
 - **Port 47813** is the default everywhere: `config.js`, `Dockerfile`, compose, `vite.config.ts`, README. Change all of them together.
@@ -343,6 +361,7 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 - `dwd.js`'s `ww` → condition mapping is an approximate grouping of DWD's documented code ranges, not an exact WMO table lookup; edge codes fall into the nearest sensible bucket.
 - DWD's `R101` (precipitation probability) drives `pop` for the DWD forecast path; if a future MOSMIX revision renames/drops that element, `pop` silently falls back to `null` per day (frontend already renders that as blank) rather than erroring.
 - `station.devices[].signal` is shown as `n/4` when it is an integer 0–4 (Ecowitt convention).
+- Rain radar has no wind layer yet (see "Rain radar" above for why). `radolan.js`/`radar.js` are also untested beyond `radolan.test.js`'s pure-decoding tests — no test covers the bz2 fetch/shell-out path.
 - The admin username is fixed as `admin` (no UI to change it, only the password). There's also no live reconnect: any settings save restarts the whole process, same as editing `config.yaml` would.
 - 2FA is TOTP-only (no backup/recovery codes, no WebAuthn/passkeys) and single-admin by design, same as the account itself. Losing both the password and the authenticator means the README's `admin.json` reset, same as losing just the password.
 - In demo mode with no `config.yaml` sensors and nothing saved via the admin page, `cfg.sensors` gets filled with `DEMO_SENSORS` only if it was completely empty beforehand — so saving even one sensor via the admin page while otherwise relying on demo mode leaves the rest of `DEMO_SENSORS` unfilled. Not an issue outside of demo mode.

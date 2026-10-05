@@ -9,18 +9,20 @@ import { SettingsScreen } from './screens/Settings';
 import { AdminLoginScreen } from './screens/AdminLogin';
 import { AdminPasswordScreen } from './screens/AdminPassword';
 import { AdminScreen } from './screens/Admin';
+import { RadarScreen } from './screens/Radar';
 
 export type Route =
   | { screen: 'dash' }
   | { screen: 'hist'; metric: MetricKey; range: Range }
   | { screen: 'detail'; metric: MetricKey }
+  | { screen: 'radar' }
   | { screen: 'alerts' }
   | { screen: 'settings' }
   | { screen: 'adminLogin' }
   | { screen: 'adminPassword' }
   | { screen: 'admin' };
 
-const SLUG = { dash: '', hist: 'verlauf', detail: 'details', alerts: 'warnungen', settings: 'einstellungen', admin: 'admin' } as const;
+const SLUG = { dash: '', hist: 'verlauf', detail: 'details', radar: 'radar', alerts: 'warnungen', settings: 'einstellungen', admin: 'admin' } as const;
 
 function parseHash(metrics: MetricKey[]): Route {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
@@ -32,6 +34,7 @@ function parseHash(metrics: MetricKey[]): Route {
     return { screen: 'hist', metric: m(q.get('m')), range: ['day', 'week', 'month', 'year'].includes(r) ? r : 'day' };
   }
   if (a === SLUG.detail) return { screen: 'detail', metric: m(b) };
+  if (a === SLUG.radar) return { screen: 'radar' };
   if (a === SLUG.alerts) return { screen: 'alerts' };
   if (a === SLUG.settings) return { screen: 'settings' };
   if (a === SLUG.admin) {
@@ -126,7 +129,7 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
   const stale = !cur || !!curError || !cur.updated || now - cur.updated > staleMs || now - loadedAt > staleMs;
   const screen = kiosk ? 'dash' : route.screen;
 
-  const nav: [Route['screen'], string][] = [['dash', t('nav.dash')], ['hist', t('nav.hist')], ['detail', t('nav.detail')], ['alerts', t('nav.alerts')], ['settings', t('nav.settings')]];
+  const nav: [Route['screen'], string][] = [['dash', t('nav.dash')], ['hist', t('nav.hist')], ['detail', t('nav.detail')], ['radar', t('nav.radar')], ['alerts', t('nav.alerts')], ['settings', t('nav.settings')]];
   const navTo = (s: Route['screen']) => {
     const metric = 'metric' in route ? route.metric : cfg.metrics[0];
     if (s === 'hist') go({ screen: 'hist', metric, range: 'day' });
@@ -170,6 +173,7 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
           {screen === 'dash' && <Dashboard cfg={cfg} cur={cur} error={curError} />}
           {screen === 'hist' && route.screen === 'hist' && <HistoryScreen cfg={cfg} cur={cur} metric={route.metric} range={route.range} />}
           {screen === 'detail' && route.screen === 'detail' && <DetailScreen cfg={cfg} cur={cur} metric={route.metric} />}
+          {screen === 'radar' && <RadarScreen cfg={cfg} />}
           {screen === 'alerts' && <AlertsScreen />}
           {screen === 'settings' && <SettingsScreen cfg={cfg} />}
 

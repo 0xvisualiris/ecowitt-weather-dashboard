@@ -28,6 +28,7 @@ Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic win
 - **Übersicht/Overview:** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
 - **Verlauf/History:** charts for day / week / month / year, plus all-time records and CSV export
 - **Details:** one measurement in depth, with today's values, records and sensor/battery info
+- **Regenradar/Rain radar:** live DWD rain radar for Germany, pannable and zoomable, auto-centered on an optional approximate home location
 - **Warnungen/Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
 - **Einstellungen/Settings:** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in) and interface language
 
@@ -136,6 +137,23 @@ stable URL for DWD's own station list to look one up outside the app — use
 the admin page's map instead). If it's left unset, or DWD can't be reached,
 the dashboard falls back to a Home Assistant `weather.*` entity
 (`forecast.entity`), the same as before.
+
+### Rain radar
+
+The "Regenradar" screen shows [DWD](https://www.dwd.de)'s RADOLAN RY rain
+radar composite for Germany, updated every 5 minutes. Drag to pan, scroll
+or pinch to zoom; a button resets the view.
+
+To have it open already zoomed in on your area, set an approximate home
+location on the admin page ("Ungefährer Standort" in the Station section).
+This is deliberately a **separate, coarse** location (rounded to about 10
+km), not your station's real coordinates — those stay server-side only and
+are never sent to the browser, same as always. Leaving it unset just opens
+the radar zoomed out to all of Germany.
+
+Wind radar isn't implemented yet (DWD doesn't have a "wind radar" product —
+radar detects precipitation, not wind — so this would need a different,
+much larger data source).
 
 ### Admin page
 
@@ -285,6 +303,8 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | `/api/history?metric=temp&range=day`   | History and statistics. `metric`: temp, hum, wind, rain, press, solar, uv, light. `range`: day, week, month, year |
 | `/api/detail?metric=temp`              | Today's values, records, sensor info                                           |
 | `/api/records`                         | All-time records                                                               |
+| `/api/radar`                           | Current rain radar frame: grid size and timestamp                              |
+| `/api/radar/grid`                      | Current rain radar frame: raw binary intensity grid (pairs with `/api/radar`)  |
 | `/api/alerts`                          | Alert rule status and history                                                  |
 | `/healthz`                             | Health check                                                                   |
 

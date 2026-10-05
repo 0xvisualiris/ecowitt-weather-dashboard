@@ -288,11 +288,12 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
   - Dates use `parts()` / `longDate()` / `clock()` / `hhmm()`, which switch between German and English short names without dots (`Mi`/`Wed`, `Sep`) and date-part ordering based on the current language. Clock stays 24-hour in both languages.
 - **Live indicator:** grey and "Veraltet" if `now − current.updated > ui.stale_after_seconds`. `updated` is the max `lu` of the configured sensors, which only changes when a value changes, so on calm nights use 300 s or more.
 - **Design tokens** (in `styles.css`):
-  - Background `oklch(0.16 0.008 250)`, card `oklch(0.2 0.008 250)`, border `oklch(0.27 0.01 250)`
+  - Background `oklch(0.16 0.008 250)`, base card tint `oklch(0.2 0.008 250)`, border `oklch(0.27 0.01 250)`
   - Accents: amber `oklch(0.8 0.13 70)` (heat, sun, lightning, warnings), blue `oklch(0.8 0.13 230)` (water, wind, cold), green `oklch(0.8 0.13 150)` (ok)
   - Fonts: Geist and Geist Mono, self-hosted via `@fontsource-variable`
-  - Radius: cards 16 px, buttons 9 px, chips pill-shaped
+  - Radius: cards 26 px (`--glass-radius`), buttons/chips/nav/pills fully pill-shaped
   - Layout: card grid `repeat(auto-fill, minmax(min(100%,300px),1fr))`, no fixed breakpoints
+- **Liquid Glass**: every surface (`.card`, `.nav`, `.segs`, `.chip`, `.pill`, `.banner`, `.tip`, `.btn-primary`, `.btn-ghost`) is translucent, not a flat fill — `backdrop-filter: blur(28px) saturate(165%)` (`--glass-blur`) over a low-opacity white gradient tint (`--glass-tint`), a bright 1px top-biased edge, and a soft top-left specular highlight (`.card::before`'s radial-gradient). This only reads as glass because there's something colorful behind it to refract: `body`'s background is three large, soft `radial-gradient` "ambient blobs" (amber top-left, blue top-right, green bottom) over the base `--bg`, `background-attachment: fixed` so they stay put while content scrolls. A selected/active state (`.seg.on`, `.chip.on`, `.pill.on`, `.btn-primary`) swaps the neutral tint for an amber (or blue for `.banner.info`/`.pill.on.info`) tinted glass gradient instead of a flat fill. `.input` is the inverse — a dark recessed glass "well" (`inset box-shadow`, no blur) rather than a raised surface, to read as a field you type into, not a panel. Text and numbers stay fully opaque at all times; only the surface underneath them is glass, so legibility at a glance (this app is also used in kiosk/wall-mounted mode) is unaffected. `@supports not (backdrop-filter: ...)` falls every glass surface back to a flat opaque `--card` fill for browsers without it, rather than leaving anything semi-transparent and hard to read.
 - **Charts** are hand-written SVG (`linePath`, `areaPath`, `barsPath`) in an 800×300 viewBox with `preserveAspectRatio="none"`.
   - Hover snaps to the nearest measured point.
   - The tooltip flips to the left in the right quarter of the chart.

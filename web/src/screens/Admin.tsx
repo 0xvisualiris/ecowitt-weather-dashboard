@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from 'react';
 import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
 import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
+import { DwdStationMap } from '../components/DwdStationMap';
 
 const SENSOR_FIELDS = (): [string, string][] => [
   ['temperature', t('admin.sensor.temperature')], ['feels_like', t('admin.sensor.feels_like')], ['dew_point', t('admin.sensor.dew_point')], ['humidity', t('admin.sensor.humidity')],
@@ -30,6 +31,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   const [sensors, setSensors] = useState<Record<string, string>>({});
   const [entity, setEntity] = useState('');
   const [dwdStationId, setDwdStationId] = useState('');
+  const [showDwdMap, setShowDwdMap] = useState(false);
   const [biasHours, setBiasHours] = useState(6);
   const [label, setLabel] = useState('');
   const [stationName, setStationName] = useState('');
@@ -134,6 +136,18 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
           <Field label={t('admin.dwdStationId')} locked={data.locked.dwdStationId}>
             <input className="input" value={dwdStationId} onChange={e => setDwdStationId(e.target.value)} disabled={data.locked.dwdStationId} placeholder={t('admin.egStationId')} />
           </Field>
+          {!data.locked.dwdStationId && (
+            <div className="field">
+              <button type="button" className="btn-ghost" onClick={() => setShowDwdMap(v => !v)}>
+                {showDwdMap ? t('admin.dwdMapClose') : t('admin.dwdPickOnMap')}
+              </button>
+              {showDwdMap && (
+                <div style={{ marginTop: 10 }}>
+                  <DwdStationMap value={dwdStationId} onSelect={(id) => { setDwdStationId(id); setShowDwdMap(false); }} />
+                </div>
+              )}
+            </div>
+          )}
           <Field label={t('admin.biasHours')} locked={data.locked.dwdStationId}>
             <input className="input" type="number" min={0} max={24} value={biasHours} disabled={data.locked.dwdStationId}
               onChange={e => setBiasHours(Number(e.target.value))} />

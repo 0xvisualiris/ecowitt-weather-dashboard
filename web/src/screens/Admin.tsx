@@ -1,8 +1,9 @@
 import { useContext, useEffect, useState } from 'react';
-import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
+import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type GeoPoint, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
 import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
 import { DwdStationMap } from '../components/DwdStationMap';
+import { PublicLocationPicker } from '../components/PublicLocationPicker';
 
 const SENSOR_FIELDS = (): [string, string][] => [
   ['temperature', t('admin.sensor.temperature')], ['feels_like', t('admin.sensor.feels_like')], ['dew_point', t('admin.sensor.dew_point')], ['humidity', t('admin.sensor.humidity')],
@@ -38,6 +39,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   const [stationSubtitle, setStationSubtitle] = useState('');
   const [stationAltitude, setStationAltitude] = useState<number | ''>('');
   const [stationSince, setStationSince] = useState('');
+  const [publicLocation, setPublicLocation] = useState<GeoPoint | null>(null);
+  const [showLocationMap, setShowLocationMap] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
     setStationSubtitle(data.station.subtitle);
     setStationAltitude(data.station.altitude_m ?? '');
     setStationSince(data.station.since);
+    setPublicLocation(data.station.publicLocation);
     setDevices(data.station.devices);
     setAlerts(data.alerts);
   }, [data]);
@@ -72,7 +76,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         homeassistant: { url: haUrl, token: haToken },
         sensors,
         forecast: { entity, dwdStationId, biasHours, label },
-        station: { name: stationName, subtitle: stationSubtitle, altitude_m: stationAltitude === '' ? null : stationAltitude, since: stationSince, devices },
+        station: { name: stationName, subtitle: stationSubtitle, altitude_m: stationAltitude === '' ? null : stationAltitude, since: stationSince, publicLocation, devices },
         alerts,
       });
       setRestarting(true);
@@ -185,6 +189,28 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
           <Field label={t('admin.since')} locked={data.locked.stationSince}>
             <input className="input" value={stationSince} onChange={e => setStationSince(e.target.value)} disabled={data.locked.stationSince} placeholder="2024-04-01" />
           </Field>
+          {!data.locked.stationPublicLocation && (
+            <div className="field">
+              <label className="label">{t('admin.publicLocation')}</label>
+              <button type="button" className="btn-ghost" onClick={() => setShowLocationMap(v => !v)}>
+                {showLocationMap ? t('admin.dwdMapClose') : publicLocation ? t('admin.publicLocationChange') : t('admin.publicLocationSetButton')}
+              </button>
+              {!showLocationMap && publicLocation && (
+                <div className="note">{t('admin.publicLocationSet', { lat: publicLocation.lat.toFixed(1), lon: publicLocation.lon.toFixed(1) })}</div>
+              )}
+              {showLocationMap && (
+                <div style={{ marginTop: 10 }}>
+                  <PublicLocationPicker value={publicLocation} onChange={loc => { setPublicLocation(loc); setShowLocationMap(false); }} />
+                </div>
+              )}
+            </div>
+          )}
+          {data.locked.stationPublicLocation && publicLocation && (
+            <div className="row" style={{ padding: '12px 0' }}>
+              <span className="k">{t('admin.publicLocation')}</span>
+              <span className="v" style={{ fontWeight: 500 }}>{publicLocation.lat.toFixed(1)}, {publicLocation.lon.toFixed(1)}</span>
+            </div>
+          )}
           <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.timezone')}</span><span className="v" style={{ fontWeight: 500 }}>{data.timezone}</span></div>
           {data.demo && <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.dataSource')}</span><span className="v" style={{ fontWeight: 500 }}>{t('admin.demoMode')}</span></div>}
 

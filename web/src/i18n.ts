@@ -22,6 +22,7 @@ const STRINGS = {
   'nav.detail': { de: 'Details', en: 'Details' },
   'nav.alerts': { de: 'Warnungen', en: 'Alerts' },
   'nav.settings': { de: 'Einstellungen', en: 'Settings' },
+  'nav.radar': { de: 'Regenradar', en: 'Rain radar' },
   'nav.mainAria': { de: 'Hauptnavigation', en: 'Main navigation' },
   'app.serverUnreachable': { de: 'Server nicht erreichbar: {error}', en: 'Server unreachable: {error}' },
   'app.loading': { de: 'Lade …', en: 'Loading…' },
@@ -189,6 +190,11 @@ const STRINGS = {
   'admin.subtitle': { de: 'Unterzeile (optional)', en: 'Subtitle (optional)' },
   'admin.altitude': { de: 'Höhe ü. NN in m (optional)', en: 'Altitude above sea level in m (optional)' },
   'admin.since': { de: 'In Betrieb seit (JJJJ-MM-TT, optional)', en: 'In service since (YYYY-MM-DD, optional)' },
+  'admin.publicLocation': { de: 'Ungefährer Standort (für Regenradar)', en: 'Approximate location (for rain radar)' },
+  'admin.publicLocationSetButton': { de: 'Standort festlegen', en: 'Set location' },
+  'admin.publicLocationChange': { de: 'Standort ändern', en: 'Change location' },
+  'admin.publicLocationHint': { de: 'Auf der Karte antippen. Wird auf ca. 10 km gerundet und ist sichtbar für alle Besucher des Regenradars — nicht der genaue Standort der Station.', en: 'Tap the map. Rounded to roughly 10 km and visible to every visitor of the rain radar — not your station’s exact location.' },
+  'admin.publicLocationSet': { de: 'Standort: {lat}, {lon}', en: 'Location: {lat}, {lon}' },
   'admin.timezone': { de: 'Zeitzone', en: 'Timezone' },
   'admin.dataSource': { de: 'Datenquelle', en: 'Data source' },
   'admin.demoMode': { de: 'Demo-Modus (synthetische Werte)', en: 'Demo mode (synthetic data)' },
@@ -330,6 +336,16 @@ const STRINGS = {
   'uv.high': { de: 'hoch', en: 'high' },
   'uv.veryHigh': { de: 'sehr hoch', en: 'very high' },
   'uv.extreme': { de: 'extrem', en: 'extreme' },
+
+  // ---- radar ----
+  'radar.title': { de: 'Regenradar', en: 'Rain radar' },
+  'radar.asOf': { de: 'Stand {time}', en: 'as of {time}' },
+  'radar.loading': { de: 'Lade Radardaten …', en: 'Loading radar data…' },
+  'radar.error': { de: 'Radar nicht verfügbar: {error}', en: 'Radar unavailable: {error}' },
+  'radar.legendLight': { de: 'leicht', en: 'light' },
+  'radar.legendHeavy': { de: 'stark', en: 'heavy' },
+  'radar.resetView': { de: 'Ansicht zurücksetzen', en: 'Reset view' },
+  'radar.sourceNote': { de: 'Regenradar: DWD RADOLAN (RY), alle 5 Minuten aktualisiert. Ziehen zum Verschieben, Scrollen zum Zoomen.', en: 'Rain radar: DWD RADOLAN (RY), updated every 5 minutes. Drag to pan, scroll to zoom.' },
 } satisfies Record<string, { de: string; en: string }>;
 
 export type TKey = keyof typeof STRINGS;

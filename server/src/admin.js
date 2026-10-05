@@ -34,7 +34,7 @@ const emptySettings = () => ({
   sensors: {},
   forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '' },
   alerts: null, // null = not customized, defer to config.yaml-or-DEFAULT_ALERTS; otherwise a normalizeAlerts()-validated array
-  station: { name: '', subtitle: '', altitude_m: null, since: '', devices: [] },
+  station: { name: '', subtitle: '', altitude_m: null, since: '', publicLocation: null, devices: [] },
 });
 
 // Defensive shape-narrowing for a rule/condition/device submitted through the
@@ -295,7 +295,7 @@ export class AdminStore {
       defaultAlerts: DEFAULT_ALERTS,
       station: {
         name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m,
-        since: cfg.station.since || '', devices: cfg.station.devices,
+        since: cfg.station.since || '', publicLocation: cfg.station.publicLocation, devices: cfg.station.devices,
       },
       timezone,
       demo: cfg.server.demo,
@@ -331,6 +331,15 @@ export class AdminStore {
         next.settings.station.altitude_m = patch.station.altitude_m;
       }
       if (!locked.stationSince && typeof patch.station.since === 'string') next.settings.station.since = patch.station.since.trim();
+      if (!locked.stationPublicLocation && patch.station.publicLocation !== undefined) {
+        const p = patch.station.publicLocation;
+        // Rounded here too (not just client-side) – defense in depth, since
+        // the whole point of this field is to never carry more precision
+        // than ~10 km into the public API.
+        next.settings.station.publicLocation = p && Number.isFinite(p.lat) && Number.isFinite(p.lon)
+          ? { lat: Math.round(p.lat * 10) / 10, lon: Math.round(p.lon * 10) / 10 }
+          : null;
+      }
       if (!locked.stationDevices && Array.isArray(patch.station.devices)) next.settings.station.devices = sanitizeDevices(patch.station.devices);
     }
 

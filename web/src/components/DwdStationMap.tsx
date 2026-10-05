@@ -1,28 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { t } from '../i18n';
-
-interface StationData {
-  outline: [number, number][]; // [lon, lat] simplified Germany border (Natural-Earth-derived, baked in at build time)
-  stations: { id: string; name: string; lat: number; lon: number }[];
-}
-
-const W = 640, H = 760, PAD = 16;
-
-// Equirectangular projection with a cos(lat) correction so the shape isn't
-// horizontally stretched — fine at this scale/extent (~600 km across),
-// same approach a hand-rolled SVG chart elsewhere in this app would use.
-function makeProjection(data: StationData) {
-  const lons = [...data.outline.map(p => p[0]), ...data.stations.map(s => s.lon)];
-  const lats = [...data.outline.map(p => p[1]), ...data.stations.map(s => s.lat)];
-  const lonMin = Math.min(...lons), latMax = Math.max(...lats);
-  const cos0 = Math.cos((Math.min(...lats) + latMax) / 2 * Math.PI / 180);
-  const rawX = (lon: number) => (lon - lonMin) * cos0;
-  const rawY = (lat: number) => latMax - lat;
-  const xMax = Math.max(...lons.map(rawX));
-  const yMax = Math.max(...lats.map(rawY));
-  const scale = Math.min((W - 2 * PAD) / xMax, (H - 2 * PAD) / yMax);
-  return (lon: number, lat: number): [number, number] => [rawX(lon) * scale + PAD, rawY(lat) * scale + PAD];
-}
+import { useGermanyOutline, makeOutlineProjection } from './germanyOutline';
 
 /// A hand-rolled SVG map (no mapping library, no external tiles — same
 /// "dependency-light, hand-drawn SVG" convention as Chart.tsx/ConditionIcon)
@@ -32,21 +10,11 @@ function makeProjection(data: StationData) {
 /// those are the real synoptic network MOSMIX_L actually covers — within a
 /// Central European bounding box), fetched lazily only when the picker opens.
 export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (id: string, name: string) => void }) {
-  const [data, setData] = useState<StationData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, error } = useGermanyOutline();
   const [query, setQuery] = useState('');
   const [hover, setHover] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
 
-  useEffect(() => {
-    let alive = true;
-    fetch('/dwd-stations.json').then(r => {
-      if (!r.ok) throw new Error(r.statusText);
-      return r.json();
-    }).then(j => { if (alive) setData(j); }).catch(e => { if (alive) setError((e as Error).message); });
-    return () => { alive = false; };
-  }, []);
-
-  const project = useMemo(() => (data ? makeProjection(data) : null), [data]);
+  const proj = useMemo(() => (data ? makeOutlineProjection(data) : null), [data]);
 
   const q = query.trim().toLowerCase();
   const matches = useMemo(() => {
@@ -56,7 +24,8 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
   const matchIds = useMemo(() => (matches ? new Set(matches.map(s => s.id)) : null), [matches]);
 
   if (error) return <div className="note">{t('admin.dwdMapError', { error })}</div>;
-  if (!data || !project) return <div className="note">{t('admin.dwdMapLoading')}</div>;
+  if (!data || !proj) return <div className="note">{t('admin.dwdMapLoading')}</div>;
+  const { project, viewBox, width, height } = proj;
 
   const selected = data.stations.find(s => s.id === value) || null;
 
@@ -69,7 +38,7 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
       <div className="note">{t('admin.dwdMapHint')}</div>
 
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)' }}>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', maxHeight: 480, display: 'block' }}>
+        <svg viewBox={viewBox} style={{ width: '100%', maxHeight: 480, display: 'block' }}>
           <path
             d={'M' + data.outline.map(([lon, lat]) => project(lon, lat).join(',')).join('L') + 'Z'}
             fill="oklch(1 0 0 / 0.05)" stroke="oklch(1 0 0 / 0.22)" strokeWidth={1.5}
@@ -92,7 +61,7 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
           })}
         </svg>
         {hover && (
-          <div className="tip" style={{ left: `${(hover.x / W) * 100}%`, top: `${(hover.y / H) * 100}%`, transform: 'translate(-50%, -130%)' }}>
+          <div className="tip" style={{ left: `${(hover.x / width) * 100}%`, top: `${(hover.y / height) * 100}%`, transform: 'translate(-50%, -130%)' }}>
             <span className="tv">{hover.name}</span>
             <span className="tt">{hover.id}</span>
           </div>

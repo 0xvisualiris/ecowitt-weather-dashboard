@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { type AdminSession, type AppConfig, type Current, type MetricKey, type Range, type Units, UnitsContext, setTimeZone, useApi, longDate, clock, hhmm, fmtDeviceReading, fmtSignal } from './lib';
 import { LangContext, setLang as setLibLang, t, type Lang } from './i18n';
+import { Segmented } from './components/Segmented';
 import { Dashboard } from './screens/Dashboard';
 import { HistoryScreen } from './screens/History';
 import { DetailScreen } from './screens/Detail';
@@ -161,12 +162,14 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
               </div>
             </button>
             {!kiosk && (
-              <nav className="nav" aria-label={t('nav.mainAria')}>
-                {nav.map(([k, label]) => (
-                  <button key={k} className={'seg' + (screen === k ? ' on' : '')} aria-current={screen === k ? 'page' : undefined} onClick={() => navTo(k)}>{label}</button>
-                ))}
+              <Segmented
+                as="nav" kind="nav" trackClassName="nav" ariaLabel={t('nav.mainAria')}
+                items={nav.map(([k, label]) => ({ key: k, label }))}
+                value={screen}
+                onChange={k => navTo(k as Route['screen'])}
+              >
                 <a href="#/admin/login" className="seg">Admin</a>
-              </nav>
+              </Segmented>
             )}
           </header>
 

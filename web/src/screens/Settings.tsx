@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { type AppConfig, type Units, UNIT_OPTIONS, UnitsContext } from '../lib';
 import { LangContext, t, type Lang } from '../i18n';
+import { Segmented } from '../components/Segmented';
 
 export function SettingsScreen({ cfg: _cfg }: { cfg: AppConfig }) {
   const { u, setU } = useContext(UnitsContext);
@@ -12,22 +13,22 @@ export function SettingsScreen({ cfg: _cfg }: { cfg: AppConfig }) {
       {UNIT_OPTIONS().map(o => (
         <div key={o.key} className="row" style={{ flexWrap: 'wrap', alignItems: 'center', padding: '12px 0' }}>
           <span>{o.label}</span>
-          <div className="segs inset" role="radiogroup" aria-label={o.label}>
-            {o.opts.map(opt => (
-              <button key={opt} role="radio" aria-checked={u[o.key] === opt} className={'seg xs' + (u[o.key] === opt ? ' on' : '')}
-                onClick={() => setU({ ...u, [o.key]: opt } as Units)}>{opt}</button>
-            ))}
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={o.label}
+            items={o.opts.map(opt => ({ key: opt, label: opt }))}
+            value={u[o.key]}
+            onChange={opt => setU({ ...u, [o.key]: opt } as Units)}
+          />
         </div>
       ))}
       <div className="row" style={{ flexWrap: 'wrap', alignItems: 'center', padding: '12px 0' }}>
         <span>{t('settings.language')}</span>
-        <div className="segs inset" role="radiogroup" aria-label={t('settings.language')}>
-          {(['de', 'en'] as Lang[]).map(l => (
-            <button key={l} role="radio" aria-checked={lang === l} className={'seg xs' + (lang === l ? ' on' : '')}
-              onClick={() => setLang(l)}>{l === 'de' ? 'Deutsch' : 'English'}</button>
-          ))}
-        </div>
+        <Segmented
+          kind="radio" size="xs" inset ariaLabel={t('settings.language')}
+          items={(['de', 'en'] as Lang[]).map(l => ({ key: l, label: l === 'de' ? 'Deutsch' : 'English' }))}
+          value={lang}
+          onChange={l => setLang(l as Lang)}
+        />
       </div>
       <div className="note" style={{ paddingTop: 12 }}>{t('settings.browserOnly')}</div>
     </section>

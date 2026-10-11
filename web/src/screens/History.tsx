@@ -1,5 +1,6 @@
 import { go } from '../App';
 import { Chart } from '../components/Chart';
+import { Segmented } from '../components/Segmented';
 import {
   type AppConfig, type Current, type History, type MetricKey, type Range, type Records, type Units,
   METRIC_META, metricLabel, dateFmt, extent, parts, fmt, fmtStat, metricConv, useApi, useUnits, hhmm, dateShort, statLabel,
@@ -119,11 +120,12 @@ export function HistoryScreen({ cfg, cur, metric, range }: { cfg: AppConfig; cur
           ))}
         </div>
         <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
-          <div className="segs" role="tablist" aria-label={t('hist.periodAria')}>
-            {RANGES.map(([k, l]) => (
-              <button key={k} role="tab" aria-selected={k === range} className={'seg sm' + (k === range ? ' on' : '')} onClick={() => go({ screen: 'hist', metric, range: k })}>{l()}</button>
-            ))}
-          </div>
+          <Segmented
+            kind="tab" size="sm" ariaLabel={t('hist.periodAria')}
+            items={RANGES.map(([k, l]) => ({ key: k, label: l() }))}
+            value={range}
+            onChange={k => go({ screen: 'hist', metric, range: k as Range })}
+          />
           <button type="button" className="btn-ghost" disabled={!data} onClick={exportCsv}>{t('hist.exportCsv')}</button>
         </div>
       </div>

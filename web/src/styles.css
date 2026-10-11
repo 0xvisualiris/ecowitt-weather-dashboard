@@ -81,28 +81,35 @@ button { font-family: inherit; }
 .dot.stale { background: var(--faint); box-shadow: none; }
 .faint { color: var(--faint); }
 .nav {
-  display: flex; gap: 2px; padding: 5px; border-radius: 999px; overflow-x: auto; max-width: 100%; scrollbar-width: none;
+  position: relative; display: flex; gap: 2px; padding: 5px; border-radius: 999px; overflow-x: auto; max-width: 100%; scrollbar-width: none;
   background: var(--glass-tint); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge-soft);
 }
 .nav::-webkit-scrollbar { display: none; }
 .seg {
-  border: 0; cursor: pointer; white-space: nowrap; padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
-  background: transparent; color: var(--muted); transition: background 0.2s ease, color 0.2s ease;
+  position: relative; z-index: 1; border: 0; cursor: pointer; white-space: nowrap; padding: 9px 16px; border-radius: 999px; font-size: 14px; font-weight: 500;
+  background: transparent; color: var(--muted); transition: color 0.2s ease;
 }
 .seg:hover { color: var(--text); }
-.seg.on {
-  color: var(--text); background: linear-gradient(165deg, color-mix(in oklch, var(--amber) 55%, transparent), color-mix(in oklch, var(--amber) 22%, transparent));
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), 0 4px 14px -4px color-mix(in oklch, var(--amber) 60%, transparent);
-}
+.seg.on { color: var(--text); }
 .seg.sm { padding: 7px 13px; }
 .seg.xs { padding: 6px 12px; font-size: 13px; }
 .segs {
-  display: flex; gap: 2px; padding: 4px; border-radius: 999px;
+  position: relative; display: flex; gap: 2px; padding: 4px; border-radius: 999px;
   background: var(--glass-tint); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-edge-soft);
 }
 .segs.inset { padding: 3px; background: oklch(0 0 0 / 0.22); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.4); }
+
+/* seg-thumb — the one sliding highlight behind the selected segment/nav
+   item (web/src/components/Segmented.tsx), positioned with transform/width/
+   height set directly from JS (a hand-rolled spring), not a CSS transition —
+   a spring can be grabbed and redirected mid-glide, a transition can't. */
+.seg-thumb {
+  position: absolute; top: 0; left: 0; z-index: 0; border-radius: 999px; pointer-events: none;
+  background: linear-gradient(165deg, color-mix(in oklch, var(--amber) 55%, transparent), color-mix(in oklch, var(--amber) 22%, transparent));
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), 0 4px 14px -4px color-mix(in oklch, var(--amber) 60%, transparent);
+}
 
 /* cards — the core Liquid Glass surface, with a soft specular highlight
    catching light from the top-left, like a lit pane of glass. */

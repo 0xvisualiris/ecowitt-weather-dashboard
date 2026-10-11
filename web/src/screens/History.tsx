@@ -3,7 +3,7 @@ import { Chart } from '../components/Chart';
 import { Segmented } from '../components/Segmented';
 import {
   type AppConfig, type Current, type History, type MetricKey, type Range, type Records, type Units,
-  METRIC_META, metricLabel, dateFmt, extent, parts, fmt, fmtStat, metricConv, useApi, useUnits, hhmm, dateShort, statLabel,
+  METRIC_META, NBSP, metricLabel, dateFmt, extent, parts, fmt, fmtStat, metricConv, strikesText, useApi, useUnits, hhmm, dateShort, statLabel,
 } from '../lib';
 import { t } from '../i18n';
 
@@ -65,9 +65,9 @@ export function timeLabel(range: Range, ts: number, bucketMs = 0) {
 
 // Unit-aware value formatter for chart points
 export function pointFormatter(metric: MetricKey, u: Units) {
-  if (metric === 'light') return (v: number) => t('unit.strikesCount', { n: fmt(v, 0) });
+  if (metric === 'light') return (v: number) => strikesText(v);
   const c = metricConv(metric, u);
-  return (v: number) => fmt(v, c.d) + (c.unit ? ' ' + c.unit : '');
+  return (v: number) => fmt(v, c.d) + (c.unit ? NBSP + c.unit : '');
 }
 
 export function currentValue(metric: MetricKey, cur: Current | null) {
@@ -120,7 +120,7 @@ export function HistoryScreen({ cfg, cur, metric, range }: { cfg: AppConfig; cur
           value={metric}
           onChange={m => go({ screen: 'hist', metric: m as MetricKey, range })}
         />
-        <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
+        <div className="hist-tools">
           <Segmented
             kind="tab" size="sm" ariaLabel={t('hist.periodAria')}
             items={RANGES.map(([k, l]) => ({ key: k, label: l() }))}

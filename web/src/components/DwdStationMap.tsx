@@ -10,6 +10,8 @@ import { createPanZoom, type View } from '../panZoom';
 /// build time from DWD's own station catalogue (numeric-ID stations only —
 /// those are the real synoptic network MOSMIX_L actually covers — within a
 /// Central European bounding box), fetched lazily only when the picker opens.
+const viewTransform = (v: View, width: number) => `translate(${(-v.x / v.w) * 100}%, ${(-v.y / v.w) * 100}%) scale(${width / v.w})`;
+
 export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (id: string, name: string) => void }) {
   const { data, error } = useGermanyOutline();
   const [query, setQuery] = useState('');
@@ -19,21 +21,22 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
 
   const proj = useMemo(() => (data ? makeOutlineProjection(data) : null), [data]);
 
-  // Pan/zoom moves and scales the SVG's own viewBox (see panZoom.ts), written
-  // straight to the element so a drag doesn't re-render ~370 station dots —
-  // the map is plain SVG, so it stays crisp at any zoom level.
+  // Pan/zoom is a CSS transform on the SVG (see panZoom.ts), written straight
+  // to the element: panning is then a pure compositor move instead of a new
+  // viewBox that re-lays-out ~370 station dots every frame, and the browser
+  // re-rasterises the vector at the new scale when zooming, so it stays crisp.
   const pz = useMemo(() => {
     if (!proj) return null;
     const { width, height } = proj;
     return createPanZoom({
       contentW: width, contentH: height, minW: width / 10,
       apply: (v: View) => {
-        svgRef.current?.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.w * (height / width)}`);
+        const svg = svgRef.current;
+        if (svg) svg.style.transform = viewTransform(v, width);
         setZoomed(v.w < width - 0.5);
       },
     });
   }, [proj]);
-  const attach = useMemo(() => (node: SVGSVGElement | null) => { svgRef.current = node; pz?.attach(node); }, [pz]);
 
   const q = query.trim().toLowerCase();
   const matches = useMemo(() => {
@@ -62,15 +65,20 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
       />
       <div className="note">{t('admin.dwdMapHint')}</div>
 
-      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)' }}>
+      {/* The frame has the map's own aspect ratio, so the SVG fills it exactly
+          and a drag tracks the pointer 1:1 (no letterboxing to account for). */}
+      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)', aspectRatio: `${width} / ${height}`, maxHeight: 480, maxWidth: `calc(480px * ${width / height})`, margin: '0 auto', width: '100%', touchAction: 'none', cursor: 'grab' }}
+        // Gestures are measured on this untransformed frame, not on the SVG that moves inside it.
+        ref={pz.attach}
+        onPointerDown={e => { setHover(null); pz.onPointerDown(e); }}
+        onPointerMove={pz.onPointerMove}
+        onPointerUp={pz.onPointerUp}
+        onPointerCancel={pz.onPointerUp}
+      >
         <svg
-          ref={attach}
-          viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-          style={{ width: '100%', maxHeight: 480, display: 'block', touchAction: 'none', cursor: 'grab' }}
-          onPointerDown={e => { setHover(null); pz.onPointerDown(e); }}
-          onPointerMove={pz.onPointerMove}
-          onPointerUp={pz.onPointerUp}
-          onPointerCancel={pz.onPointerUp}
+          ref={svgRef}
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', transformOrigin: '0 0', transform: viewTransform(view, width) }}
         >
           <path
             d={'M' + data.outline.map(([lon, lat]) => project(lon, lat).join(',')).join('L') + 'Z'}

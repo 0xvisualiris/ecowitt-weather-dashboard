@@ -24,9 +24,13 @@
      fill. Needs something colorful behind it to actually refract (see the
      ambient gradients on body below) and a bright, thin top edge to read as
      a lit sheet of glass rather than frosted plastic. */
-  --glass-blur: blur(28px) saturate(165%);
-  /* small controls are thinner glass than the big panels */
-  --glass-blur-sm: blur(14px) saturate(165%);
+  /* What a glass surface does to what's behind it. Only a saturation boost:
+     nothing ever scrolls underneath these surfaces, they sit on the page's
+     smooth ambient gradient, and blurring a smooth gradient changes nothing
+     visible while costing a large blur on every surface, every scroll frame.
+     The chart tooltip (.tip) is the one surface that floats over content, and
+     keeps a real blur. */
+  --glass-filter: saturate(165%);
   --glass-tint: linear-gradient(165deg, oklch(1 0 0 / 0.1), oklch(1 0 0 / 0.025));
   --glass-tint-strong: linear-gradient(165deg, oklch(1 0 0 / 0.16), oklch(1 0 0 / 0.04));
   --glass-edge: oklch(1 0 0 / 0.14);
@@ -36,10 +40,18 @@
   --glass-line-strong: oklch(1 0 0 / 0.32);
   --glass-shadow: 0 24px 48px -24px oklch(0 0 0 / 0.55), 0 2px 10px -4px oklch(0 0 0 / 0.4);
   --glass-radius: 26px;
+  /* one strong ease-out for press feedback and entrances (the built-in curves are too weak) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --glass-radius-sm: 16px;
 }
 
 * { box-sizing: border-box; }
+/* No grey flash on tap (every control has its own :active state instead),
+   and no font inflation in landscape. */
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Controls: no 300 ms double-tap wait, and a long press doesn't select the label. */
+button, a, .card.link { touch-action: manipulation; }
+button, a.seg { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 html, body {
   margin: 0; min-height: 100%; color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased;
   background:
@@ -51,10 +63,15 @@ html, body {
   background-color: var(--bg);
 }
 a { color: var(--blue); text-decoration: none; }
-@media (hover: hover) { a:hover { color: oklch(0.9 0.08 230); } }
+@media (hover: hover) and (pointer: fine) { a:hover { color: oklch(0.9 0.08 230); } }
 button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+/* Reduced motion means gentler, not none: colour and opacity changes that
+   aid comprehension stay, anything that moves or scales arrives instantly. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-property: color, background-color, border-color, opacity, box-shadow, filter !important; animation: none !important; }
+  .card.link:hover { transform: none !important; }
+}
 
 /* Glass surfaces need backdrop-filter; browsers without it fall back to a
    flat, fully-opaque card so nothing becomes unreadable. */
@@ -63,7 +80,7 @@ button { font-family: inherit; }
 }
 
 .page {
-  min-height: 100vh; max-width: 1440px; margin: 0 auto;
+  min-height: 100vh; min-height: 100dvh; max-width: 1440px; margin: 0 auto;
   padding: clamp(14px, 3vw, 32px);
   /* Added to the safe area, not maxed against it: as an installed home-screen
      app (apple-mobile-web-app-capable + status-bar-style "black-translucent"
@@ -74,6 +91,8 @@ button { font-family: inherit; }
      which is exactly the cramped look this is fixing. */
   padding-top: calc(env(safe-area-inset-top) + clamp(14px, 3vw, 32px));
   padding-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3vw, 32px));
+  padding-left: calc(env(safe-area-inset-left, 0px) + clamp(14px, 3vw, 32px));
+  padding-right: calc(env(safe-area-inset-right, 0px) + clamp(14px, 3vw, 32px));
   display: flex; flex-direction: column; gap: 20px;
 }
 .stack { display: flex; flex-direction: column; gap: 16px; }
@@ -87,8 +106,9 @@ button { font-family: inherit; }
 .faint { color: var(--faint); }
 .nav {
   position: relative; display: flex; gap: 2px; padding: 5px; border-radius: 999px; overflow-x: auto; max-width: 100%; scrollbar-width: none;
-  background: var(--glass-tint); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-tint);
   border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge-soft);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
 .nav::-webkit-scrollbar { display: none; }
 .nav[data-more-right] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 44px), transparent); }
@@ -96,26 +116,30 @@ button { font-family: inherit; }
 .nav[data-more-left][data-more-right] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 44px, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(90deg, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
 .seg {
   position: relative; z-index: 1; border: 0; cursor: pointer; white-space: nowrap; padding: 9px 16px; border-radius: 999px; font-size: 0.875rem; font-weight: 500;
-  background: transparent; color: var(--muted); transition: color 0.2s ease, transform 0.1s ease-out;
+  background: transparent; color: var(--muted); transition: color 0.2s ease, transform 0.12s var(--ease-out);
 }
-@media (hover: hover) { .seg:hover { color: var(--text); } }
+@media (hover: hover) and (pointer: fine) { .seg:hover { color: var(--text); } }
 .seg:active { transform: scale(0.96); }
 .seg.on { color: var(--text); }
 .seg.sm { padding: 7px 13px; }
 .seg.xs { padding: 6px 12px; font-size: 0.8125rem; }
 .segs {
   position: relative; display: flex; gap: 2px; padding: 4px; border-radius: 999px;
-  background: var(--glass-tint); backdrop-filter: var(--glass-blur-sm); -webkit-backdrop-filter: var(--glass-blur-sm);
+  background: var(--glass-tint);
   border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-edge-soft);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
 .segs.inset { padding: 3px; background: oklch(0 0 0 / 0.22); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: inset 0 1px 3px oklch(0 0 0 / 0.4); }
 
 /* seg-thumb — the one sliding highlight behind the selected segment/nav
-   item (web/src/components/Segmented.tsx), positioned with transform/width/
-   height set directly from JS (a hand-rolled spring), not a CSS transition —
-   a spring can be grabbed and redirected mid-glide, a transition can't. */
+   item/chip (web/src/components/Segmented.tsx). Position and size are set
+   from JS; the glide itself is this transition, so the transform part runs
+   off the main thread while the next screen renders. width/height only
+   change between segments of different size, on an absolutely positioned
+   element with no children. */
 .seg-thumb {
   position: absolute; top: 0; left: 0; z-index: 0; border-radius: 999px; pointer-events: none;
+  transition: transform 0.25s var(--ease-out), width 0.25s var(--ease-out), height 0.25s var(--ease-out);
   background: linear-gradient(165deg, color-mix(in oklch, var(--amber) 55%, transparent), color-mix(in oklch, var(--amber) 22%, transparent));
   box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.35), 0 4px 14px -4px color-mix(in oklch, var(--amber) 60%, transparent);
 }
@@ -124,11 +148,12 @@ button { font-family: inherit; }
    catching light from the top-left, like a lit pane of glass. */
 .card {
   position: relative; isolation: isolate; overflow: hidden;
-  background: var(--glass-tint); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+  background: var(--glass-tint);
   border: 1px solid var(--glass-edge); border-radius: var(--glass-radius);
   box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge-soft);
   padding: 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
 .card::before {
   content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
@@ -143,7 +168,7 @@ button { font-family: inherit; }
 .card.lg { padding: clamp(18px, 3vw, 28px); gap: 18px; border-radius: calc(var(--glass-radius) + 4px); }
 .card.md { padding: clamp(18px, 3vw, 24px); gap: 0; border-radius: calc(var(--glass-radius) + 4px); }
 .card.link { cursor: pointer; text-align: left; color: inherit; font: inherit; }
-@media (hover: hover) { .card.link:hover { border-color: var(--glass-edge); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge-soft), 0 0 0 1px color-mix(in oklch, var(--amber) 35%, transparent); transform: translateY(-1px); } }
+@media (hover: hover) and (pointer: fine) { .card.link:hover { border-color: var(--glass-edge); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-edge-soft), 0 0 0 1px color-mix(in oklch, var(--amber) 35%, transparent); transform: translateY(-1px); } }
 .card.link:active { transform: scale(0.99); transition-duration: 0.1s; }
 .eyebrow { display: flex; justify-content: space-between; gap: 12px; font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .eyebrow.pad { padding-bottom: 12px; }
@@ -154,6 +179,7 @@ button { font-family: inherit; }
 .span-all { grid-column: 1 / -1; }
 
 .num, .hero-num, .hist-num, .detail-num, .kv b, .v, .stats .v, .row .v, .mini .v, .fc-row, .rec-row, .tip .tv, .note { font-variant-numeric: tabular-nums; }
+.num { white-space: nowrap; }
 .num { font-size: 2.5rem; font-weight: 300; line-height: 1; letter-spacing: -0.02em; }
 .num .u { font-size: 0.9375rem; color: var(--muted); }
 .hero-num { font-size: clamp(4.5rem, 14vw, 8rem); font-weight: 300; line-height: 0.85; letter-spacing: -0.04em; }
@@ -176,18 +202,19 @@ button { font-family: inherit; }
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; padding: 14px 18px;
   border-radius: var(--glass-radius-sm); color: oklch(0.2 0.03 70);
   background: linear-gradient(165deg, color-mix(in oklch, var(--amber) 92%, white 8%), color-mix(in oklch, var(--amber) 78%, transparent));
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+ 
   border: 1px solid oklch(1 0 0 / 0.3); box-shadow: var(--glass-shadow), inset 0 1px 0 oklch(1 0 0 / 0.4);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
 .banner.info { color: oklch(0.2 0.03 230); background: linear-gradient(165deg, color-mix(in oklch, var(--blue) 92%, white 8%), color-mix(in oklch, var(--blue) 78%, transparent)); }
 .banner .t { font-weight: 600; font-size: 0.9375rem; }
 .banner .m { font-size: 0.875rem; }
-.banner button { border: 0; cursor: pointer; padding: 8px 14px; border-radius: 999px; background: oklch(0.2 0.03 70 / 0.85); color: oklch(0.95 0.05 70); font-size: 0.8125rem; font-weight: 500; transition: transform 0.1s ease-out; }
+.banner button { border: 0; cursor: pointer; padding: 8px 14px; border-radius: 999px; background: oklch(0.2 0.03 70 / 0.85); color: oklch(0.95 0.05 70); font-size: 0.8125rem; font-weight: 500; transition: transform 0.12s var(--ease-out); }
 .banner button:active { transform: scale(0.96); }
 .banner.info button { background: oklch(0.2 0.03 230 / 0.85); color: oklch(0.95 0.05 230); }
 
 /* forecast */
-.fc-row { display: grid; grid-template-columns: 44px 20px minmax(0, 1fr) 44px 36px minmax(60px, 1.2fr) 36px; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid oklch(1 0 0 / 0.08); font-size: 0.875rem; }
+.fc-row { display: grid; grid-template-columns: 2.75rem 1.25rem minmax(0, 1fr) 2.75rem 2.25rem minmax(3.75rem, 1.2fr) 2.25rem; align-items: center; gap: 10px; padding: 11px 0; border-top: 1px solid oklch(1 0 0 / 0.08); font-size: 0.875rem; }
 .fc-icon { display: flex; align-items: center; }
 .fc-row .cond { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fc-row .pop { font-family: var(--mono); font-size: 0.75rem; color: var(--blue); }
@@ -196,7 +223,11 @@ button { font-family: inherit; }
 .fc-bar > div { position: absolute; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, var(--amber), color-mix(in oklch, var(--amber) 70%, white 20%)); }
 
 @media (max-width: 520px) {
-  .fc-row { grid-template-columns: 40px 20px minmax(0, 1fr) 38px 30px 52px 30px; gap: 6px; }
+  .fc-row { grid-template-columns: 2.5rem 1.25rem minmax(0, 1fr) 2.4rem 1.9rem 3.25rem 1.9rem; gap: 6px; }
+}
+@media (max-width: 380px) {
+  .fc-row { grid-template-columns: 2.5rem 1.25rem 2.4rem 1.9rem minmax(2.5rem, 1fr) 1.9rem; }
+  .fc-row .cond { display: none; }
 }
 
 /* uv scale */
@@ -207,10 +238,11 @@ button { font-family: inherit; }
 .chips { position: relative; display: flex; flex-wrap: wrap; gap: 6px; }
 .chip {
   white-space: nowrap; cursor: pointer; padding: 8px 14px; border-radius: 999px; font-size: 0.8125rem; font-weight: 500; color: var(--text);
-  background: var(--glass-tint); backdrop-filter: var(--glass-blur-sm); -webkit-backdrop-filter: var(--glass-blur-sm);
-  border: 1px solid var(--glass-edge); transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease-out;
+  background: var(--glass-tint);
+  border: 1px solid var(--glass-edge); transition: border-color 0.2s ease, background 0.2s ease, transform 0.12s var(--ease-out);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
-@media (hover: hover) { .chip:hover { border-color: var(--border-hover); } }
+@media (hover: hover) and (pointer: fine) { .chip:hover { border-color: var(--border-hover); } }
 .chip:active { transform: scale(0.96); }
 .chip:disabled { cursor: not-allowed; }
 .chip:disabled:active { transform: none; }
@@ -245,6 +277,7 @@ button { font-family: inherit; }
 
 /* history */
 .hist-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.hist-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .hist-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; }
 .hist-num { font-size: clamp(2.25rem, 6vw, 3.25rem); font-weight: 300; letter-spacing: -0.02em; line-height: 1; }
 .hist-num .u, .detail-num .u { font-size: 1rem; color: var(--muted); }
@@ -275,11 +308,13 @@ button { font-family: inherit; }
 .detail-num .u { font-size: 0.3em; margin-left: 8px; }
 .btn-ghost {
   align-self: flex-start; cursor: pointer; padding: 9px 16px; border-radius: 999px; font-size: 0.8125rem; font-weight: 500; color: var(--text);
-  background: var(--glass-tint); backdrop-filter: var(--glass-blur-sm); -webkit-backdrop-filter: var(--glass-blur-sm);
-  border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-edge-soft); transition: border-color 0.2s ease, transform 0.1s ease;
+  background: var(--glass-tint);
+  border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-edge-soft); transition: border-color 0.2s ease, transform 0.12s var(--ease-out);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
-@media (hover: hover) { .btn-ghost:hover { border-color: var(--border-hover); } }
+@media (hover: hover) and (pointer: fine) { .btn-ghost:hover { border-color: var(--border-hover); } }
 .btn-ghost:active { transform: scale(0.97); }
+.btn-ghost, .btn-primary, .chip, .seg { white-space: nowrap; }
 
 /* alerts */
 .rule { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-top: 1px solid oklch(1 0 0 / 0.08); }
@@ -287,7 +322,8 @@ button { font-family: inherit; }
 .rule .c { font-size: 0.8125rem; color: var(--muted); }
 .pill {
   flex-shrink: 0; padding: 5px 11px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; white-space: nowrap; color: var(--muted);
-  background: oklch(1 0 0 / 0.06); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--glass-edge-soft);
+  background: oklch(1 0 0 / 0.06); border: 1px solid var(--glass-edge-soft);
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
 .pill.on {
   color: oklch(0.2 0.03 70); border-color: oklch(1 0 0 / 0.3);
@@ -314,7 +350,7 @@ button { font-family: inherit; }
   background: oklch(0 0 0 / 0.22); border: 1px solid var(--glass-edge-soft); box-shadow: inset 0 1px 4px oklch(0 0 0 / 0.35);
   transition: border-color 0.2s ease;
 }
-@media (hover: hover) { .input:hover { border-color: var(--border-hover); } }
+@media (hover: hover) and (pointer: fine) { .input:hover { border-color: var(--border-hover); } }
 .input:focus-visible { border-color: color-mix(in oklch, var(--blue) 60%, transparent); }
 .input:disabled { color: var(--faint); cursor: not-allowed; }
 .input::placeholder { color: var(--faint); }
@@ -322,21 +358,24 @@ button { font-family: inherit; }
   cursor: pointer; padding: 11px 18px; border-radius: 999px; font-size: 0.875rem; font-weight: 600; color: oklch(0.2 0.03 70);
   background: linear-gradient(165deg, color-mix(in oklch, var(--amber) 95%, white 8%), color-mix(in oklch, var(--amber) 75%, transparent));
   border: 1px solid oklch(1 0 0 / 0.35); box-shadow: var(--glass-shadow), inset 0 1px 0 oklch(1 0 0 / 0.45);
-  backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); transition: transform 0.1s ease, filter 0.2s ease;
+  transition: transform 0.12s var(--ease-out), filter 0.2s ease;
+  backdrop-filter: var(--glass-filter); -webkit-backdrop-filter: var(--glass-filter);
 }
-@media (hover: hover) { .btn-primary:hover { filter: brightness(1.08); } }
+@media (hover: hover) and (pointer: fine) { .btn-primary:hover { filter: brightness(1.08); } }
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary:disabled { cursor: not-allowed; filter: none; color: var(--faint); background: oklch(1 0 0 / 0.06); border-color: var(--glass-edge-soft); box-shadow: none; }
 .form-error { font-size: 0.8125rem; color: var(--amber); }
 .form-note { font-size: 0.8125rem; color: var(--green); }
 .auth-page {
-  min-height: 100vh; display: grid; place-items: center; padding: 24px;
+  min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px;
   padding-top: calc(env(safe-area-inset-top) + 24px); padding-bottom: calc(env(safe-area-inset-bottom) + 24px);
+  padding-left: calc(env(safe-area-inset-left, 0px) + 24px); padding-right: calc(env(safe-area-inset-right, 0px) + 24px);
 }
 .auth-card { width: 100%; max-width: 360px; }
 .admin-page {
   max-width: 760px; margin: 0 auto; padding: clamp(14px, 3vw, 32px); display: flex; flex-direction: column; gap: 20px;
   padding-top: calc(env(safe-area-inset-top) + clamp(14px, 3vw, 32px)); padding-bottom: calc(env(safe-area-inset-bottom) + clamp(14px, 3vw, 32px));
+  padding-left: calc(env(safe-area-inset-left, 0px) + clamp(14px, 3vw, 32px)); padding-right: calc(env(safe-area-inset-right, 0px) + clamp(14px, 3vw, 32px));
 }
 
 /* Touch: every control gets a finger-sized target. */
@@ -349,7 +388,7 @@ button { font-family: inherit; }
 /* Reduced transparency: glass becomes a solid, frosted panel. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --glass-blur: none; --glass-blur-sm: none;
+    --glass-filter: none;
     --glass-tint: linear-gradient(var(--card), var(--card));
     --glass-tint-strong: linear-gradient(var(--sel), var(--sel));
   }
@@ -360,7 +399,7 @@ button { font-family: inherit; }
 /* Increased contrast: solid surfaces, defined borders, brighter secondary text. */
 @media (prefers-contrast: more) {
   :root {
-    --glass-blur: none; --glass-blur-sm: none;
+    --glass-filter: none;
     --glass-tint: linear-gradient(var(--card), var(--card));
     --glass-tint-strong: linear-gradient(var(--sel), var(--sel));
     --glass-edge: oklch(1 0 0 / 0.55); --glass-edge-soft: oklch(1 0 0 / 0.4);
@@ -372,4 +411,17 @@ button { font-family: inherit; }
   .pill:not(.on) { background: var(--sel); }
   .row, .fc-row, .rec-row, .rule, .log { border-top-color: oklch(1 0 0 / 0.3); }
   .rec-row.head { border-top-color: transparent; }
+}
+
+/* Entrances for things that would otherwise pop in: the alert banner when an
+   alert fires, and the admin page's map pickers when opened. Opacity plus a
+   small offset, never from nothing; under reduced motion only the fade runs. */
+.banner, .reveal {
+  transition: opacity 0.22s var(--ease-out), transform 0.22s var(--ease-out);
+  @starting-style { opacity: 0; transform: translateY(-8px) scale(0.98); }
+}
+
+/* iOS zooms the page into any field under 16px and never zooms back. */
+@media (pointer: coarse) {
+  .input { font-size: 1rem; }
 }

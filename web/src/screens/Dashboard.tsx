@@ -3,7 +3,7 @@ import { go } from '../App';
 import { Spark } from '../components/Chart';
 import { ConditionIcon } from '../components/ConditionIcon';
 import {
-  type AppConfig, type Current, type MetricKey, beaufort, compass, convFor, fmt, fmtC, hhmm, trendText, useUnits, uvLabel, dateFmt, dayKey, weekday,
+  type AppConfig, type Current, type MetricKey, NBSP, beaufort, compass, convFor, fmt, fmtC, hhmm, trendText, useUnits, uvLabel, dateFmt, dayKey, weekday,
 } from '../lib';
 import { t, type TKey } from '../i18n';
 
@@ -65,7 +65,7 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
 
   const moonSlug = astro?.moon.name;
   const moonValue = moonSlug == null ? '' : ['waxing', 'waning'].includes(moonSlug)
-    ? `${t(`moon.${moonSlug}` as TKey)} ${astro!.moon.illumination} %`
+    ? `${t(`moon.${moonSlug}` as TKey)} ${astro!.moon.illumination}${NBSP}%`
     : t(`moon.${moonSlug}` as TKey);
 
   return (
@@ -108,9 +108,9 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
               {fc.map((f, i) => (
                 <div className="fc-row" key={f.date}>
                   <span style={{ fontWeight: 500 }}>{dayKey(f.date) === dayKey(Date.now()) || (i === 0 && f.date < Date.now()) ? t('dash.today') : weekday(f.date)}</span>
-                  <span className="fc-icon"><ConditionIcon code={f.conditionCode} /></span>
+                  <span className="fc-icon" title={f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : undefined}><ConditionIcon code={f.conditionCode} /></span>
                   <span className="cond" title={f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : undefined}>{f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : '—'}</span>
-                  <span className="pop">{f.pop != null ? `${f.pop} %` : ''}</span>
+                  <span className="pop">{f.pop != null ? `${f.pop}${NBSP}%` : ''}</span>
                   <span className="lo">{deg(f.lo, 0)}</span>
                   <div className="fc-bar">
                     {f.lo != null && f.hi != null && <div style={{ left: `${((f.lo - fLo) / fRg) * 100}%`, width: `${Math.max(2, ((f.hi - f.lo) / fRg) * 100)}%` }} />}

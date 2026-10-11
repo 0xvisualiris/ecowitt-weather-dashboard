@@ -187,8 +187,11 @@ export const fmt = (v: number | null | undefined, d = 1) => {
     : { minimumFractionDigits: d, maximumFractionDigits: d };
   return r.toLocaleString(intlLocale(), opts).replace('-', '−');
 };
+// Between a value and its unit: a non-breaking space, so a narrow card never
+// wraps "41,9" and "km/h" onto separate lines.
+export const NBSP = '\u00a0';
 export const fmtC = (v: number | null | undefined, c: Conv, withUnit = true) =>
-  v == null ? '—' : fmt(c.f(v), c.d) + (withUnit && c.unit ? ' ' + c.unit : '');
+  v == null ? '—' : fmt(c.f(v), c.d) + (withUnit && c.unit ? NBSP + c.unit : '');
 // A device's battery/signal reading: server sends the raw value + unit (a
 // shared, cached response can't pre-format per visitor), client formats it
 // locale-aware, same as every other measurement. `AppConfig.station.devices`
@@ -201,7 +204,7 @@ export function fmtDeviceReading(r: DeviceReading | string | null | undefined): 
   if (typeof r === 'string') return r;
   if (typeof r.value !== 'number') return r.value;
   const s = fmt(r.value, Number.isInteger(r.value) ? 0 : 2);
-  return r.unit === '%' ? `${s} %` : r.unit ? `${s} ${r.unit}` : s;
+  return r.unit ? `${s}${NBSP}${r.unit}` : s;
 }
 // n/4 is Ecowitt's convention for signal strength when it's an integer 0-4.
 export function fmtSignal(r: DeviceReading | string | null | undefined): string {
@@ -263,6 +266,9 @@ export function trendText(delta: number | null, c: Conv, hours = 3) {
   return { text: t('trend.sentence', { arrow, delta: delta_, unit: c.unit, hours, word: wordText }), word };
 }
 
+// "1 Einschlag" / "22 Einschläge" — the count of exactly one has its own string.
+export const strikesText = (n: number) => (n === 1 ? t('unit.strikesCountOne') : t('unit.strikesCount', { n: fmt(n, 0) }));
+
 export function fmtStat(s: { v: number | null; kind: StatKind; t?: number | null }, m: MetricKey, u: Units) {
   switch (s.kind) {
     case 'metric': return fmtC(s.v, metricConv(m, u));
@@ -270,8 +276,8 @@ export function fmtStat(s: { v: number | null; kind: StatKind; t?: number | null
     case 'rainDay': return s.v == null ? '—' : fmtC(s.v, convFor('rain', u)) + t('unit.perDay');
     case 'rate': return fmtC(s.v, convFor('rate', u));
     case 'count': return s.v == null ? '—' : fmt(s.v, 0);
-    case 'strikes': return s.v == null ? '—' : t('unit.strikesCount', { n: fmt(s.v, 0) });
-    case 'km': return s.v == null ? '—' : `${fmt(s.v, 0)} km`;
+    case 'strikes': return s.v == null ? '—' : strikesText(s.v);
+    case 'km': return s.v == null ? '—' : `${fmt(s.v, 0)}${NBSP}km`;
     case 'time': return hhmm(s.t);
   }
 }

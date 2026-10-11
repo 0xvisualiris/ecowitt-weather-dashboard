@@ -105,7 +105,7 @@ export function Chart({ values, times, bars, color, height, formatValue, formatT
           <>
             <div className="hair" style={{ left: `${hov.x * 100}%` }} />
             <div className="hdot" style={{ left: `${hov.x * 100}%`, top: `${hov.y * 100}%`, background: color }} />
-            <div className="tip" style={{ left: `${hov.x * 100}%`, transform: hov.x > 0.75 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)' }}>
+            <div className="tip" style={{ left: `${hov.x * 100}%`, transform: hov.x > 0.5 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)' }}>
               <span className="tv">{hov.val}</span>
               <span className="tt">{hov.time}</span>
             </div>

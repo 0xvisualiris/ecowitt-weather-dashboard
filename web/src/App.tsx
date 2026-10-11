@@ -114,8 +114,6 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
   const unitsCtx = useMemo(() => ({ u, setU }), [u]);
 
   const { data: cur, error: curError, loadedAt } = useApi<Current>(isAdmin ? null : '/api/current', cfg.ui.refresh_seconds * 1000);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
 
   useEffect(() => { document.title = cfg.station.name; }, [cfg.station.name]);
 
@@ -127,8 +125,6 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
     );
   }
 
-  const staleMs = cfg.ui.stale_after_seconds * 1000;
-  const stale = !cur || !!curError || !cur.updated || now - cur.updated > staleMs || now - loadedAt > staleMs;
   const screen = kiosk ? 'dash' : route.screen;
 
   const nav: [Route['screen'], string][] = [['dash', t('nav.dash')], ['hist', t('nav.hist')], ['detail', t('nav.detail')], ['radar', t('nav.radar')], ['alerts', t('nav.alerts')], ['settings', t('nav.settings')]];
@@ -153,14 +149,7 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
           <header className="header">
             <button className="kiosk-btn stack" style={{ gap: 4, cursor: kiosk ? 'pointer' : 'default' }} onClick={toggleFullscreen} tabIndex={kiosk ? 0 : -1}>
               <div className="title">{cfg.station.name}</div>
-              <div className="status">
-                <span className={'dot' + (stale ? ' stale' : '')} />
-                <span>
-                  {stale ? `${t('app.stale')}${cur?.updated ? t('app.lastUpdate', { time: hhmm(cur.updated) }) : ''}` : t('app.live')}
-                  {' · '}{longDate(now)}{' · '}{clock(now)}
-                </span>
-                {cfg.station.subtitle && <span className="faint">{cfg.station.subtitle}</span>}
-              </div>
+              <StatusLine cfg={cfg} cur={cur} curError={curError} loadedAt={loadedAt} />
             </button>
             {!kiosk && (
               <Segmented
@@ -194,6 +183,25 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
         </div>
       </UnitsContext.Provider>
     </LangContext.Provider>
+  );
+}
+
+// The live/stale dot and the ticking clock. The one-second timer lives here,
+// not in Loaded, so a tick re-renders this one line instead of every screen.
+function StatusLine({ cfg, cur, curError, loadedAt }: { cfg: AppConfig; cur: Current | null; curError: string | null; loadedAt: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  const staleMs = cfg.ui.stale_after_seconds * 1000;
+  const stale = !cur || !!curError || !cur.updated || now - cur.updated > staleMs || now - loadedAt > staleMs;
+  return (
+    <div className="status">
+      <span className={'dot' + (stale ? ' stale' : '')} />
+      <span>
+        {stale ? `${t('app.stale')}${cur?.updated ? t('app.lastUpdate', { time: hhmm(cur.updated) }) : ''}` : t('app.live')}
+        {' · '}{longDate(now)}{' · '}{clock(now)}
+      </span>
+      {cfg.station.subtitle && <span className="faint">{cfg.station.subtitle}</span>}
+    </div>
   );
 }
 

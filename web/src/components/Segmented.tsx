@@ -1,13 +1,16 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { createSpring, prefersReducedMotion } from '../spring';
+import { prefersReducedMotion } from '../spring';
 
 export type SegmentedItem = { key: string; label: React.ReactNode; disabled?: boolean };
 
 // A segmented control (iOS tab bar / picker) with one sliding highlight
-// instead of each button flipping its own background on and off — the
-// highlight glides to the newly-selected button along a critically-damped
-// spring, reading its *current* on-screen position as the start every time
-// so a quick second tap mid-glide redirects smoothly instead of restarting.
+// instead of each button flipping its own background on and off. The
+// highlight moves with a CSS transition (.seg-thumb in styles.css), not a
+// requestAnimationFrame spring: it is click-driven, not gesture-driven, and
+// in the nav it plays exactly while the next screen renders — a transition
+// on `transform` runs off the main thread, so that render can't make it
+// stutter. Transitions retarget from the current on-screen position, so a
+// quick second tap mid-glide still redirects smoothly.
 export function Segmented({
   items, value, onChange, ariaLabel, kind = 'tab', as = 'div', size, trackClassName = 'segs', itemClassName = 'seg', inset, children,
 }: {
@@ -29,27 +32,18 @@ export function Segmented({
   const trackRef = useRef<HTMLElement>(null);
   const thumbRef = useRef<HTMLDivElement>(null);
   const btnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const springRef = useRef<ReturnType<typeof createSpring> | null>(null);
   const mounted = useRef(false);
-
-  if (!springRef.current) {
-    springRef.current = createSpring(v => {
-      const thumb = thumbRef.current;
-      if (!thumb) return;
-      thumb.style.transform = `translate(${v.x}px, ${v.y}px)`;
-      thumb.style.width = `${v.w}px`;
-      thumb.style.height = `${v.h}px`;
-    });
-  }
 
   const measure = (animate: boolean) => {
     const btn = btnRefs.current[value];
     const thumb = thumbRef.current;
     if (!btn || !thumb) { if (thumb) thumb.style.opacity = '0'; return; }
     thumb.style.opacity = '1';
-    const next = { x: btn.offsetLeft, y: btn.offsetTop, w: btn.offsetWidth, h: btn.offsetHeight };
-    if (!animate || prefersReducedMotion()) springRef.current!.jumpTo(next);
-    else springRef.current!.setTarget(next);
+    // Initial placement and resizes jump; only a change of selection glides.
+    thumb.style.transition = animate ? '' : 'none';
+    thumb.style.transform = `translate(${btn.offsetLeft}px, ${btn.offsetTop}px)`;
+    thumb.style.width = `${btn.offsetWidth}px`;
+    thumb.style.height = `${btn.offsetHeight}px`;
     // A track that scrolls sideways (the nav on a phone) must never hide its
     // own selection: bring the selected item to the middle.
     const track = trackRef.current;

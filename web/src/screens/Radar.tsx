@@ -58,7 +58,7 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
       const canvas = canvasRef.current;
       if (canvas) canvas.style.transform = `translate(${(-v.x / v.w) * 100}%, ${(-v.y / v.w) * 100}%) scale(${GRID / v.w})`;
       const marker = markerRef.current, m = markerPxRef.current;
-      if (marker && m) { marker.style.left = `${((m[0] - v.x) / v.w) * 100}%`; marker.style.top = `${((m[1] - v.y) / v.w) * 100}%`; }
+      if (marker && m) marker.style.transform = `translate(${((m[0] - v.x) / v.w) * 100}%, ${((m[1] - v.y) / v.w) * 100}%)`;
     },
   }), []);
 
@@ -143,24 +143,25 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
         >
           <canvas
             ref={canvasRef}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transformOrigin: '0 0', imageRendering: 'pixelated' }}
+            style={{
+              position: 'absolute', inset: 0, width: '100%', height: '100%', transformOrigin: '0 0', imageRendering: 'pixelated',
+              opacity: meta ? 1 : 0, transition: 'opacity 200ms var(--ease-out)',
+            }}
           />
+          {/* The marker sits at the top-left corner of a container-sized layer,
+              so the layer's percentage translate places it without layout. */}
           {markerPx && (
-            <div
-              ref={markerRef}
-              aria-hidden="true"
-              style={{
-                position: 'absolute',
-                left: `${((markerPx[0] - pz.get().x) / pz.get().w) * 100}%`,
-                top: `${((markerPx[1] - pz.get().y) / pz.get().w) * 100}%`,
-                width: 14, height: 14, marginLeft: -7, marginTop: -7,
-                borderRadius: '50%',
-                background: 'oklch(0.8 0.13 70)',
-                border: '2px solid rgba(255,255,255,0.8)',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.25)',
-                pointerEvents: 'none',
-              }}
-            />
+            <div ref={markerRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+              <div
+                style={{
+                  width: 14, height: 14, marginLeft: -7, marginTop: -7,
+                  borderRadius: '50%',
+                  background: 'oklch(0.8 0.13 70)',
+                  border: '2px solid rgba(255,255,255,0.8)',
+                  boxShadow: '0 0 0 1px rgba(0,0,0,0.25)',
+                }}
+              />
+            </div>
           )}
           {!meta && !error && <div className="center-msg" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>{t('radar.loading')}</div>}
         </div>

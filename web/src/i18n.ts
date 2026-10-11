@@ -37,7 +37,7 @@ const STRINGS = {
   'common.today': { de: 'heute', en: 'today' },
   'common.yesterday': { de: 'gestern', en: 'yesterday' },
   'common.now': { de: 'jetzt', en: 'now' },
-  'common.clockTime': { de: '{time} Uhr', en: '{time}' },
+  'common.clockTime': { de: '{time}\u00a0Uhr', en: '{time}' },
   'chart.aria': { de: 'Diagramm', en: 'Chart' },
   'chart.ariaHint': { de: 'Diagramm, Pfeiltasten zeigen einzelne Werte', en: 'Chart, arrow keys step through the values' },
   'chart.noData': { de: 'Keine Daten für diesen Zeitraum', en: 'No data for this period' },
@@ -68,7 +68,7 @@ const STRINGS = {
   'dash.pressure': { de: 'Luftdruck', en: 'Pressure' },
   'dash.relative': { de: 'relativ', en: 'relative' },
   'dash.humidity': { de: 'Luftfeuchte', en: 'Humidity' },
-  'dash.todayMinMaxPct': { de: 'Heute {min} – {max} %', en: 'Today {min} – {max} %' },
+  'dash.todayMinMaxPct': { de: 'Heute {min} – {max}\u00a0%', en: 'Today {min} – {max}\u00a0%' },
   'dash.sunUv': { de: 'Sonne & UV', en: 'Sun & UV' },
   'dash.uvIndexAria': { de: 'UV-Index {v}', en: 'UV index {v}' },
   'dash.sunMoon': { de: 'Sonne & Mond', en: 'Sun & Moon' },
@@ -112,7 +112,7 @@ const STRINGS = {
   'detail.sunProtectionRecommended': { de: 'Sonnenschutz empfohlen', en: 'Sun protection recommended' },
   'detail.protectionFrom3': { de: 'Schutz ab 3 empfohlen', en: 'Protection recommended from 3' },
   'detail.lastAt': { de: 'Letzter {date} um {time}', en: 'Last {date} at {time}' },
-  'detail.strikesTodaySuffix': { de: '{n} Einschläge heute', en: '{n} strikes today' },
+  'detail.strikesTodaySuffix': { de: '{strikes} heute', en: '{strikes} today' },
 
   // ---- alerts ----
   'alerts.notAvailable': { de: 'Warnungen nicht verfügbar: {error}', en: 'Alerts unavailable: {error}' },
@@ -277,7 +277,8 @@ const STRINGS = {
   'unit.press': { de: 'Luftdruck', en: 'Pressure' },
   'unit.rain': { de: 'Niederschlag', en: 'Precipitation' },
   'unit.perDay': { de: '/Tag', en: '/day' },
-  'unit.strikesCount': { de: '{n} Einschläge', en: '{n} strikes' },
+  'unit.strikesCount': { de: '{n}\u00a0Einschläge', en: '{n}\u00a0strikes' },
+  'unit.strikesCountOne': { de: '1\u00a0Einschlag', en: '1\u00a0strike' },
 
   // ---- stat-row slugs emitted by service.js (k field) ----
   'stat.min': { de: 'Minimum', en: 'Minimum' },
@@ -333,7 +334,7 @@ const STRINGS = {
   'trend.rising': { de: 'steigend', en: 'rising' },
   'trend.falling': { de: 'fallend', en: 'falling' },
   'trend.steady': { de: 'gleichbleibend', en: 'steady' },
-  'trend.sentence': { de: '{arrow} {delta} {unit} / {hours} h · {word}', en: '{arrow} {delta} {unit} in {hours}h · {word}' },
+  'trend.sentence': { de: '{arrow} {delta}\u00a0{unit} / {hours}\u00a0h · {word}', en: '{arrow} {delta}\u00a0{unit} in {hours}h · {word}' },
 
   // ---- UV ----
   'uv.low': { de: 'niedrig', en: 'low' },

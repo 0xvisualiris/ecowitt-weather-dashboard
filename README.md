@@ -28,7 +28,7 @@ Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic win
 - **Übersicht/Overview:** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
 - **Verlauf/History:** charts for day / week / month / year, plus all-time records and CSV export
 - **Details:** one measurement in depth, with today's values, records and sensor/battery info
-- **Regenradar/Rain radar:** live DWD rain radar for Germany, pannable and zoomable (scroll wheel or pinch), auto-centered on an optional approximate home location
+- **Regenradar/Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours as a loop; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), auto-centered on an optional approximate home location
 - **Warnungen/Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
 - **Einstellungen/Settings:** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in) and interface language
 
@@ -334,4 +334,5 @@ cd server && npm test
 
 - `server/`: Node 22 without a framework; only `yaml` and `suncalc` as dependencies. Talks to Home Assistant via its WebSocket API.
 - `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
+- `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/public/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
 - `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.

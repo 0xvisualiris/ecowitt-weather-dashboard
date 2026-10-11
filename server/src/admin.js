@@ -37,6 +37,38 @@ const emptySettings = () => ({
   station: { name: '', subtitle: '', altitude_m: null, since: '', publicLocation: null, devices: [] },
 });
 
+// Maximum lengths for the free-text fields the admin page can set. These end
+// up in the public page's header, cards and alert banner, so they're bounded
+// here, server-side — the form's maxLength is only a convenience, anything can
+// POST to the API. Mirrored in web/src/screens/Admin.tsx (TEXT_LIMITS there).
+export const TEXT_LIMITS = {
+  stationName: 60, stationSubtitle: 80,
+  alertLabel: 60, alertDescription: 120, alertBanner: 120, alertMessage: 200,
+  deviceName: 60, deviceShort: 12, deviceRole: 40,
+};
+
+// Returns an error message for the first over-long field in a settings patch,
+// or null. Checked on the raw patch before anything is applied, so a save is
+// rejected as a whole rather than silently truncated.
+export function tooLongError(patch) {
+  const check = (value, max, what) => (typeof value === 'string' && value.trim().length > max ? `${what} is too long (max ${max} characters)` : null);
+  const st = patch?.station;
+  if (st && typeof st === 'object') {
+    const e = check(st.name, TEXT_LIMITS.stationName, 'station name') || check(st.subtitle, TEXT_LIMITS.stationSubtitle, 'station subtitle');
+    if (e) return e;
+    for (const d of Array.isArray(st.devices) ? st.devices : []) {
+      const de = d && typeof d === 'object' && (check(d.name, TEXT_LIMITS.deviceName, 'device name') || check(d.short, TEXT_LIMITS.deviceShort, 'device short name') || check(d.role, TEXT_LIMITS.deviceRole, 'device role'));
+      if (de) return de;
+    }
+  }
+  for (const a of Array.isArray(patch?.alerts) ? patch.alerts : []) {
+    const ae = a && typeof a === 'object' && (check(a.label, TEXT_LIMITS.alertLabel, 'alert label') || check(a.description, TEXT_LIMITS.alertDescription, 'alert description')
+      || check(a.banner, TEXT_LIMITS.alertBanner, 'alert banner text') || check(a.message, TEXT_LIMITS.alertMessage, 'alert message'));
+    if (ae) return ae;
+  }
+  return null;
+}
+
 // Defensive shape-narrowing for a rule/condition/device submitted through the
 // admin API before it's handed to normalizeAlerts() (structural validation)
 // or persisted — untrusted JSON body, so every field is type-checked here
@@ -309,6 +341,8 @@ export class AdminStore {
   // alerts, or a disk-write failure) – nothing is persisted unless every
   // section is valid, so a bad save can never reach admin.json half-applied.
   saveSettings(locked, patch) {
+    const lengthError = tooLongError(patch);
+    if (lengthError) return { ok: false, error: lengthError };
     const next = { ...this.state, settings: { ...this.state.settings } };
 
     if (!locked.alerts && patch.alerts !== undefined) {

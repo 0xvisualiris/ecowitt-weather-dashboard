@@ -185,7 +185,7 @@ const STRINGS = {
   'admin.dwdMapLoading': { de: 'Lade Stationen …', en: 'Loading stations…' },
   'admin.dwdMapError': { de: 'Stationen konnten nicht geladen werden: {error}', en: 'Could not load stations: {error}' },
   'admin.dwdMapSearch': { de: 'Station suchen …', en: 'Search for a station…' },
-  'admin.dwdMapHint': { de: 'Station suchen oder auf der Karte antippen. Scrollen zum Zoomen, Ziehen zum Verschieben.', en: 'Search for a station or tap it on the map. Scroll to zoom, drag to pan.' },
+  'admin.dwdMapHint': { de: 'Station suchen oder auf der Karte antippen. Maus: ziehen, zoomen mit {key} + Scrollen. Touch: zwei Finger.', en: 'Search for a station or tap one on the map. Mouse: drag, zoom with {key} + scroll. Touch: two fingers.' },
   'admin.dwdMapResetView': { de: 'Ansicht zurücksetzen', en: 'Reset view' },
   'admin.dwdMapNoMatch': { de: 'Keine Treffer.', en: 'No matches.' },
   'admin.dwdMapSelected': { de: 'Ausgewählt: {name} ({id})', en: 'Selected: {name} ({id})' },
@@ -198,8 +198,12 @@ const STRINGS = {
   'admin.publicLocation': { de: 'Ungefährer Standort (für Regenradar)', en: 'Approximate location (for rain radar)' },
   'admin.publicLocationSetButton': { de: 'Standort festlegen', en: 'Set location' },
   'admin.publicLocationChange': { de: 'Standort ändern', en: 'Change location' },
-  'admin.publicLocationHint': { de: 'Auf der Karte antippen. Wird auf ca. 10 km gerundet und ist sichtbar für alle Besucher des Regenradars — nicht der genaue Standort der Station.', en: 'Tap the map. Rounded to roughly 10 km and visible to every visitor of the rain radar — not your station’s exact location.' },
-  'admin.publicLocationSet': { de: 'Standort: {lat}, {lon}', en: 'Location: {lat}, {lon}' },
+  'admin.publicLocationHint': { de: 'Auf der Karte antippen. Der Standort rastet auf ein 0,1°-Raster ein (das markierte Feld, etwa 7 × 11 km) und ist für alle Besucher des Regenradars sichtbar — nicht der genaue Standort der Station. Maus: ziehen, zoomen mit {key} + Scrollen. Touch: zwei Finger.', en: 'Tap the map. The location snaps to a 0.1° grid (the highlighted cell, roughly 7 × 11 km) and is visible to every visitor of the rain radar — not the exact location of the station. Mouse: drag, zoom with {key} + scroll. Touch: two fingers.' },
+  'admin.publicLocationSet': { de: 'Standort: {where}', en: 'Location: {where}' },
+  'admin.publicLocationNone': { de: 'Noch kein Standort gewählt. Das Regenradar zeigt dann ganz Deutschland.', en: 'No location chosen yet. The rain radar then shows all of Germany.' },
+  'admin.publicLocationClear': { de: 'Standort entfernen', en: 'Remove location' },
+  'admin.publicLocationAt': { de: 'bei {place}', en: 'at {place}' },
+  'admin.publicLocationNear': { de: '{km} km von {place}', en: '{km} km from {place}' },
   'admin.timezone': { de: 'Zeitzone', en: 'Timezone' },
   'admin.dataSource': { de: 'Datenquelle', en: 'Data source' },
   'admin.demoMode': { de: 'Demo-Modus (synthetische Werte)', en: 'Demo mode (synthetic data)' },
@@ -348,10 +352,23 @@ const STRINGS = {
   'radar.asOf': { de: 'Stand {time}', en: 'as of {time}' },
   'radar.loading': { de: 'Lade Radardaten …', en: 'Loading radar data…' },
   'radar.error': { de: 'Radar nicht verfügbar: {error}', en: 'Radar unavailable: {error}' },
-  'radar.legendLight': { de: 'leicht', en: 'light' },
-  'radar.legendHeavy': { de: 'stark', en: 'heavy' },
+  'radar.past': { de: '{time} · vor {min} min', en: '{time} · {min} min ago' },
+  'radar.play': { de: 'Radarfilm abspielen', en: 'Play radar loop' },
+  'radar.pause': { de: 'Radarfilm anhalten', en: 'Pause radar loop' },
+  'radar.timeAria': { de: 'Zeitpunkt', en: 'Time' },
+  'radar.atLocation': { de: 'Am Standort', en: 'At the station' },
+  'radar.localRain': { de: 'Regen, {rate} mm/h', en: 'Rain, {rate} mm/h' },
+  'radar.localNear': { de: 'trocken · nächster Regen {km} km im {dir}', en: 'dry · nearest rain {km} km to the {dir}' },
+  'radar.localDry': { de: 'trocken · kein Regen im Umkreis von 150 km', en: 'dry · no rain within 150 km' },
+  'radar.localOutside': { de: 'außerhalb der Radarreichweite', en: 'outside radar range' },
+  'radar.legendUnit': { de: 'mm/h', en: 'mm/h' },
   'radar.resetView': { de: 'Ansicht zurücksetzen', en: 'Reset view' },
-  'radar.sourceNote': { de: 'Regenradar: DWD RADOLAN (RY), alle 5 Minuten aktualisiert. Ziehen zum Verschieben, Scrollen oder zwei Finger zum Zoomen.', en: 'Rain radar: DWD RADOLAN (RY), updated every 5 minutes. Drag to pan, scroll or pinch to zoom.' },
+  'radar.zoomIn': { de: 'Hineinzoomen', en: 'Zoom in' },
+  'radar.zoomOut': { de: 'Herauszoomen', en: 'Zoom out' },
+  'radar.ctrlKey': { de: 'Strg', en: 'Ctrl' },
+  'radar.hintWheel': { de: '{key} + Scrollen zum Zoomen', en: '{key} + scroll to zoom' },
+  'radar.hintTouch': { de: 'Mit zwei Fingern verschieben', en: 'Use two fingers to move the map' },
+  'radar.sourceNote': { de: 'DWD RADOLAN (RY), alle 5 Minuten aktualisiert. Maus: ziehen, zoomen mit {key} + Scrollen oder den Tasten. Touch: zwei Finger.', en: 'DWD RADOLAN (RY), updated every 5 minutes. Mouse: drag, zoom with {key} + scroll or the buttons. Touch: two fingers.' },
 } satisfies Record<string, { de: string; en: string }>;
 
 export type TKey = keyof typeof STRINGS;
@@ -376,6 +393,11 @@ export const useLang = () => useContext(LangContext);
 // id). Pattern-matched rather than switching the backend to error codes –
 // low risk, since these essentially never change – with the original
 // message as a fallback for anything unrecognized.
+const TOO_LONG_DE: Record<string, string> = {
+  'station name': 'Der Stationsname', 'station subtitle': 'Der Untertitel', 'alert label': 'Die Bezeichnung der Regel', 'alert description': 'Die Beschreibung der Regel',
+  'alert banner text': 'Der Bannertext', 'alert message': 'Die Meldung', 'device name': 'Der Gerätename', 'device short name': 'Der Kurzname des Geräts', 'device role': 'Die Rolle des Geräts',
+};
+
 const API_ERROR_PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^invalid credentials$/, () => (LANG === 'de' ? 'Ungültige Anmeldedaten' : 'Invalid credentials')],
   [/^too many attempts – try again shortly$/, () => (LANG === 'de' ? 'Zu viele Versuche – bitte kurz warten' : 'Too many attempts – try again shortly')],
@@ -385,6 +407,7 @@ const API_ERROR_PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^could not save settings \(DATA_DIR is not writable\)$/, () => (LANG === 'de' ? 'Einstellungen konnten nicht gespeichert werden (DATA_DIR ist nicht beschreibbar)' : 'Could not save settings (DATA_DIR is not writable)')],
   [/^alert "(.+)" needs "all:" or "any:" conditions$/, m => (LANG === 'de' ? `Regel "${m[1]}" benötigt "all:"- oder "any:"-Bedingungen` : `Rule "${m[1]}" needs "all:" or "any:" conditions`)],
   [/^alert "(.+)": each condition needs "sensor:" \(key\) or "entity:" \(HA entity id\)$/, m => (LANG === 'de' ? `Regel "${m[1]}": jede Bedingung braucht "sensor:" (Schlüssel) oder "entity:" (HA-Entität)` : `Rule "${m[1]}": each condition needs "sensor:" (key) or "entity:" (HA entity id)`)],
+  [/^(station name|station subtitle|alert label|alert description|alert banner text|alert message|device name|device short name|device role) is too long \(max (\d+) characters\)$/, m => (LANG === 'de' ? `${TOO_LONG_DE[m[1]] ?? m[1]} ist zu lang (höchstens ${m[2]} Zeichen)` : `${m[1][0].toUpperCase()}${m[1].slice(1)} is too long (max ${m[2]} characters)`)],
   [/^not logged in$/, () => (LANG === 'de' ? 'Nicht angemeldet' : 'Not logged in')],
   [/^password change required$/, () => (LANG === 'de' ? 'Passwortänderung erforderlich' : 'Password change required')],
   [/^invalid 2FA code$/, () => (LANG === 'de' ? 'Ungültiger 2FA-Code' : 'Invalid 2FA code')],

@@ -1,60 +1,54 @@
 import { useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
-import { useGermanyOutline, makeOutlineProjection } from './germanyOutline';
-import { createPanZoom, type View } from '../panZoom';
+import { lonLatToRadolanPixel } from '../radolanProjection';
+import { useGermanyOutline } from './germanyOutline';
+import { GRID, GridMap, pct, type GridMapApi } from './GridMap';
+import { zoomKey } from './GestureHint';
 
-/// A hand-rolled SVG map (no mapping library, no external tiles — same
-/// "dependency-light, hand-drawn SVG" convention as Chart.tsx/ConditionIcon)
-/// for picking a DWD MOSMIX station visually instead of typing its ID.
-/// Station list + simplified border baked into public/dwd-stations.json at
-/// build time from DWD's own station catalogue (numeric-ID stations only —
-/// those are the real synoptic network MOSMIX_L actually covers — within a
-/// Central European bounding box), fetched lazily only when the picker opens.
-const viewTransform = (v: View, width: number) => `translate(${(-v.x / v.w) * 100}%, ${(-v.y / v.w) * 100}%) scale(${width / v.w})`;
+type Station = { id: string; name: string; px: [number, number] };
 
+// A dot per station as one SVG path: a zero-length segment with a round line
+// cap draws a circle whose diameter is the stroke width, which CSS keeps at a
+// constant on-screen size (styles.css, --u). A handful of paths for ~370
+// stations instead of ~740 elements to restyle on every zoom frame.
+const dots = (stations: Station[]) => stations.map(s => `M${s.px[0].toFixed(1)},${s.px[1].toFixed(1)}h0`).join('');
+
+/// Picker for the DWD MOSMIX station the forecast comes from: the same map as
+/// the rain radar (GridMap), with every station from public/dwd-stations.json
+/// as a dot. Tapping near a dot picks the closest station; the search box
+/// filters by name or ID. No mapping library, no tiles.
 export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (id: string, name: string) => void }) {
   const { data, error } = useGermanyOutline();
   const [query, setQuery] = useState('');
-  const [hover, setHover] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hover, setHover] = useState<Station | null>(null);
   const [zoomed, setZoomed] = useState(false);
+  const map = useRef<GridMapApi | null>(null);
+  const frame = useRef<HTMLDivElement>(null);
 
-  const proj = useMemo(() => (data ? makeOutlineProjection(data) : null), [data]);
-
-  // Pan/zoom is a CSS transform on the SVG (see panZoom.ts), written straight
-  // to the element: panning is then a pure compositor move instead of a new
-  // viewBox that re-lays-out ~370 station dots every frame, and the browser
-  // re-rasterises the vector at the new scale when zooming, so it stays crisp.
-  const pz = useMemo(() => {
-    if (!proj) return null;
-    const { width, height } = proj;
-    return createPanZoom({
-      contentW: width, contentH: height, minW: width / 10,
-      apply: (v: View) => {
-        const svg = svgRef.current;
-        if (svg) svg.style.transform = viewTransform(v, width);
-        setZoomed(v.w < width - 0.5);
-      },
-    });
-  }, [proj]);
+  const stations = useMemo<Station[]>(() => (data?.stations ?? [])
+    .map(s => ({ id: s.id, name: s.name, px: lonLatToRadolanPixel(s.lon, s.lat) }))
+    .filter(s => s.px[0] >= 0 && s.px[0] <= GRID && s.px[1] >= 0 && s.px[1] <= GRID), [data]);
 
   const q = query.trim().toLowerCase();
-  const matches = useMemo(() => {
-    if (!data || !q) return null;
-    return data.stations.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q)).slice(0, 40);
-  }, [data, q]);
+  const matches = useMemo(() => (q ? stations.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q)).slice(0, 40) : null), [stations, q]);
   const matchIds = useMemo(() => (matches ? new Set(matches.map(s => s.id)) : null), [matches]);
+  const selected = stations.find(s => s.id === value) || null;
 
   if (error) return <div className="note">{t('admin.dwdMapError', { error })}</div>;
-  if (!data || !proj || !pz) return <div className="note">{t('admin.dwdMapLoading')}</div>;
-  const { project, width, height } = proj;
-  const view = { ...pz.get(), h: pz.get().w * (height / width) };
+  if (!data) return <div className="note">{t('admin.dwdMapLoading')}</div>;
 
-  const selected = data.stations.find(s => s.id === value) || null;
-
-  const selectStation = (s: { id: string; name: string }) => {
-    if (pz.wasDrag()) return; // ignore the click that ends a drag
-    onSelect(s.id, s.name);
+  // The station closest to a grid position, if it is within `px` screen
+  // pixels of it. While a search is active, only its matches can be picked.
+  const candidates = matchIds ? stations.filter(s => matchIds.has(s.id)) : stations;
+  const stationNear = (gx: number, gy: number, px: number) => {
+    const api = map.current, el = frame.current;
+    if (!api || !el) return null;
+    let best: Station | null = null, dist = px * (api.pz.get().w / el.clientWidth);
+    for (const s of candidates) {
+      const d = Math.hypot(s.px[0] - gx, s.px[1] - gy);
+      if (d < dist) { dist = d; best = s; }
+    }
+    return best;
   };
 
   return (
@@ -63,55 +57,33 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
         className="input" value={query} onChange={e => setQuery(e.target.value)}
         placeholder={t('admin.dwdMapSearch')}
       />
-      <div className="note">{t('admin.dwdMapHint')}</div>
+      <div className="note">{t('admin.dwdMapHint', { key: zoomKey() })}</div>
 
-      {/* The frame has the map's own aspect ratio, so the SVG fills it exactly
-          and a drag tracks the pointer 1:1 (no letterboxing to account for). */}
-      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)', aspectRatio: `${width} / ${height}`, maxHeight: 480, maxWidth: `calc(480px * ${width / height})`, margin: '0 auto', width: '100%', touchAction: 'none', cursor: 'grab' }}
-        // Gestures are measured on this untransformed frame, not on the SVG that moves inside it.
-        ref={pz.attach}
-        onPointerDown={e => { setHover(null); pz.onPointerDown(e); }}
-        onPointerMove={pz.onPointerMove}
-        onPointerUp={pz.onPointerUp}
-        onPointerCancel={pz.onPointerUp}
-      >
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${width} ${height}`}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', transformOrigin: '0 0', transform: viewTransform(view, width) }}
+      <div className="map-pick" ref={frame}>
+        <GridMap
+          home={{ x: 0, y: 0, w: GRID }}
+          apiRef={map}
+          onZoomedChange={setZoomed}
+          onPick={(gx, gy) => { const s = stationNear(gx, gy, 20); if (s) onSelect(s.id, s.name); }}
+          onHover={g => { const s = g ? stationNear(g[0], g[1], 12) : null; setHover(prev => (prev?.id === s?.id ? prev : s)); }}
+          lines={<>
+            {matchIds && <path className="map-stations dim" d={dots(stations.filter(s => !matchIds.has(s.id)))} />}
+            <path className="map-stations" d={dots(candidates)} />
+            {hover && <path className="map-stations hover" d={dots([hover])} />}
+            {selected && <path className="map-stations selected" d={dots([selected])} />}
+          </>}
+          overlay={zoomed && (
+            <button type="button" className="btn-ghost map-reset" onClick={() => map.current?.pz.set({ x: 0, y: 0, w: GRID }, true)}>
+              {t('admin.dwdMapResetView')}
+            </button>
+          )}
         >
-          <path
-            d={'M' + data.outline.map(([lon, lat]) => project(lon, lat).join(',')).join('L') + 'Z'}
-            fill="oklch(1 0 0 / 0.05)" stroke="oklch(1 0 0 / 0.22)" strokeWidth={1.5}
-          />
-          {data.stations.map(s => {
-            const [x, y] = project(s.lon, s.lat);
-            const isSelected = s.id === value;
-            const dimmed = matchIds ? !matchIds.has(s.id) : false;
-            return (
-              <g key={s.id} opacity={dimmed ? 0.18 : 1}>
-                {/* invisible larger hit target, visible dot stays small */}
-                <circle cx={x} cy={y} r={8} fill="transparent" style={{ cursor: 'pointer' }}
-                  onClick={() => selectStation(s)}
-                  onMouseEnter={() => setHover({ id: s.id, name: s.name, x, y })}
-                  onMouseLeave={() => setHover(h => (h?.id === s.id ? null : h))} />
-                <circle cx={x} cy={y} r={isSelected ? 6 : 3} fill={isSelected ? 'var(--amber)' : 'var(--blue)'}
-                  stroke={isSelected ? 'oklch(1 0 0 / 0.6)' : 'none'} strokeWidth={2} pointerEvents="none" />
-              </g>
-            );
-          })}
-        </svg>
-        {hover && (
-          <div className="tip" style={{ left: `${((hover.x - view.x) / view.w) * 100}%`, top: `${((hover.y - view.y) / view.h) * 100}%`, transform: 'translate(-50%, -130%)' }}>
-            <span className="tv">{hover.name}</span>
-            <span className="tt">{hover.id}</span>
-          </div>
-        )}
-        {zoomed && (
-          <button type="button" className="btn-ghost" style={{ position: 'absolute', right: 10, bottom: 10 }} onClick={() => pz.set({ x: 0, y: 0, w: width }, true)}>
-            {t('admin.dwdMapResetView')}
-          </button>
-        )}
+          {hover && (
+            <div className="map-tip" style={{ left: pct(hover.px[0]), top: pct(hover.px[1]) }}>
+              <div className="tip"><span className="tv">{hover.name}</span><span className="tt">{hover.id}</span></div>
+            </div>
+          )}
+        </GridMap>
       </div>
 
       {selected && <div className="note">{t('admin.dwdMapSelected', { name: selected.name, id: selected.id })}</div>}
@@ -121,7 +93,9 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
           {matches.length === 0 && <div className="note">{t('admin.dwdMapNoMatch')}</div>}
           {matches.map(s => (
             <button key={s.id} type="button" className="row" style={{ cursor: 'pointer', background: 'transparent', border: 0, textAlign: 'left', width: '100%', font: 'inherit', color: 'inherit' }}
-              onClick={() => onSelect(s.id, s.name)}>
+              onClick={() => onSelect(s.id, s.name)}
+              onMouseEnter={() => setHover(s)}
+              onMouseLeave={() => setHover(null)}>
               <span className="k">{s.name}</span>
               <span className="v">{s.id}</span>
             </button>

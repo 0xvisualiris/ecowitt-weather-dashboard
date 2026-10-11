@@ -29,3 +29,12 @@ export function lonLatToRadolanPixel(lon: number, lat: number): [number, number]
   const [x, y] = stereographic(lon, lat);
   return [x - X0, Y0 - y];
 }
+
+/** The inverse: a [col, row] grid position back to [lon, lat] in degrees. */
+export function radolanPixelToLonLat(col: number, row: number): [number, number] {
+  const x = col + X0, y = Y0 - row;
+  const rho = Math.hypot(x, y);
+  const phi = Math.PI / 2 - 2 * Math.atan(rho / (R * (1 + Math.sin(PHI0))));
+  const lam = LAM0 + Math.atan2(x, -y);
+  return [(lam * 180) / Math.PI, (phi * 180) / Math.PI];
+}

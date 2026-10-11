@@ -1,49 +1,79 @@
-import { useMemo } from 'react';
-import { t } from '../i18n';
-import { useGermanyOutline, makeOutlineProjection } from './germanyOutline';
+import { useState } from 'react';
+import { fmt } from '../lib';
+import { LANG, t } from '../i18n';
+import { lonLatToRadolanPixel, radolanPixelToLonLat } from '../radolanProjection';
+import type { View } from '../panZoom';
+import { GRID, GridMap, nearestPlace, pct, placeName } from './GridMap';
+import { zoomKey } from './GestureHint';
 
-const ROUND = 10; // 1 decimal degree, ~10 km — deliberately coarse, see README "Public radar location"
+type GeoPoint = { lat: number; lon: number };
 
-/// Click-on-map picker for the radar screen's public, approximate home
-/// location — deliberately coarse (rounded to ~10 km), kept separate from
-/// any precise station coordinates (which the public API never exposes).
-export function PublicLocationPicker({ value, onChange }: { value: { lat: number; lon: number } | null; onChange: (loc: { lat: number; lon: number }) => void }) {
-  const { data, error } = useGermanyOutline();
-  const proj = useMemo(() => (data ? makeOutlineProjection(data) : null), [data]);
+const ROUND = 10; // 1 decimal degree — deliberately coarse, see README "Public radar location"
+const round = (n: number) => Math.round(n * ROUND) / ROUND;
+const snap = (gx: number, gy: number): GeoPoint => {
+  const [lon, lat] = radolanPixelToLonLat(gx, gy);
+  return { lat: round(lat), lon: round(lon) };
+};
 
-  if (error) return <div className="note">{t('admin.dwdMapError', { error })}</div>;
-  if (!data || !proj) return <div className="note">{t('admin.dwdMapLoading')}</div>;
-  const { project, invert, viewBox, width, height } = proj;
+// The patch of ground that rounds to one stored position: 0.1° of longitude
+// by 0.1° of latitude around it, as an SVG path in grid coordinates.
+const cellPath = (p: GeoPoint) => 'M' + ([[-1, -1], [1, -1], [1, 1], [-1, 1]] as const)
+  .map(([dx, dy]) => lonLatToRadolanPixel(p.lon + dx * 0.05, p.lat + dy * 0.05).map(n => n.toFixed(2)).join(','))
+  .join('L') + 'Z';
 
-  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = e.currentTarget;
-    const rect = svg.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * width;
-    const y = ((e.clientY - rect.top) / rect.height) * height;
-    const [lon, lat] = invert(x, y);
-    onChange({ lat: Math.round(lat * ROUND) / ROUND, lon: Math.round(lon * ROUND) / ROUND });
-  };
+// "49,5° N, 11,1° O · 6 km von Nürnberg"
+export function describeLocation(p: GeoPoint) {
+  const coords = `${fmt(p.lat, 1)}°${' '}N, ${fmt(p.lon, 1)}°${' '}${LANG === 'de' ? 'O' : 'E'}`;
+  const { place, km } = nearestPlace(...lonLatToRadolanPixel(p.lon, p.lat));
+  if (km > 80) return coords;
+  return `${coords} · ${km < 4 ? t('admin.publicLocationAt', { place: placeName(place) }) : t('admin.publicLocationNear', { km: fmt(km, 0), place: placeName(place) })}`;
+}
 
-  const marker = value ? project(value.lon, value.lat) : null;
+/// Picker for the rain radar's public, approximate home location —
+/// deliberately coarse (snapped to a 0.1° lattice, roughly 7 x 11 km), kept
+/// separate from any precise station coordinates (which the public API never
+/// exposes). It is the same map as the radar screen, in the same projection,
+/// so the marker set here is exactly where the radar will centre and draw
+/// its distance rings. The highlighted cell shows everything that rounds to
+/// the same stored position.
+export function PublicLocationPicker({ value, onChange }: { value: GeoPoint | null; onChange: (loc: GeoPoint | null) => void }) {
+  const [hover, setHover] = useState<GeoPoint | null>(null);
+  // Opens on the current location, or on all of Germany; a new pick doesn't move the map.
+  const [home] = useState<View>(() => {
+    if (!value) return { x: 0, y: 0, w: GRID };
+    const [x, y] = lonLatToRadolanPixel(value.lon, value.lat);
+    return { x: x - 150, y: y - 150, w: 300 };
+  });
+
+  const marker = value ? lonLatToRadolanPixel(value.lon, value.lat) : null;
+  const inGrid = (gx: number, gy: number) => gx >= 0 && gy >= 0 && gx <= GRID && gy <= GRID;
+  const showHover = hover && !(value && hover.lat === value.lat && hover.lon === value.lon);
 
   return (
     <div className="stack" style={{ gap: 10 }}>
-      <div className="note">{t('admin.publicLocationHint')}</div>
-      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)' }}>
-        <svg viewBox={viewBox} style={{ width: '100%', maxHeight: 420, display: 'block', cursor: 'crosshair' }} onClick={pick}>
-          <path
-            d={'M' + data.outline.map(([lon, lat]) => project(lon, lat).join(',')).join('L') + 'Z'}
-            fill="oklch(1 0 0 / 0.05)" stroke="oklch(1 0 0 / 0.22)" strokeWidth={1.5}
-          />
-          {marker && (
-            <g pointerEvents="none">
-              <circle cx={marker[0]} cy={marker[1]} r={10} fill="none" stroke="var(--amber)" strokeWidth={2} opacity={0.5} />
-              <circle cx={marker[0]} cy={marker[1]} r={5} fill="var(--amber)" stroke="oklch(1 0 0 / 0.6)" strokeWidth={2} />
-            </g>
-          )}
-        </svg>
+      <div className="note">{t('admin.publicLocationHint', { key: zoomKey() })}</div>
+      <div className="map-pick">
+        <GridMap
+          home={home}
+          onPick={(gx, gy) => { if (inGrid(gx, gy)) onChange(snap(gx, gy)); }}
+          onHover={g => {
+            const next = g && inGrid(...g) ? snap(...g) : null;
+            setHover(prev => (prev?.lat === next?.lat && prev?.lon === next?.lon ? prev : next));
+          }}
+          lines={<>
+            {showHover && <path className="map-cell preview" d={cellPath(hover)} />}
+            {value && <path className="map-cell" d={cellPath(value)} />}
+          </>}
+        >
+          {marker && <div className="radar-home" style={{ left: pct(marker[0]), top: pct(marker[1]) }} aria-hidden="true"><i /></div>}
+        </GridMap>
       </div>
-      {value && <div className="note">{t('admin.publicLocationSet', { lat: value.lat.toFixed(1), lon: value.lon.toFixed(1) })}</div>}
+      <div className="row" style={{ border: 0, padding: 0, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className="note" style={{ color: value ? 'var(--text-2)' : undefined }}>
+          {value ? t('admin.publicLocationSet', { where: describeLocation(value) }) : t('admin.publicLocationNone')}
+        </span>
+        {value && <button type="button" className="btn-ghost" onClick={() => onChange(null)}>{t('admin.publicLocationClear')}</button>}
+      </div>
     </div>
   );
 }

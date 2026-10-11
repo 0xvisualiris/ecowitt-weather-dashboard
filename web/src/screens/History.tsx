@@ -57,7 +57,7 @@ export function axisLabels(range: Range, times: number[]) {
 }
 
 export function timeLabel(range: Range, ts: number, bucketMs = 0) {
-  if (range === 'day') return bucketMs ? `${hhmm(ts)} – ${hhmm(ts + bucketMs)} Uhr` : `${hhmm(ts)} Uhr`;
+  if (range === 'day') return t('common.clockTime', { time: bucketMs ? `${hhmm(ts)} – ${hhmm(ts + bucketMs)}` : hhmm(ts) });
   const p = parts(ts);
   if (range === 'week') return `${p.wd}, ${p.d}.${p.m}., ${p.H}:${p.M}`;
   return `${p.wd}, ${p.d}. ${p.mon}${range === 'year' ? ' ' + p.y : ''}`;
@@ -114,11 +114,12 @@ export function HistoryScreen({ cfg, cur, metric, range }: { cfg: AppConfig; cur
   return (
     <div className="stack">
       <div className="hist-top">
-        <div className="chips" role="tablist" aria-label={t('common.measurementAria')}>
-          {chartMetrics.map(m => (
-            <button key={m} role="tab" aria-selected={m === metric} className={'chip' + (m === metric ? ' on' : '')} onClick={() => go({ screen: 'hist', metric: m, range })}>{metricLabel(m)}</button>
-          ))}
-        </div>
+        <Segmented
+          kind="tab" trackClassName="chips slide" itemClassName="chip" ariaLabel={t('common.measurementAria')}
+          items={chartMetrics.map(m => ({ key: m, label: metricLabel(m) }))}
+          value={metric}
+          onChange={m => go({ screen: 'hist', metric: m as MetricKey, range })}
+        />
         <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
           <Segmented
             kind="tab" size="sm" ariaLabel={t('hist.periodAria')}

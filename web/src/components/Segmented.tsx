@@ -9,7 +9,7 @@ export type SegmentedItem = { key: string; label: React.ReactNode; disabled?: bo
 // spring, reading its *current* on-screen position as the start every time
 // so a quick second tap mid-glide redirects smoothly instead of restarting.
 export function Segmented({
-  items, value, onChange, ariaLabel, kind = 'tab', as = 'div', size, trackClassName = 'segs', inset, children,
+  items, value, onChange, ariaLabel, kind = 'tab', as = 'div', size, trackClassName = 'segs', itemClassName = 'seg', inset, children,
 }: {
   items: SegmentedItem[];
   value: string;
@@ -22,6 +22,7 @@ export function Segmented({
   as?: 'div' | 'nav';
   size?: 'sm' | 'xs';
   trackClassName?: string;
+  itemClassName?: string;
   inset?: boolean;
   children?: React.ReactNode;
 }) {
@@ -49,6 +50,23 @@ export function Segmented({
     const next = { x: btn.offsetLeft, y: btn.offsetTop, w: btn.offsetWidth, h: btn.offsetHeight };
     if (!animate || prefersReducedMotion()) springRef.current!.jumpTo(next);
     else springRef.current!.setTarget(next);
+    // A track that scrolls sideways (the nav on a phone) must never hide its
+    // own selection: bring the selected item to the middle.
+    const track = trackRef.current;
+    if (track && track.scrollWidth > track.clientWidth) {
+      track.scrollTo({ left: btn.offsetLeft - (track.clientWidth - btn.offsetWidth) / 2, behavior: animate && !prefersReducedMotion() ? 'smooth' : 'auto' });
+    }
+    updateFades();
+  };
+
+  // Marks which edges have more items scrolled out of view, so CSS can fade
+  // that edge instead of cutting an item off mid-word.
+  const updateFades = () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const max = track.scrollWidth - track.clientWidth;
+    track.toggleAttribute('data-more-left', track.scrollLeft > 4);
+    track.toggleAttribute('data-more-right', track.scrollLeft < max - 4);
   };
 
   useLayoutEffect(() => {
@@ -79,7 +97,7 @@ export function Segmented({
           aria-selected={kind === 'tab' ? it.key === value : undefined}
           aria-checked={kind === 'radio' ? it.key === value : undefined}
           aria-current={kind === 'nav' ? (it.key === value ? 'page' : undefined) : undefined}
-          className={'seg' + (size ? ' ' + size : '') + (it.key === value ? ' on' : '')}
+          className={itemClassName + (size ? ' ' + size : '') + (it.key === value ? ' on' : '')}
           onClick={() => onChange(it.key)}
         >{it.label}</button>
       ))}
@@ -88,7 +106,7 @@ export function Segmented({
   );
 
   if (as === 'nav') {
-    return <nav ref={trackRef as React.RefObject<HTMLElement>} className={trackClassNameFull} aria-label={ariaLabel}>{content}</nav>;
+    return <nav ref={trackRef as React.RefObject<HTMLElement>} className={trackClassNameFull} aria-label={ariaLabel} onScroll={updateFades}>{content}</nav>;
   }
-  return <div ref={trackRef as React.RefObject<HTMLDivElement>} className={trackClassNameFull} role={trackRole} aria-label={ariaLabel}>{content}</div>;
+  return <div ref={trackRef as React.RefObject<HTMLDivElement>} className={trackClassNameFull} role={trackRole} aria-label={ariaLabel} onScroll={updateFades}>{content}</div>;
 }

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { useGermanyOutline, makeOutlineProjection } from './germanyOutline';
+import { createPanZoom, type View } from '../panZoom';
 
 /// A hand-rolled SVG map (no mapping library, no external tiles — same
 /// "dependency-light, hand-drawn SVG" convention as Chart.tsx/ConditionIcon)
@@ -13,19 +14,26 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
   const { data, error } = useGermanyOutline();
   const [query, setQuery] = useState('');
   const [hover, setHover] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const dragRef = useRef<{ startX: number; startY: number; viewX: number; viewY: number; moved: boolean } | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [zoomed, setZoomed] = useState(false);
 
   const proj = useMemo(() => (data ? makeOutlineProjection(data) : null), [data]);
 
-  // view = visible viewBox rectangle, in the projection's own coordinate
-  // space (so panning/zooming is just moving/scaling this rectangle — the
-  // map is plain SVG, so it stays crisp at any zoom level, no raster involved).
-  const [view, setView] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  useEffect(() => {
-    if (proj) setView({ x: 0, y: 0, w: proj.width, h: proj.height });
+  // Pan/zoom moves and scales the SVG's own viewBox (see panZoom.ts), written
+  // straight to the element so a drag doesn't re-render ~370 station dots —
+  // the map is plain SVG, so it stays crisp at any zoom level.
+  const pz = useMemo(() => {
+    if (!proj) return null;
+    const { width, height } = proj;
+    return createPanZoom({
+      contentW: width, contentH: height, minW: width / 10,
+      apply: (v: View) => {
+        svgRef.current?.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.w * (height / width)}`);
+        setZoomed(v.w < width - 0.5);
+      },
+    });
   }, [proj]);
+  const attach = useMemo(() => (node: SVGSVGElement | null) => { svgRef.current = node; pz?.attach(node); }, [pz]);
 
   const q = query.trim().toLowerCase();
   const matches = useMemo(() => {
@@ -35,46 +43,14 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
   const matchIds = useMemo(() => (matches ? new Set(matches.map(s => s.id)) : null), [matches]);
 
   if (error) return <div className="note">{t('admin.dwdMapError', { error })}</div>;
-  if (!data || !proj || !view) return <div className="note">{t('admin.dwdMapLoading')}</div>;
+  if (!data || !proj || !pz) return <div className="note">{t('admin.dwdMapLoading')}</div>;
   const { project, width, height } = proj;
+  const view = { ...pz.get(), h: pz.get().w * (height / width) };
 
   const selected = data.stations.find(s => s.id === value) || null;
 
-  const clampView = (v: { x: number; y: number; w: number; h: number }) => {
-    const w = Math.max(width / 10, Math.min(width, v.w));
-    const h = w * (height / width);
-    const x = Math.max(0, Math.min(width - w, v.x));
-    const y = Math.max(0, Math.min(height - h, v.y));
-    return { x, y, w, h };
-  };
-
-  const onWheel = (e: React.WheelEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const rect = svgRef.current!.getBoundingClientRect();
-    const fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
-    const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-    const cx = view.x + fx * view.w, cy = view.y + fy * view.h;
-    const w = view.w * factor, h = view.h * factor;
-    setView(clampView({ x: cx - fx * w, y: cy - fy * h, w, h }));
-  };
-
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { startX: e.clientX, startY: e.clientY, viewX: view.x, viewY: view.y, moved: false };
-  };
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!dragRef.current) return;
-    const rect = svgRef.current!.getBoundingClientRect();
-    const sdx = e.clientX - dragRef.current.startX, sdy = e.clientY - dragRef.current.startY;
-    if (Math.abs(sdx) > 3 || Math.abs(sdy) > 3) dragRef.current.moved = true;
-    const dx = (sdx / rect.width) * view.w, dy = (sdy / rect.height) * view.h;
-    setView(clampView({ x: dragRef.current.viewX - dx, y: dragRef.current.viewY - dy, w: view.w, h: view.h }));
-  };
-  const onPointerUp = () => { dragRef.current = null; };
-  const resetView = () => setView({ x: 0, y: 0, w: width, h: height });
-
   const selectStation = (s: { id: string; name: string }) => {
-    if (dragRef.current?.moved) return; // ignore the click that ends a drag
+    if (pz.wasDrag()) return; // ignore the click that ends a drag
     onSelect(s.id, s.name);
   };
 
@@ -88,14 +64,13 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
 
       <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)' }}>
         <svg
-          ref={svgRef}
+          ref={attach}
           viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
           style={{ width: '100%', maxHeight: 480, display: 'block', touchAction: 'none', cursor: 'grab' }}
-          onWheel={onWheel}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
+          onPointerDown={e => { setHover(null); pz.onPointerDown(e); }}
+          onPointerMove={pz.onPointerMove}
+          onPointerUp={pz.onPointerUp}
+          onPointerCancel={pz.onPointerUp}
         >
           <path
             d={'M' + data.outline.map(([lon, lat]) => project(lon, lat).join(',')).join('L') + 'Z'}
@@ -124,8 +99,8 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
             <span className="tt">{hover.id}</span>
           </div>
         )}
-        {(view.w < width) && (
-          <button type="button" className="btn-ghost" style={{ position: 'absolute', right: 10, bottom: 10 }} onClick={resetView}>
+        {zoomed && (
+          <button type="button" className="btn-ghost" style={{ position: 'absolute', right: 10, bottom: 10 }} onClick={() => pz.set({ x: 0, y: 0, w: width }, true)}>
             {t('admin.dwdMapResetView')}
           </button>
         )}

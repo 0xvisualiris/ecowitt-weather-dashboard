@@ -37,6 +37,10 @@ const STRINGS = {
   'common.today': { de: 'heute', en: 'today' },
   'common.yesterday': { de: 'gestern', en: 'yesterday' },
   'common.now': { de: 'jetzt', en: 'now' },
+  'common.clockTime': { de: '{time} Uhr', en: '{time}' },
+  'chart.aria': { de: 'Diagramm', en: 'Chart' },
+  'chart.ariaHint': { de: 'Diagramm, Pfeiltasten zeigen einzelne Werte', en: 'Chart, arrow keys step through the values' },
+  'chart.noData': { de: 'Keine Daten für diesen Zeitraum', en: 'No data for this period' },
 
   // ---- dashboard ----
   'dash.noData': { de: 'Keine Daten: {error}', en: 'No data: {error}' },
@@ -346,7 +350,7 @@ const STRINGS = {
   'radar.legendLight': { de: 'leicht', en: 'light' },
   'radar.legendHeavy': { de: 'stark', en: 'heavy' },
   'radar.resetView': { de: 'Ansicht zurücksetzen', en: 'Reset view' },
-  'radar.sourceNote': { de: 'Regenradar: DWD RADOLAN (RY), alle 5 Minuten aktualisiert. Ziehen zum Verschieben, Scrollen zum Zoomen.', en: 'Rain radar: DWD RADOLAN (RY), updated every 5 minutes. Drag to pan, scroll to zoom.' },
+  'radar.sourceNote': { de: 'Regenradar: DWD RADOLAN (RY), alle 5 Minuten aktualisiert. Ziehen zum Verschieben, Scrollen oder zwei Finger zum Zoomen.', en: 'Rain radar: DWD RADOLAN (RY), updated every 5 minutes. Drag to pan, scroll or pinch to zoom.' },
 } satisfies Record<string, { de: string; en: string }>;
 
 export type TKey = keyof typeof STRINGS;

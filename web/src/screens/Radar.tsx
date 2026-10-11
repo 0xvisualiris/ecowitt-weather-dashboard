@@ -3,6 +3,7 @@ import { type AppConfig, hhmm } from '../lib';
 import { t } from '../i18n';
 import { useGermanyOutline } from '../components/germanyOutline';
 import { lonLatToRadolanPixel } from '../radolanProjection';
+import { createPanZoom, type View } from '../panZoom';
 
 interface RadarMeta { width: number; height: number; timestamp: number }
 
@@ -38,27 +39,33 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
   const [meta, setMeta] = useState<RadarMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
 
-  // view = visible window into the 900x900 grid, in source pixels (km)
-  const [view, setView] = useState<{ x: number; y: number; w: number } | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number; viewX: number; viewY: number } | null>(null);
+  const markerRef = useRef<HTMLDivElement>(null);
 
   const publicLocation = cfg.station.publicLocation;
   const markerPx = useMemo(
     () => (publicLocation ? lonLatToRadolanPixel(publicLocation.lon, publicLocation.lat) : null),
     [publicLocation]
   );
+  const markerPxRef = useRef(markerPx);
+  markerPxRef.current = markerPx;
 
-  // Initial view: centered on the public location if set, else the whole grid.
+  // Pan/zoom lives outside React state (see panZoom.ts): the view is written
+  // straight to the canvas as a transform, so dragging never re-renders.
+  const pz = useMemo(() => createPanZoom({
+    contentW: GRID, contentH: GRID, minW: 40,
+    apply: (v: View) => {
+      const canvas = canvasRef.current;
+      if (canvas) canvas.style.transform = `translate(${(-v.x / v.w) * 100}%, ${(-v.y / v.w) * 100}%) scale(${GRID / v.w})`;
+      const marker = markerRef.current, m = markerPxRef.current;
+      if (marker && m) { marker.style.left = `${((m[0] - v.x) / v.w) * 100}%`; marker.style.top = `${((m[1] - v.y) / v.w) * 100}%`; }
+    },
+  }), []);
+
+  // Home view: centered on the public location if set (~260 km window), else the whole grid.
+  const homeView = (): View => (markerPx ? { x: markerPx[0] - 130, y: markerPx[1] - 130, w: 260 } : { x: 0, y: 0, w: GRID });
   useEffect(() => {
-    if (view) return;
-    if (markerPx) {
-      const w = 260; // ~260 km window
-      setView({ x: markerPx[0] - w / 2, y: markerPx[1] - w / 2, w });
-    } else {
-      setView({ x: 0, y: 0, w: GRID });
-    }
+    pz.set(homeView());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markerPx]);
 
@@ -116,44 +123,6 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geo]);
 
-  // ---- pan & zoom ----
-  const clampView = (v: { x: number; y: number; w: number }) => {
-    const w = Math.max(40, Math.min(GRID, v.w));
-    const x = Math.max(0, Math.min(GRID - w, v.x));
-    const y = Math.max(0, Math.min(GRID - w, v.y));
-    return { x, y, w };
-  };
-
-  const onWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (!view) return;
-    const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15;
-    const rect = wrapRef.current!.getBoundingClientRect();
-    const fx = (e.clientX - rect.left) / rect.width, fy = (e.clientY - rect.top) / rect.height;
-    const cx = view.x + fx * view.w, cy = view.y + fy * view.w;
-    const w = view.w * factor;
-    setView(clampView({ x: cx - fx * w, y: cy - fy * w, w }));
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (!view) return;
-    (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { startX: e.clientX, startY: e.clientY, viewX: view.x, viewY: view.y };
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current || !view) return;
-    const rect = wrapRef.current!.getBoundingClientRect();
-    const dx = ((e.clientX - dragRef.current.startX) / rect.width) * view.w;
-    const dy = ((e.clientY - dragRef.current.startY) / rect.width) * view.w;
-    setView(clampView({ x: dragRef.current.viewX - dx, y: dragRef.current.viewY - dy, w: view.w }));
-  };
-  const onPointerUp = () => { dragRef.current = null; };
-
-  const resetView = () => {
-    if (markerPx) setView(clampView({ x: markerPx[0] - 130, y: markerPx[1] - 130, w: 260 }));
-    else setView({ x: 0, y: 0, w: GRID });
-  };
-
   return (
     <div className="stack">
       <section className="card lg stack">
@@ -165,31 +134,25 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
         {error && <div className="note">{t('radar.error', { error })}</div>}
 
         <div
-          ref={wrapRef}
+          ref={pz.attach}
           style={{ position: 'relative', overflow: 'hidden', borderRadius: 16, aspectRatio: '1 / 1', background: 'oklch(0 0 0 / 0.25)', touchAction: 'none', cursor: 'grab' }}
-          onWheel={onWheel}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerLeave={onPointerUp}
+          onPointerDown={pz.onPointerDown}
+          onPointerMove={pz.onPointerMove}
+          onPointerUp={pz.onPointerUp}
+          onPointerCancel={pz.onPointerUp}
         >
-          {view && (
-            <canvas
-              ref={canvasRef}
-              style={{
-                position: 'absolute', imageRendering: 'pixelated',
-                width: `${(GRID / view.w) * 100}%`, height: `${(GRID / view.w) * 100}%`,
-                left: `${(-view.x / view.w) * 100}%`, top: `${(-view.y / view.w) * 100}%`,
-              }}
-            />
-          )}
-          {view && markerPx && (
+          <canvas
+            ref={canvasRef}
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transformOrigin: '0 0', imageRendering: 'pixelated' }}
+          />
+          {markerPx && (
             <div
+              ref={markerRef}
               aria-hidden="true"
               style={{
                 position: 'absolute',
-                left: `${((markerPx[0] - view.x) / view.w) * 100}%`,
-                top: `${((markerPx[1] - view.y) / view.w) * 100}%`,
+                left: `${((markerPx[0] - pz.get().x) / pz.get().w) * 100}%`,
+                top: `${((markerPx[1] - pz.get().y) / pz.get().w) * 100}%`,
                 width: 14, height: 14, marginLeft: -7, marginTop: -7,
                 borderRadius: '50%',
                 background: 'oklch(0.8 0.13 70)',
@@ -208,7 +171,7 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
             <span style={{ background: 'linear-gradient(90deg, rgb(120,170,255), rgb(70,190,255), rgb(80,220,150), rgb(230,220,70), rgb(240,150,40), rgb(220,40,90))', width: 120, height: 8, borderRadius: 4, display: 'inline-block' }} />
             <span>{t('radar.legendHeavy')}</span>
           </div>
-          <button type="button" className="btn-ghost" onClick={resetView}>{t('radar.resetView')}</button>
+          <button type="button" className="btn-ghost" onClick={() => pz.set(homeView(), true)}>{t('radar.resetView')}</button>
         </div>
         <div className="note">{t('radar.sourceNote')}</div>
       </section>

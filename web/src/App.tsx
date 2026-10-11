@@ -89,6 +89,7 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
   setLibLang(lang);
   const setLang = (l: Lang) => { setLibLang(l); setLangState(l); try { localStorage.setItem(LANG_KEY, l); } catch { /* private mode */ } };
   const langCtx = useMemo(() => ({ lang, setLang }), [lang]);
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 
   // First-ever boot (nothing configured in config.yaml or the admin page):
   // land directly on the admin login instead of an empty demo dashboard.

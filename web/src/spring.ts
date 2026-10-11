@@ -59,10 +59,13 @@ export function createSpring(apply: (v: SpringValues) => void, opts: { damping?:
     },
     // Retarget — reads the live (current) position/velocity as the start,
     // never the old target, so an in-flight spring redirects smoothly.
-    setTarget(v: SpringValues) {
+    // `velocity` (units/s) hands a gesture's release velocity to the spring,
+    // so there is no seam between dragging and animating.
+    setTarget(v: SpringValues, velocity?: SpringValues) {
       target = { ...v };
       for (const key of Object.keys(v)) {
         if (!(key in pos)) { pos[key] = v[key]; vel[key] = 0; }
+        if (velocity && key in velocity) vel[key] = velocity[key];
       }
       if (!raf) { last = performance.now(); raf = requestAnimationFrame(tick); }
     },

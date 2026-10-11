@@ -1,5 +1,6 @@
 import { go } from '../App';
 import { Chart } from '../components/Chart';
+import { Segmented } from '../components/Segmented';
 import {
   type AppConfig, type Current, type Detail, type History, type MetricKey,
   METRIC_META, metricLabel, compass, convFor, dateFmt, dateShort, fmt, fmtC, fmtStat, fmtDeviceReading, fmtSignal, hhmm, metricConv, trendText, useApi, useUnits, uvLabel, statLabel,
@@ -76,18 +77,19 @@ export function DetailScreen({ cfg, cur, metric }: { cfg: AppConfig; cur: Curren
 
   return (
     <div className="stack">
-      <div className="chips" role="tablist" aria-label={t('common.measurementAria')}>
-        {cfg.metrics.map(m => (
-          <button key={m} role="tab" aria-selected={m === metric} className={'chip' + (m === metric ? ' on' : '')} onClick={() => go({ screen: 'detail', metric: m })}>{metricLabel(m)}</button>
-        ))}
-      </div>
+      <Segmented
+        kind="tab" trackClassName="chips slide" itemClassName="chip" ariaLabel={t('common.measurementAria')}
+        items={cfg.metrics.map(m => ({ key: m, label: metricLabel(m) }))}
+        value={metric}
+        onChange={m => go({ screen: 'detail', metric: m as MetricKey })}
+      />
       <div className="grid-detail">
         <section className="card lg span-all" style={{ gap: 20 }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 16 }}>
             <div className="stack" style={{ gap: 6 }}>
               <div className="eyebrow"><span>{metricLabel(metric)} · {t('common.now')}</span></div>
               <div className="detail-num">{big.v}<span className="u">{big.u}</span></div>
-              <div style={{ fontSize: 15, color: 'var(--text-2)' }}>{subLine(metric, cur, u)}</div>
+              <div style={{ fontSize: '0.9375rem', color: 'var(--text-2)' }}>{subLine(metric, cur, u)}</div>
             </div>
             {hasHistory && <button className="btn-ghost" onClick={() => go({ screen: 'hist', metric, range: 'day' })}>{t('detail.fullHistory')}</button>}
           </div>

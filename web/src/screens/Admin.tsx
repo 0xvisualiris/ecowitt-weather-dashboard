@@ -429,7 +429,7 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
         {COMPARISONS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
       <input className="input" style={{ width: 80 }} disabled={locked} type="number" value={val} onChange={e => onChange({ ...cond, [cmp]: Number(e.target.value) })} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.8125rem' }}>
         <input type="checkbox" disabled={locked} checked={hasRecent}
           onChange={e => {
             if (e.target.checked) onChange({ ...cond, recent: { sensor: SENSOR_FIELDS()[0][0], minutes: 30 } });
@@ -445,7 +445,7 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
           </select>
           <input className="input" style={{ width: 70 }} disabled={locked} type="number" value={cond.recent.minutes ?? 30}
             onChange={e => onChange({ ...cond, recent: { ...cond.recent, minutes: Number(e.target.value) } })} />
-          <span className="faint" style={{ fontSize: 13 }}>{t('admin.minutesAbbrev')}</span>
+          <span className="faint" style={{ fontSize: '0.8125rem' }}>{t('admin.minutesAbbrev')}</span>
         </>
       )}
       {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}

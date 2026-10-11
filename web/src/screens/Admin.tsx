@@ -3,7 +3,7 @@ import { type AdminSession, type AdminSettings, type AlertCondition, type AlertR
 import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
 import { DwdStationMap } from '../components/DwdStationMap';
-import { PublicLocationPicker } from '../components/PublicLocationPicker';
+import { PublicLocationPicker, describeLocation } from '../components/PublicLocationPicker';
 import { Segmented } from '../components/Segmented';
 
 // Mirrors TEXT_LIMITS in server/src/admin.js, which is what actually enforces
@@ -205,11 +205,11 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
                 {showLocationMap ? t('admin.dwdMapClose') : publicLocation ? t('admin.publicLocationChange') : t('admin.publicLocationSetButton')}
               </button>
               {!showLocationMap && publicLocation && (
-                <div className="note">{t('admin.publicLocationSet', { lat: publicLocation.lat.toFixed(1), lon: publicLocation.lon.toFixed(1) })}</div>
+                <div className="note">{t('admin.publicLocationSet', { where: describeLocation(publicLocation) })}</div>
               )}
               {showLocationMap && (
                 <div className="reveal" style={{ marginTop: 10 }}>
-                  <PublicLocationPicker value={publicLocation} onChange={loc => { setPublicLocation(loc); setShowLocationMap(false); }} />
+                  <PublicLocationPicker value={publicLocation} onChange={setPublicLocation} />
                 </div>
               )}
             </div>
@@ -217,7 +217,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
           {data.locked.stationPublicLocation && publicLocation && (
             <div className="row" style={{ padding: '12px 0' }}>
               <span className="k">{t('admin.publicLocation')}</span>
-              <span className="v" style={{ fontWeight: 500 }}>{publicLocation.lat.toFixed(1)}, {publicLocation.lon.toFixed(1)}</span>
+              <span className="v" style={{ fontWeight: 500 }}>{describeLocation(publicLocation)}</span>
             </div>
           )}
           <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.timezone')}</span><span className="v" style={{ fontWeight: 500 }}>{data.timezone}</span></div>

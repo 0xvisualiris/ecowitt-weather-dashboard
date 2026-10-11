@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { type AppConfig, NBSP, compass, fmt, hhmm } from '../lib';
-import { LANG, t } from '../i18n';
-import { GestureHint, useGestureHint, zoomKey } from '../components/GestureHint';
+import { t } from '../i18n';
+import { zoomKey } from '../components/GestureHint';
+import { GRID, GridMap, pct, type GridMapApi } from '../components/GridMap';
 import { lonLatToRadolanPixel } from '../radolanProjection';
-import { createPanZoom, type View } from '../panZoom';
+import type { View } from '../panZoom';
 import { prefersReducedMotion } from '../spring';
 
 interface RadarMeta { width: number; height: number; timestamp: number; frames: number[] }
-// public/radar-map.json — SVG path data already in RADOLAN grid coordinates,
-// built by scripts/build-radar-map.mjs from Natural Earth.
-interface BaseMap { land: string; germany: string; states: string; rivers: string; streams: string; lakes: string }
-
-const GRID = 900; // RADOLAN RY native grid size, both axes, 1 px = 1 km
 const POLL_MS = 60 * 1000; // how often to ask for new frames (DWD adds one every 5 minutes)
 const FRAME_MS = 420; // playback: time per frame …
 const HOLD_MS = 1600; // … and how long the newest one is held before the loop restarts
@@ -63,38 +59,7 @@ const LUT32 = new Uint32Array(LUT.buffer);
 const LEGEND_GRADIENT = `linear-gradient(90deg, ${STOPS.map(([mmh, c]) => `rgb(${c[0]} ${c[1]} ${c[2]}) ${(rampPosition(mmh) * 100).toFixed(1)}%`).join(', ')})`;
 const LEGEND_TICKS = [1, 3, 10, 30, 100];
 
-// Orientation: a hand-picked set of places in three tiers — the first is
-// always labelled, the others appear as the map is zoomed in and there is
-// room for them. [German name, English name, lon, lat, tier]
-const CITIES: [string, string, number, number, 1 | 2 | 3][] = [
-  ['Berlin', 'Berlin', 13.405, 52.52, 1], ['Hamburg', 'Hamburg', 9.993, 53.551, 1], ['München', 'Munich', 11.582, 48.135, 1],
-  ['Köln', 'Cologne', 6.96, 50.938, 1], ['Frankfurt', 'Frankfurt', 8.682, 50.111, 1], ['Stuttgart', 'Stuttgart', 9.183, 48.776, 1],
-  ['Leipzig', 'Leipzig', 12.373, 51.34, 1], ['Hannover', 'Hanover', 9.732, 52.376, 1], ['Nürnberg', 'Nuremberg', 11.077, 49.452, 1],
-  ['Bremen', 'Bremen', 8.807, 53.079, 2], ['Dresden', 'Dresden', 13.737, 51.05, 2], ['Dortmund', 'Dortmund', 7.466, 51.514, 2],
-  ['Kiel', 'Kiel', 10.123, 54.323, 2], ['Rostock', 'Rostock', 12.099, 54.092, 2], ['Erfurt', 'Erfurt', 11.029, 50.985, 2],
-  ['Kassel', 'Kassel', 9.48, 51.313, 2], ['Saarbrücken', 'Saarbrücken', 6.997, 49.24, 2], ['Freiburg', 'Freiburg', 7.842, 47.999, 2],
-  ['Münster', 'Münster', 7.626, 51.96, 2], ['Magdeburg', 'Magdeburg', 11.628, 52.121, 2], ['Würzburg', 'Würzburg', 9.953, 49.791, 2],
-  ['Regensburg', 'Regensburg', 12.102, 49.013, 2], ['Karlsruhe', 'Karlsruhe', 8.404, 49.007, 2],
-  ['Amsterdam', 'Amsterdam', 4.9, 52.372, 2], ['Brüssel', 'Brussels', 4.352, 50.847, 2], ['Zürich', 'Zurich', 8.541, 47.377, 2],
-  ['Prag', 'Prague', 14.438, 50.076, 2], ['Straßburg', 'Strasbourg', 7.752, 48.573, 2], ['Stettin', 'Szczecin', 14.553, 53.428, 2],
-  ['Düsseldorf', 'Düsseldorf', 6.773, 51.228, 3], ['Essen', 'Essen', 7.012, 51.455, 3], ['Bielefeld', 'Bielefeld', 8.532, 52.021, 3],
-  ['Osnabrück', 'Osnabrück', 8.047, 52.28, 3], ['Oldenburg', 'Oldenburg', 8.214, 53.144, 3], ['Lübeck', 'Lübeck', 10.687, 53.866, 3],
-  ['Flensburg', 'Flensburg', 9.437, 54.794, 3], ['Schwerin', 'Schwerin', 11.415, 53.629, 3], ['Potsdam', 'Potsdam', 13.064, 52.39, 3],
-  ['Cottbus', 'Cottbus', 14.334, 51.757, 3], ['Chemnitz', 'Chemnitz', 12.921, 50.833, 3], ['Halle', 'Halle', 11.97, 51.483, 3],
-  ['Göttingen', 'Göttingen', 9.935, 51.533, 3], ['Braunschweig', 'Brunswick', 10.522, 52.269, 3], ['Bonn', 'Bonn', 7.099, 50.735, 3],
-  ['Aachen', 'Aachen', 6.084, 50.776, 3], ['Koblenz', 'Koblenz', 7.594, 50.357, 3], ['Trier', 'Trier', 6.641, 49.757, 3],
-  ['Mainz', 'Mainz', 8.247, 50.0, 3], ['Mannheim', 'Mannheim', 8.466, 49.488, 3], ['Heilbronn', 'Heilbronn', 9.218, 49.142, 3],
-  ['Ulm', 'Ulm', 9.993, 48.401, 3], ['Augsburg', 'Augsburg', 10.898, 48.371, 3], ['Ingolstadt', 'Ingolstadt', 11.426, 48.766, 3],
-  ['Passau', 'Passau', 13.432, 48.567, 3], ['Bayreuth', 'Bayreuth', 11.578, 49.946, 3], ['Konstanz', 'Constance', 9.175, 47.678, 3],
-  ['Kempten', 'Kempten', 10.317, 47.726, 3], ['Rosenheim', 'Rosenheim', 12.128, 47.856, 3], ['Fulda', 'Fulda', 9.675, 50.555, 3],
-  ['Siegen', 'Siegen', 8.024, 50.875, 3], ['Paderborn', 'Paderborn', 8.754, 51.719, 3], ['Bremerhaven', 'Bremerhaven', 8.577, 53.55, 3],
-  ['Stralsund', 'Stralsund', 13.09, 54.309, 3], ['Luxemburg', 'Luxembourg', 6.13, 49.611, 3], ['Basel', 'Basel', 7.588, 47.56, 3],
-  ['Salzburg', 'Salzburg', 13.045, 47.811, 3], ['Innsbruck', 'Innsbruck', 11.394, 47.269, 3], ['Lüttich', 'Liège', 5.571, 50.633, 3],
-];
-const CITY_PX = CITIES.map(([de, en, lon, lat, tier]) => ({ de, en, tier, px: lonLatToRadolanPixel(lon, lat) }))
-  .filter(c => c.px[0] > 8 && c.px[0] < GRID - 8 && c.px[1] > 8 && c.px[1] < GRID - 8);
 const RINGS_KM = [25, 50, 100]; // distance rings around the home marker; 1 grid px = 1 km
-const pct = (gridPx: number) => `${(gridPx / GRID) * 100}%`;
 
 // What the frame on screen says about the home location: the rain rate right
 // there, and where the nearest rain is (searched out to 150 km).
@@ -118,34 +83,20 @@ function localRain(grid: Uint8Array, home: [number, number]) {
   return { kind: 'near' as const, km: Math.sqrt(best), bearing: (Math.atan2(bx - hx, hy - by) * 180) / Math.PI };
 }
 
-function useBaseMap() {
-  const [map, setMap] = useState<BaseMap | null>(null);
-  useEffect(() => {
-    let alive = true;
-    fetch('/radar-map.json').then(r => (r.ok ? r.json() : null)).then(j => { if (alive && j) setMap(j); }).catch(() => { /* the radar still works without a base map */ });
-    return () => { alive = false; };
-  }, []);
-  return map;
-}
-
 export function RadarScreen({ cfg }: { cfg: AppConfig }) {
-  const base = useBaseMap();
   const [frames, setFrames] = useState<number[]>([]);
   const [index, setIndex] = useState(-1); // which frame is on screen
   const [playing, setPlaying] = useState(false);
   const [loaded, setLoaded] = useState(0); // how many of `frames` have their grid
   const [error, setError] = useState<string | null>(null);
   const [shownGrid, setShownGrid] = useState<Uint8Array | null>(null);
-  const [hint, showHint] = useGestureHint();
 
   const grids = useRef(new Map<number, Uint8Array>());
-  const frameRef = useRef<HTMLDivElement | null>(null);
-  const layerRef = useRef<HTMLDivElement>(null);
+  const map = useRef<GridMapApi | null>(null);
   const canvasA = useRef<HTMLCanvasElement>(null);
   const canvasB = useRef<HTMLCanvasElement>(null);
   const front = useRef<'a' | 'b'>('a');
   const native = useRef<HTMLCanvasElement | null>(null);
-  const frameWidth = useRef(0);
   const state = useRef({ frames, index, playing });
   state.current = { frames, index, playing };
 
@@ -155,46 +106,8 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
     [publicLocation]
   );
 
-  // Pan/zoom lives outside React state (see panZoom.ts): the view is written
-  // straight to the map layer as a transform, so dragging never re-renders.
-  // Everything on the map — base map, rain, rings, labels — sits in that one
-  // layer. Labels counter-scale through --inv (1 / zoom) and line widths
-  // through --u (grid units per screen pixel), so both keep their on-screen
-  // size at every zoom level and frame size.
-  const pz = useMemo(() => createPanZoom({
-    contentW: GRID, contentH: GRID, minW: 40,
-    onHint: showHint,
-    apply: (v: View) => {
-      const layer = layerRef.current;
-      if (!layer) return;
-      const scale = GRID / v.w;
-      layer.style.transform = `translate(${(-v.x / v.w) * 100}%, ${(-v.y / v.w) * 100}%) scale(${scale})`;
-      layer.style.setProperty('--inv', String(1 / scale));
-      layer.style.setProperty('--u', String(GRID / (frameWidth.current || GRID) / scale));
-      const zoom = scale >= 3.2 ? 'close' : scale >= 1.7 ? 'near' : 'far';
-      if (layer.dataset.zoom !== zoom) layer.dataset.zoom = zoom;
-    },
-  }), [showHint]);
-
-  const attachFrame = useMemo(() => {
-    let observer: ResizeObserver | null = null;
-    return (node: HTMLDivElement | null) => {
-      observer?.disconnect();
-      frameRef.current = node;
-      pz.attach(node);
-      if (!node) return;
-      observer = new ResizeObserver(() => { frameWidth.current = node.clientWidth; pz.set(pz.get()); });
-      observer.observe(node);
-      frameWidth.current = node.clientWidth;
-    };
-  }, [pz]);
-
   // Home view: centered on the public location if set (~260 km window), else the whole grid.
-  const homeView = (): View => (markerPx ? { x: markerPx[0] - 130, y: markerPx[1] - 130, w: 260 } : { x: 0, y: 0, w: GRID });
-  useEffect(() => {
-    pz.set(homeView());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markerPx]);
+  const home = useMemo<View>(() => (markerPx ? { x: markerPx[0] - 130, y: markerPx[1] - 130, w: 260 } : { x: 0, y: 0, w: GRID }), [markerPx]);
 
   // ---- drawing ----
   // Colours one grid into a canvas: at native 900x900 through the lookup
@@ -325,52 +238,23 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
         {error && <div className="note">{t('radar.error', { error })}</div>}
 
         <div className="radar">
-          <div
-            ref={attachFrame}
-            className="radar-frame"
-            onPointerDown={pz.onPointerDown}
-            onPointerMove={pz.onPointerMove}
-            onPointerUp={pz.onPointerUp}
-            onPointerCancel={pz.onPointerUp}
-          >
-            <div ref={layerRef} className="radar-layer" data-zoom="far">
-              {base && (
-                <svg className="radar-svg radar-base" viewBox={`0 0 ${GRID} ${GRID}`} aria-hidden="true">
-                  <path className="map-land" d={base.land} />
-                  <path className="map-germany" d={base.germany} />
-                  <path className="map-stream" d={base.streams} />
-                  <path className="map-river" d={base.rivers} />
-                  <path className="map-lake" d={base.lakes} />
-                  <path className="map-state" d={base.states} />
-                </svg>
-              )}
+          <GridMap
+            home={home}
+            apiRef={map}
+            under={<>
               <canvas ref={canvasA} className="radar-rain" style={{ opacity: ready ? 1 : 0 }} />
               <canvas ref={canvasB} className="radar-rain" style={{ opacity: 0 }} />
-              <svg className="radar-svg" viewBox={`0 0 ${GRID} ${GRID}`} aria-hidden="true">
-                {/* the national border again, above the rain, so it stays readable under a shower */}
-                {base && <path className="map-outline" d={base.germany} />}
-                {markerPx && RINGS_KM.map(km => <circle key={km} className="radar-ring" cx={markerPx[0]} cy={markerPx[1]} r={km} />)}
-              </svg>
-              {CITY_PX.map(c => (
-                <div key={c.de} className={'radar-city tier' + c.tier} style={{ left: pct(c.px[0]), top: pct(c.px[1]) }} aria-hidden="true">
-                  <i /><span>{LANG === 'de' ? c.de : c.en}</span>
-                </div>
-              ))}
-              {markerPx && RINGS_KM.map(km => (
-                <div key={km} className="radar-ring-label" style={{ left: pct(markerPx[0]), top: pct(markerPx[1] - km) }} aria-hidden="true">
-                  <span>{km}{NBSP}km</span>
-                </div>
-              ))}
-              {markerPx && <div className="radar-home" style={{ left: pct(markerPx[0]), top: pct(markerPx[1]) }} aria-hidden="true"><i /></div>}
-            </div>
-
-            {!ready && !error && <div className="radar-loading">{t('radar.loading')}</div>}
-            <GestureHint hint={hint} />
-            <div className="radar-zoom">
-              <button type="button" aria-label={t('radar.zoomIn')} onClick={() => pz.zoomBy(1 / 1.6)}>+</button>
-              <button type="button" aria-label={t('radar.zoomOut')} onClick={() => pz.zoomBy(1.6)}>−</button>
-            </div>
-          </div>
+            </>}
+            lines={markerPx && RINGS_KM.map(km => <circle key={km} className="radar-ring" cx={markerPx[0]} cy={markerPx[1]} r={km} />)}
+            overlay={!ready && !error && <div className="radar-loading">{t('radar.loading')}</div>}
+          >
+            {markerPx && RINGS_KM.map(km => (
+              <div key={km} className="radar-ring-label" style={{ left: pct(markerPx[0]), top: pct(markerPx[1] - km) }} aria-hidden="true">
+                <span>{km}{NBSP}km</span>
+              </div>
+            ))}
+            {markerPx && <div className="radar-home" style={{ left: pct(markerPx[0]), top: pct(markerPx[1]) }} aria-hidden="true"><i /></div>}
+          </GridMap>
 
           {/* time: play the last two hours as a loop, or drag to any frame */}
           <div className="radar-time">
@@ -414,7 +298,7 @@ export function RadarScreen({ cfg }: { cfg: AppConfig }) {
               </div>
               <div className="radar-legend-unit">{t('radar.legendUnit')}</div>
             </div>
-            <button type="button" className="btn-ghost" onClick={() => pz.set(homeView(), true)}>{t('radar.resetView')}</button>
+            <button type="button" className="btn-ghost" onClick={() => map.current?.pz.set(home, true)}>{t('radar.resetView')}</button>
           </div>
           <div className="note">{t('radar.sourceNote', { key: zoomKey() })}</div>
         </div>

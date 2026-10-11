@@ -430,6 +430,11 @@ button { font-family: inherit; }
   border: 1px solid var(--glass-edge-soft); box-shadow: inset 0 1px 14px oklch(0 0 0 / 0.35);
 }
 .radar-frame:active { cursor: grabbing; }
+.radar-frame.pick { cursor: crosshair; }
+/* the admin pickers: the same map, smaller */
+.map-pick { width: min(100%, 560px); margin: 0 auto; }
+.map-pick .radar-frame { border-radius: 16px; }
+.map-reset { position: absolute; left: 10px; bottom: 10px; background: oklch(0.2 0.01 250 / 0.7); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%); }
 /* Everything on the map lives in this one transformed layer (Radar.tsx sets
    the transform, --inv = 1 / zoom, and --u = grid units per screen pixel).
    Labels and dots multiply by --inv and line widths by --u, so both keep
@@ -448,6 +453,15 @@ button { font-family: inherit; }
 .radar-layer:not([data-zoom='far']) .map-stream { display: inline; }
 .radar-svg .map-state { stroke: oklch(1 0 0 / 0.2); stroke-width: calc(var(--u) * 0.8px); stroke-dasharray: calc(var(--u) * 3px) calc(var(--u) * 3px); }
 .radar-svg .map-outline { stroke: oklch(1 0 0 / 0.72); stroke-width: calc(var(--u) * 1.3px); }
+.radar-svg .map-cell { fill: color-mix(in oklch, var(--amber) 22%, transparent); stroke: color-mix(in oklch, var(--amber) 85%, transparent); stroke-width: calc(var(--u) * 1.2px); }
+.radar-svg .map-cell.preview { fill: oklch(1 0 0 / 0.08); stroke: oklch(1 0 0 / 0.5); stroke-dasharray: calc(var(--u) * 3px) calc(var(--u) * 3px); }
+/* DWD stations: zero-length round-capped segments, so the stroke width is the dot's diameter */
+.radar-svg .map-stations { stroke: var(--blue); stroke-width: calc(var(--u) * 6px); }
+.radar-svg .map-stations.dim { stroke: oklch(1 0 0 / 0.16); stroke-width: calc(var(--u) * 4px); }
+.radar-svg .map-stations.hover { stroke: var(--text); stroke-width: calc(var(--u) * 10px); }
+.radar-svg .map-stations.selected { stroke: var(--amber); stroke-width: calc(var(--u) * 12px); filter: drop-shadow(0 0 calc(var(--u) * 3px) color-mix(in oklch, var(--amber) 80%, transparent)); }
+.map-tip { position: absolute; width: 0; height: 0; transform-origin: 0 0; transform: scale(var(--inv)); pointer-events: none; z-index: 2; }
+.map-tip .tip { top: auto; bottom: 12px; left: 0; transform: translateX(-50%); }
 .radar-ring { stroke: color-mix(in oklch, var(--amber) 55%, transparent); stroke-width: calc(var(--u) * 1px); stroke-dasharray: calc(var(--u) * 4px) calc(var(--u) * 5px); }
 .radar-city, .radar-ring-label, .radar-home { position: absolute; width: 0; height: 0; transform-origin: 0 0; transform: scale(var(--inv)); pointer-events: none; }
 .radar-city { transition: opacity 0.2s var(--ease-out); }

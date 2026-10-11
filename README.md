@@ -334,5 +334,6 @@ cd server && npm test
 
 - `server/`: Node 22 without a framework; only `yaml` and `suncalc` as dependencies. Talks to Home Assistant via its WebSocket API.
 - `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
+- `scripts/build-dwd-stations.mjs`: regenerates the list of DWD forecast stations the admin page offers (`web/public/dwd-stations.json`) from DWD's own catalogue. Run by hand; not part of the build.
 - `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/public/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
 - `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.

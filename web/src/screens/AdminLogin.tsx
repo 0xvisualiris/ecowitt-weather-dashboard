@@ -59,7 +59,7 @@ export function AdminLoginScreen({ onSession }: { onSession: (s: AdminSession) =
         <div className="eyebrow"><span>{t('adminLogin.title')}</span></div>
         <div className="field">
           <label className="label" htmlFor="admin-user">{t('adminLogin.username')}</label>
-          <input id="admin-user" className="input" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" disabled={needsTotp} />
+          <input id="admin-user" className="input" value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} disabled={needsTotp} />
         </div>
         <div className="field">
           <label className="label" htmlFor="admin-pass">{t('adminLogin.password')}</label>

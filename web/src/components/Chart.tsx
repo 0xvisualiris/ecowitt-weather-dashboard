@@ -1,5 +1,6 @@
-import { useState, type PointerEvent } from 'react';
+import { useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { areaPath, barsPath, extent, linePath } from '../lib';
+import { t } from '../i18n';
 
 interface ChartProps {
   values: (number | null)[];
@@ -33,6 +34,23 @@ export function Chart({ values, times, bars, color, height, formatValue, formatT
     setHf(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
   };
 
+  // Keyboard: arrow keys step through the points one at a time, starting
+  // from the newest; Escape (or leaving the chart) hides the readout again.
+  const idx = hf == null ? null : bars ? Math.min(n - 1, Math.floor(hf * n)) : Math.round(hf * (n - 1));
+  const key = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (!has || n < 2) return;
+    const step = (i: number) => {
+      e.preventDefault();
+      const c = Math.max(0, Math.min(n - 1, i));
+      setHf(bars ? (c + 0.5) / n : c / (n - 1));
+    };
+    if (e.key === 'ArrowLeft') step((idx ?? n) - 1);
+    else if (e.key === 'ArrowRight') step((idx ?? n - 2) + 1);
+    else if (e.key === 'Home') step(0);
+    else if (e.key === 'End') step(n - 1);
+    else if (e.key === 'Escape') setHf(null);
+  };
+
   let hov: null | { x: number; y: number; val: string; time: string } = null;
   if (hf != null && has && n) {
     let i = bars ? Math.min(n - 1, Math.floor(hf * n)) : Math.round(hf * (n - 1));
@@ -59,8 +77,14 @@ export function Chart({ values, times, bars, color, height, formatValue, formatT
         onPointerMove={move}
         onPointerDown={move}
         onPointerLeave={() => setHf(null)}
+        // Touch has no "leave": the readout follows the finger and goes away when it lifts.
+        onPointerUp={e => { if (e.pointerType !== 'mouse') setHf(null); }}
+        onPointerCancel={() => setHf(null)}
+        onKeyDown={key}
+        onBlur={() => setHf(null)}
+        tabIndex={has ? 0 : undefined}
         role="img"
-        aria-label="Diagramm"
+        aria-label={hov ? `${hov.val}, ${hov.time}` : has ? t('chart.ariaHint') : t('chart.aria')}
       >
         {!plain && <div className="mid" />}
         {has ? (
@@ -75,13 +99,13 @@ export function Chart({ values, times, bars, color, height, formatValue, formatT
             )}
           </svg>
         ) : (
-          <div className="empty">Keine Daten für diesen Zeitraum</div>
+          <div className="empty">{t('chart.noData')}</div>
         )}
         {hov && (
           <>
             <div className="hair" style={{ left: `${hov.x * 100}%` }} />
             <div className="hdot" style={{ left: `${hov.x * 100}%`, top: `${hov.y * 100}%`, background: color }} />
-            <div className="tip" style={{ left: `${hov.x * 100}%`, transform: hov.x > 0.75 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)' }}>
+            <div className="tip" style={{ left: `${hov.x * 100}%`, transform: hov.x > 0.5 ? 'translateX(calc(-100% - 10px))' : 'translateX(10px)' }}>
               <span className="tv">{hov.val}</span>
               <span className="tt">{hov.time}</span>
             </div>

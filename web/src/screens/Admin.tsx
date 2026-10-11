@@ -147,7 +147,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
                 {showDwdMap ? t('admin.dwdMapClose') : t('admin.dwdPickOnMap')}
               </button>
               {showDwdMap && (
-                <div style={{ marginTop: 10 }}>
+                <div className="reveal" style={{ marginTop: 10 }}>
                   <DwdStationMap value={dwdStationId} onSelect={(id) => { setDwdStationId(id); setShowDwdMap(false); }} />
                 </div>
               )}
@@ -178,10 +178,10 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         <section className="card lg stack">
           <div className="eyebrow"><span>{t('admin.station')}</span></div>
           <Field label={t('admin.name')} locked={data.locked.stationName}>
-            <input className="input" value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
+            <input className="input" maxLength={60} value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
           </Field>
           <Field label={t('admin.subtitle')} locked={data.locked.stationSubtitle}>
-            <input className="input" value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
+            <input className="input" maxLength={80} value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
           </Field>
           <Field label={t('admin.altitude')} locked={data.locked.stationAltitude}>
             <input className="input" type="number" value={stationAltitude} disabled={data.locked.stationAltitude}
@@ -200,7 +200,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
                 <div className="note">{t('admin.publicLocationSet', { lat: publicLocation.lat.toFixed(1), lon: publicLocation.lon.toFixed(1) })}</div>
               )}
               {showLocationMap && (
-                <div style={{ marginTop: 10 }}>
+                <div className="reveal" style={{ marginTop: 10 }}>
                   <PublicLocationPicker value={publicLocation} onChange={loc => { setPublicLocation(loc); setShowLocationMap(false); }} />
                 </div>
               )}
@@ -429,7 +429,7 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
         {COMPARISONS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
       <input className="input" style={{ width: 80 }} disabled={locked} type="number" value={val} onChange={e => onChange({ ...cond, [cmp]: Number(e.target.value) })} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.8125rem' }}>
         <input type="checkbox" disabled={locked} checked={hasRecent}
           onChange={e => {
             if (e.target.checked) onChange({ ...cond, recent: { sensor: SENSOR_FIELDS()[0][0], minutes: 30 } });
@@ -445,7 +445,7 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
           </select>
           <input className="input" style={{ width: 70 }} disabled={locked} type="number" value={cond.recent.minutes ?? 30}
             onChange={e => onChange({ ...cond, recent: { ...cond.recent, minutes: Number(e.target.value) } })} />
-          <span className="faint" style={{ fontSize: 13 }}>{t('admin.minutesAbbrev')}</span>
+          <span className="faint" style={{ fontSize: '0.8125rem' }}>{t('admin.minutesAbbrev')}</span>
         </>
       )}
       {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
@@ -464,7 +464,7 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
         <span className="label" style={{ fontWeight: 500 }}>{rule.label || t('admin.newRule')}</span>
         {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
-      <Field label={t('admin.label')} locked={locked}><input className="input" value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
+      <Field label={t('admin.label')} locked={locked}><input className="input" maxLength={60} value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
       <Field label={t('admin.description')} locked={locked}><input className="input" value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
       <div className="row" style={{ flexWrap: 'wrap', gap: 16, border: 0, padding: 0 }}>
         <Field label={t('admin.level')} locked={locked}>

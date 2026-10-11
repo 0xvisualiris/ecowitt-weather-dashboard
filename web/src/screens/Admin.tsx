@@ -4,6 +4,7 @@ import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
 import { DwdStationMap } from '../components/DwdStationMap';
 import { PublicLocationPicker } from '../components/PublicLocationPicker';
+import { Segmented } from '../components/Segmented';
 
 const SENSOR_FIELDS = (): [string, string][] => [
   ['temperature', t('admin.sensor.temperature')], ['feels_like', t('admin.sensor.feels_like')], ['dew_point', t('admin.sensor.dew_point')], ['humidity', t('admin.sensor.humidity')],
@@ -107,12 +108,12 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
       <div className="header">
         <div className="title">{t('admin.title')}</div>
         <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
-          <div className="segs inset" role="radiogroup" aria-label={t('settings.language')}>
-            {(['de', 'en'] as Lang[]).map(l => (
-              <button key={l} type="button" role="radio" aria-checked={lang === l} className={'seg xs' + (lang === l ? ' on' : '')}
-                onClick={() => setLang(l)}>{l === 'de' ? 'Deutsch' : 'English'}</button>
-            ))}
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={t('settings.language')}
+            items={(['de', 'en'] as Lang[]).map(l => ({ key: l, label: l === 'de' ? 'Deutsch' : 'English' }))}
+            value={lang}
+            onChange={l => setLang(l as Lang)}
+          />
           <button type="button" className="btn-ghost" onClick={() => go({ screen: 'adminPassword' })}>{t('adminPassword.title')}</button>
           <button type="button" className="btn-ghost" onClick={logout}>{t('admin.logout')}</button>
           <button type="button" className="btn-ghost" onClick={() => go({ screen: 'dash' })}>{t('admin.toDashboard')}</button>
@@ -467,16 +468,26 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
       <Field label={t('admin.description')} locked={locked}><input className="input" value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
       <div className="row" style={{ flexWrap: 'wrap', gap: 16, border: 0, padding: 0 }}>
         <Field label={t('admin.level')} locked={locked}>
-          <div className="segs inset">
-            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'warning' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'warning' })}>{t('admin.levelWarning')}</button>
-            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'info' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'info' })}>{t('admin.levelInfo')}</button>
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={t('admin.level')}
+            items={[
+              { key: 'warning', label: t('admin.levelWarning'), disabled: locked },
+              { key: 'info', label: t('admin.levelInfo'), disabled: locked },
+            ]}
+            value={rule.level}
+            onChange={level => onChange({ ...rule, level: level as AlertRule['level'] })}
+          />
         </Field>
         <Field label={t('admin.combination')} locked={locked}>
-          <div className="segs inset">
-            <button type="button" disabled={locked} className={'seg xs' + (mode === 'all' ? ' on' : '')} onClick={() => onChange({ ...rule, all: conds, any: undefined })}>{t('admin.all')}</button>
-            <button type="button" disabled={locked} className={'seg xs' + (mode === 'any' ? ' on' : '')} onClick={() => onChange({ ...rule, any: conds, all: undefined })}>{t('admin.any')}</button>
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={t('admin.combination')}
+            items={[
+              { key: 'all', label: t('admin.all'), disabled: locked },
+              { key: 'any', label: t('admin.any'), disabled: locked },
+            ]}
+            value={mode}
+            onChange={next => onChange(next === 'any' ? { ...rule, any: conds, all: undefined } : { ...rule, all: conds, any: undefined })}
+          />
         </Field>
       </div>
       <Field label={t('admin.banner')} locked={locked}>

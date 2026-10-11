@@ -305,7 +305,8 @@ const routes = {
   '/api/radar': async () => {
     if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
     const { width, height, timestamp } = radar.latest;
-    return { width, height, timestamp };
+    // `frames`: timestamps of every composite held (oldest first), each fetchable as /api/radar/grid?t=<timestamp>
+    return { width, height, timestamp, frames: radar.frames.map(f => f.timestamp) };
   },
   '/healthz': async () => ({ ok: true, connected: source.connected, lastMessage: source.lastMessage }),
 };
@@ -322,6 +323,14 @@ const server = http.createServer(async (req, res) => {
   // before it, same way /api/admin/ does above.
   if (url.pathname === '/api/radar/grid') {
     if (!radar.latest) return send(req, res, 503, { error: 'radar data not available yet' });
+    // ?t=<timestamp> names one past composite, which never changes again and
+    // can be cached; without it, the moving "latest" one, which can't.
+    const t = url.searchParams.get('t');
+    if (t != null) {
+      const frame = radar.frame(Number(t));
+      if (!frame) return send(req, res, 404, { error: 'no radar frame for that time' });
+      return send(req, res, 200, Buffer.from(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
+    }
     return send(req, res, 200, Buffer.from(radar.latest.grid), 'application/octet-stream', { 'Cache-Control': 'no-store' });
   }
 

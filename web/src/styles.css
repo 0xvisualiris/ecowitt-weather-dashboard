@@ -24,13 +24,8 @@
      fill. Needs something colorful behind it to actually refract (see the
      ambient gradients on body below) and a bright, thin top edge to read as
      a lit sheet of glass rather than frosted plastic. */
-  /* What a glass surface does to what's behind it. Only a saturation boost:
-     nothing ever scrolls underneath these surfaces, they sit on the page's
-     smooth ambient gradient, and blurring a smooth gradient changes nothing
-     visible while costing a large blur on every surface, every scroll frame.
-     The chart tooltip (.tip) is the one surface that floats over content, and
-     keeps a real blur. */
-  --glass-filter: saturate(165%);
+  /* What a glass surface does to what's behind it. */
+  --glass-filter: blur(28px) saturate(165%);
   --glass-tint: linear-gradient(165deg, oklch(1 0 0 / 0.1), oklch(1 0 0 / 0.025));
   --glass-tint-strong: linear-gradient(165deg, oklch(1 0 0 / 0.16), oklch(1 0 0 / 0.04));
   --glass-edge: oklch(1 0 0 / 0.14);
@@ -425,3 +420,52 @@ button { font-family: inherit; }
 @media (pointer: coarse) {
   .input { font-size: 1rem; }
 }
+
+/* rain radar — one square map that always fits the viewport height, so the
+   page around it stays reachable. */
+.radar { display: flex; flex-direction: column; gap: 14px; width: min(100%, max(300px, calc(100dvh - 17rem))); margin: 0 auto; }
+.radar-frame {
+  position: relative; overflow: hidden; aspect-ratio: 1 / 1; border-radius: 18px; cursor: grab; touch-action: pan-x pan-y;
+  background: radial-gradient(120% 120% at 30% 15%, oklch(0.28 0.035 245), oklch(0.19 0.02 250));
+  border: 1px solid var(--glass-edge-soft); box-shadow: inset 0 1px 14px oklch(0 0 0 / 0.35);
+}
+.radar-frame:active { cursor: grabbing; }
+/* Everything on the map lives in this one transformed layer (panZoom.ts sets
+   the transform and --inv = 1 / zoom). Labels, dots and line widths multiply
+   by --inv, so they keep their on-screen size however far in the map is. */
+.radar-layer { position: absolute; inset: 0; transform-origin: 0 0; --inv: 1; }
+.radar-rain, .radar-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+.radar-rain { transition: opacity 0.3s var(--ease-out); }
+.radar-lines { overflow: visible; }
+.radar-border { fill: oklch(1 0 0 / 0.04); stroke: oklch(1 0 0 / 0.6); stroke-width: calc(1.25px * var(--inv)); stroke-linejoin: round; }
+.radar-ring { fill: none; stroke: color-mix(in oklch, var(--amber) 55%, transparent); stroke-width: calc(1px * var(--inv)); stroke-dasharray: calc(4px * var(--inv)) calc(5px * var(--inv)); }
+.radar-city, .radar-ring-label, .radar-home { position: absolute; width: 0; height: 0; transform-origin: 0 0; transform: scale(var(--inv)); pointer-events: none; }
+.radar-city { transition: opacity 0.2s var(--ease-out); }
+.radar-city i { position: absolute; left: -2.5px; top: -2.5px; width: 5px; height: 5px; border-radius: 50%; background: oklch(1 0 0 / 0.85); box-shadow: 0 0 0 1.5px oklch(0 0 0 / 0.45); }
+.radar-city span { position: absolute; left: 8px; top: -0.62em; white-space: nowrap; font-size: 0.6875rem; font-weight: 500; line-height: 1.24; color: oklch(1 0 0 / 0.86); text-shadow: 0 1px 2px oklch(0 0 0 / 0.95), 0 0 6px oklch(0 0 0 / 0.75); }
+.radar-layer[data-zoom='far'] .radar-city.tier2 { opacity: 0; }
+.radar-ring-label span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; padding: 1px 5px; border-radius: 5px; font-family: var(--mono); font-size: 0.625rem; color: var(--amber); background: oklch(0.2 0.02 250 / 0.85); }
+.radar-home i { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--amber); border: 2px solid oklch(1 0 0 / 0.9); box-shadow: 0 0 0 1px oklch(0 0 0 / 0.3), 0 0 12px color-mix(in oklch, var(--amber) 70%, transparent); }
+.radar-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 0.875rem; }
+/* Controls floating over the map: these really do sit on top of moving
+   content, so they get a real blur. */
+.radar-zoom {
+  position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; overflow: hidden; border-radius: 14px;
+  background: oklch(0.2 0.01 250 / 0.7); backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--glass-edge); box-shadow: 0 6px 18px -6px oklch(0 0 0 / 0.6);
+}
+.radar-zoom button { width: 44px; height: 44px; border: 0; background: transparent; color: var(--text); font-size: 1.25rem; line-height: 1; cursor: pointer; transition: background 0.12s var(--ease-out); }
+.radar-zoom button + button { border-top: 1px solid var(--glass-edge-soft); }
+.radar-zoom button:active { background: oklch(1 0 0 / 0.14); }
+.gesture-hint {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; padding: 10px 16px; border-radius: 999px; white-space: nowrap; pointer-events: none;
+  font-size: 0.875rem; font-weight: 500; color: var(--text); background: oklch(0.14 0.01 250 / 0.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  opacity: 0; transition: opacity 0.2s var(--ease-out);
+}
+.gesture-hint.on { opacity: 1; }
+.radar-foot { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; }
+.radar-legend { flex: 1 1 220px; max-width: 380px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; align-items: center; padding-top: 4px; }
+.radar-legend-bar { grid-column: 1; grid-row: 1; height: 8px; border-radius: 4px; }
+.radar-legend-unit { grid-column: 2; grid-row: 1; font-family: var(--mono); font-size: 0.6875rem; color: var(--muted); }
+.radar-legend-ticks { grid-column: 1; grid-row: 2; position: relative; height: 1.1em; font-family: var(--mono); font-size: 0.6875rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+.radar-legend-ticks span { position: absolute; transform: translateX(-50%); }

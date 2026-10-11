@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { useGermanyOutline, makeOutlineProjection } from './germanyOutline';
 import { createPanZoom, type View } from '../panZoom';
+import { GestureHint, useGestureHint, zoomKey } from './GestureHint';
 
 /// A hand-rolled SVG map (no mapping library, no external tiles — same
 /// "dependency-light, hand-drawn SVG" convention as Chart.tsx/ConditionIcon)
@@ -18,6 +19,7 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
   const [hover, setHover] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [zoomed, setZoomed] = useState(false);
+  const [hint, showHint] = useGestureHint();
 
   const proj = useMemo(() => (data ? makeOutlineProjection(data) : null), [data]);
 
@@ -30,13 +32,14 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
     const { width, height } = proj;
     return createPanZoom({
       contentW: width, contentH: height, minW: width / 10,
+      onHint: showHint,
       apply: (v: View) => {
         const svg = svgRef.current;
         if (svg) svg.style.transform = viewTransform(v, width);
         setZoomed(v.w < width - 0.5);
       },
     });
-  }, [proj]);
+  }, [proj, showHint]);
 
   const q = query.trim().toLowerCase();
   const matches = useMemo(() => {
@@ -63,11 +66,11 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
         className="input" value={query} onChange={e => setQuery(e.target.value)}
         placeholder={t('admin.dwdMapSearch')}
       />
-      <div className="note">{t('admin.dwdMapHint')}</div>
+      <div className="note">{t('admin.dwdMapHint', { key: zoomKey() })}</div>
 
       {/* The frame has the map's own aspect ratio, so the SVG fills it exactly
           and a drag tracks the pointer 1:1 (no letterboxing to account for). */}
-      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)', aspectRatio: `${width} / ${height}`, maxHeight: 480, maxWidth: `calc(480px * ${width / height})`, margin: '0 auto', width: '100%', touchAction: 'none', cursor: 'grab' }}
+      <div style={{ position: 'relative', borderRadius: 16, overflow: 'hidden', background: 'oklch(0 0 0 / 0.18)', aspectRatio: `${width} / ${height}`, maxHeight: 480, maxWidth: `calc(480px * ${width / height})`, margin: '0 auto', width: '100%', touchAction: 'pan-x pan-y', cursor: 'grab' }}
         // Gestures are measured on this untransformed frame, not on the SVG that moves inside it.
         ref={pz.attach}
         onPointerDown={e => { setHover(null); pz.onPointerDown(e); }}
@@ -107,6 +110,7 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
             <span className="tt">{hover.id}</span>
           </div>
         )}
+        <GestureHint hint={hint} />
         {zoomed && (
           <button type="button" className="btn-ghost" style={{ position: 'absolute', right: 10, bottom: 10 }} onClick={() => pz.set({ x: 0, y: 0, w: width }, true)}>
             {t('admin.dwdMapResetView')}

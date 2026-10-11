@@ -6,6 +6,14 @@ import { DwdStationMap } from '../components/DwdStationMap';
 import { PublicLocationPicker } from '../components/PublicLocationPicker';
 import { Segmented } from '../components/Segmented';
 
+// Mirrors TEXT_LIMITS in server/src/admin.js, which is what actually enforces
+// these; the maxLength here only stops the form from offering a doomed save.
+const TEXT_LIMITS = {
+  stationName: 60, stationSubtitle: 80,
+  alertLabel: 60, alertDescription: 120, alertBanner: 120, alertMessage: 200,
+  deviceName: 60, deviceShort: 12, deviceRole: 40,
+};
+
 const SENSOR_FIELDS = (): [string, string][] => [
   ['temperature', t('admin.sensor.temperature')], ['feels_like', t('admin.sensor.feels_like')], ['dew_point', t('admin.sensor.dew_point')], ['humidity', t('admin.sensor.humidity')],
   ['wind_speed', t('admin.sensor.wind_speed')], ['wind_gust', t('admin.sensor.wind_gust')], ['wind_direction', t('admin.sensor.wind_direction')],
@@ -178,10 +186,10 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         <section className="card lg stack">
           <div className="eyebrow"><span>{t('admin.station')}</span></div>
           <Field label={t('admin.name')} locked={data.locked.stationName}>
-            <input className="input" maxLength={60} value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
+            <input className="input" maxLength={TEXT_LIMITS.stationName} value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
           </Field>
           <Field label={t('admin.subtitle')} locked={data.locked.stationSubtitle}>
-            <input className="input" maxLength={80} value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
+            <input className="input" maxLength={TEXT_LIMITS.stationSubtitle} value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
           </Field>
           <Field label={t('admin.altitude')} locked={data.locked.stationAltitude}>
             <input className="input" type="number" value={stationAltitude} disabled={data.locked.stationAltitude}
@@ -376,9 +384,9 @@ function DeviceEditor({ device, locked, onChange, onRemove }: { device: Device; 
         {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
       <Field label={t('admin.id')} locked={locked}><input className="input" value={device.id} disabled={locked} onChange={e => onChange({ ...device, id: e.target.value })} /></Field>
-      <Field label={t('admin.name')} locked={locked}><input className="input" value={device.name} disabled={locked} onChange={e => onChange({ ...device, name: e.target.value })} /></Field>
-      <Field label={t('admin.role')} locked={locked}><input className="input" value={device.role} disabled={locked} onChange={e => onChange({ ...device, role: e.target.value })} placeholder={t('admin.rolePlaceholder')} /></Field>
-      <Field label={t('admin.shortName')} locked={locked}><input className="input" value={device.short} disabled={locked} onChange={e => onChange({ ...device, short: e.target.value })} /></Field>
+      <Field label={t('admin.name')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.deviceName} value={device.name} disabled={locked} onChange={e => onChange({ ...device, name: e.target.value })} /></Field>
+      <Field label={t('admin.role')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.deviceRole} value={device.role} disabled={locked} onChange={e => onChange({ ...device, role: e.target.value })} placeholder={t('admin.rolePlaceholder')} /></Field>
+      <Field label={t('admin.shortName')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.deviceShort} value={device.short} disabled={locked} onChange={e => onChange({ ...device, short: e.target.value })} /></Field>
       <Field label={t('admin.batteryEntity')} locked={locked}>
         <input className="input" value={device.battery || ''} disabled={locked} onChange={e => onChange({ ...device, battery: e.target.value || null })} placeholder="sensor.xxx_battery" />
       </Field>
@@ -464,8 +472,8 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
         <span className="label" style={{ fontWeight: 500 }}>{rule.label || t('admin.newRule')}</span>
         {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
-      <Field label={t('admin.label')} locked={locked}><input className="input" maxLength={60} value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
-      <Field label={t('admin.description')} locked={locked}><input className="input" value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
+      <Field label={t('admin.label')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.alertLabel} value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
+      <Field label={t('admin.description')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.alertDescription} value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
       <div className="row" style={{ flexWrap: 'wrap', gap: 16, border: 0, padding: 0 }}>
         <Field label={t('admin.level')} locked={locked}>
           <Segmented
@@ -491,10 +499,10 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
         </Field>
       </div>
       <Field label={t('admin.banner')} locked={locked}>
-        <input className="input" value={rule.banner || ''} disabled={locked} onChange={e => onChange({ ...rule, banner: e.target.value })} placeholder={rule.label} />
+        <input className="input" maxLength={TEXT_LIMITS.alertBanner} value={rule.banner || ''} disabled={locked} onChange={e => onChange({ ...rule, banner: e.target.value })} placeholder={rule.label} />
       </Field>
       <Field label={t('admin.message')} locked={locked}>
-        <input className="input" value={rule.message} disabled={locked} onChange={e => onChange({ ...rule, message: e.target.value })} placeholder={t('admin.messagePlaceholder')} />
+        <input className="input" maxLength={TEXT_LIMITS.alertMessage} value={rule.message} disabled={locked} onChange={e => onChange({ ...rule, message: e.target.value })} placeholder={t('admin.messagePlaceholder')} />
       </Field>
       <div className="field">
         <label className="label">{t('admin.conditions')}</label>

@@ -4,6 +4,13 @@
 //   - 1:1 tracking from where the pointer grabbed, after a small hysteresis
 //     so a click on something inside the surface is still a click
 //   - two-finger pinch zooms around the midpoint between the fingers
+//   - cooperative with page scrolling, like an embedded map: a one-finger
+//     touch drag and a plain mouse wheel belong to the page (so a map that
+//     fills the screen can't trap scrolling); two fingers, a mouse drag, or
+//     Ctrl/Cmd + wheel (which is also what a trackpad pinch sends) move the
+//     map. `onHint` fires when someone tries the page gesture on the map, so
+//     the surface can say how to move it. The surface needs
+//     `touch-action: pan-x pan-y`.
 //   - past an edge the content rubber-bands instead of stopping dead
 //   - on release the momentum is projected forward and a spring carries the
 //     view there, starting at the finger's velocity; grabbing it again
@@ -29,7 +36,9 @@ export function project(velocity: number, decelerationRate = 0.998) {
   return ((velocity / 1000) * decelerationRate) / (1 - decelerationRate);
 }
 
-export function createPanZoom(o: { contentW: number; contentH: number; minW: number; apply: (v: View) => void }) {
+export type PanZoomHint = 'wheel' | 'touch';
+
+export function createPanZoom(o: { contentW: number; contentH: number; minW: number; apply: (v: View) => void; onHint?: (kind: PanZoomHint) => void }) {
   const aspect = o.contentH / o.contentW;
   let el: Element | null = null;
   let raw: View = { x: 0, y: 0, w: o.contentW }; // where the gesture has put the view, possibly out of bounds
@@ -69,12 +78,17 @@ export function createPanZoom(o: { contentW: number; contentH: number; minW: num
   };
 
   const onWheel = (e: WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) { o.onHint?.('wheel'); return; } // plain wheel scrolls the page
     e.preventDefault();
     spring.cancel();
     zoomAround(e.deltaY > 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY);
     raw = clamp(raw);
     render();
   };
+
+  // Two fingers on the surface are ours: stop the browser from scrolling or
+  // zooming the page with them. One finger is left alone and scrolls the page.
+  const onTouch = (e: TouchEvent) => { if (e.touches.length > 1 && e.cancelable) e.preventDefault(); };
 
   const pinchMetrics = () => {
     const [a, b] = [...pointers.values()];
@@ -106,14 +120,24 @@ export function createPanZoom(o: { contentW: number; contentH: number; minW: num
     // stop the page from scrolling while zooming.
     attach(node: Element | null) {
       el?.removeEventListener('wheel', onWheel as EventListener);
+      el?.removeEventListener('touchstart', onTouch as EventListener);
+      el?.removeEventListener('touchmove', onTouch as EventListener);
       el = node;
       el?.addEventListener('wheel', onWheel as EventListener, { passive: false });
+      el?.addEventListener('touchstart', onTouch as EventListener, { passive: false });
+      el?.addEventListener('touchmove', onTouch as EventListener, { passive: false });
       if (!el) { spring.cancel(); pointers.clear(); }
     },
     get: () => shown,
     // True if the pointer interaction that just ended was a drag/pinch, for
     // ignoring the click that follows it.
     wasDrag: () => moved,
+    // Zoom by a factor around the centre of the surface (the +/− buttons).
+    zoomBy(factor: number) {
+      spring.cancel();
+      const from = shown, w = clampW(from.w * factor);
+      this.set({ x: from.x + (from.w - w) / 2, y: from.y + ((from.w - w) / 2) * aspect, w }, true);
+    },
     set(v: View, animate = false) {
       spring.cancel();
       const from = shown, to = clamp(v);
@@ -143,6 +167,7 @@ export function createPanZoom(o: { contentW: number; contentH: number; minW: num
       if (pointers.size === 1) {
         if (!dragging) {
           if (!start || Math.hypot(cur.x - start.x, cur.y - start.y) < (e.pointerType === 'mouse' ? 3 : 8)) return;
+          if (e.pointerType === 'touch') { o.onHint?.('touch'); start = null; return; } // one finger scrolls the page
           dragging = true; moved = true; capture();
           pointers.set(e.pointerId, cur); // track from here, so committing to the drag doesn't jump
           return;
@@ -160,11 +185,20 @@ export function createPanZoom(o: { contentW: number; contentH: number; minW: num
         const k = raw.w / rect().width;
         raw = { x: raw.x - (next.mx - pinch.mx) * k, y: raw.y - (next.my - pinch.my) * k, w: raw.w };
         pinch = next;
+        history.push({ t: performance.now(), x: next.mx, y: next.my });
+        if (history.length > 8) history.shift();
         render();
       }
     },
     onPointerUp(e: PointerLike) {
       if (!pointers.delete(e.pointerId)) return;
+      // A two-finger pan ends when the first finger lifts: release with its momentum.
+      if (pointers.size === 1 && pinch && e.pointerType === 'touch') {
+        pinch = null; start = null; // the finger still down must not start a drag or a hint
+        if (dragging) release();
+        dragging = false;
+        return;
+      }
       if (pointers.size === 1) { pinch = null; history = []; }
       if (pointers.size === 0) {
         pinch = null;

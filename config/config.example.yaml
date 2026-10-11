@@ -106,7 +106,7 @@ sensors:
 # dwd_station_id nicht gesetzt ist oder DWD gerade nicht erreichbar ist.
 # ---------------------------------------------------------------------
 forecast:
-  dwd_station_id: "10384"   # DWD-Stations-ID. Liste: https://opendata.dwd.de/weather/local_forecasts/poi/poi.txt
+  dwd_station_id: "10384"   # DWD-Stations-ID, z. B. "10384" oder "L771". Am einfachsten über die Karte auf der Admin-Seite auswählen.
   # bias_hours: 6            # wie viele Stunden der Live-Messwert die Vorhersage korrigiert
   entity: weather.forecast_home   # Rückfallebene, falls dwd_station_id leer/nicht erreichbar ist
   # label: DWD MOSMIX        # Quellenangabe in der Karte; sonst aus "attribution" bzw. Standardtext

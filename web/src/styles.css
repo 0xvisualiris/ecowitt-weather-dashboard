@@ -456,8 +456,11 @@ button { font-family: inherit; }
 .radar-svg .map-cell { fill: color-mix(in oklch, var(--amber) 22%, transparent); stroke: color-mix(in oklch, var(--amber) 85%, transparent); stroke-width: calc(var(--u) * 1.2px); }
 .radar-svg .map-cell.preview { fill: oklch(1 0 0 / 0.08); stroke: oklch(1 0 0 / 0.5); stroke-dasharray: calc(var(--u) * 3px) calc(var(--u) * 3px); }
 /* DWD stations: zero-length round-capped segments, so the stroke width is the dot's diameter */
-.radar-svg .map-stations { stroke: var(--blue); stroke-width: calc(var(--u) * 6px); }
-.radar-svg .map-stations.dim { stroke: oklch(1 0 0 / 0.16); stroke-width: calc(var(--u) * 4px); }
+/* thousands of them: small while all of Germany is in view, larger once zoomed in */
+.radar-svg .map-stations { stroke: var(--blue); stroke-width: calc(var(--u) * 3px); }
+.radar-layer[data-zoom='near'] .map-stations { stroke-width: calc(var(--u) * 5px); }
+.radar-layer[data-zoom='close'] .map-stations { stroke-width: calc(var(--u) * 7px); }
+.radar-svg .map-stations.dim { stroke: oklch(1 0 0 / 0.16); stroke-width: calc(var(--u) * 2.5px); }
 .radar-svg .map-stations.hover { stroke: var(--text); stroke-width: calc(var(--u) * 10px); }
 .radar-svg .map-stations.selected { stroke: var(--amber); stroke-width: calc(var(--u) * 12px); filter: drop-shadow(0 0 calc(var(--u) * 3px) color-mix(in oklch, var(--amber) 80%, transparent)); }
 .map-tip { position: absolute; width: 0; height: 0; transform-origin: 0 0; transform: scale(var(--inv)); pointer-events: none; z-index: 2; }

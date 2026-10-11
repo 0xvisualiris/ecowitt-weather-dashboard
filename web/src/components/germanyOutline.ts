@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
 
 export interface StationData {
-  outline: [number, number][]; // [lon, lat] simplified Germany border — no longer drawn (the maps use public/radar-map.json), kept in the file
   stations: { id: string; name: string; lat: number; lon: number }[];
 }
 
-/// Shared fetch for public/dwd-stations.json (outline + DWD station list),
+/// Shared fetch for public/dwd-stations.json (the DWD station list),
 /// used by DwdStationMap.tsx — fetched lazily, only when the picker opens.
 export function useGermanyOutline() {
   const [data, setData] = useState<StationData | null>(null);

@@ -5,17 +5,22 @@ import { useGermanyOutline } from './germanyOutline';
 import { GRID, GridMap, pct, type GridMapApi } from './GridMap';
 import { zoomKey } from './GestureHint';
 
-type Station = { id: string; name: string; px: [number, number] };
+type Station = { id: string; name: string; search: string; px: [number, number] };
 
 // A dot per station as one SVG path: a zero-length segment with a round line
 // cap draws a circle whose diameter is the stroke width, which CSS keeps at a
-// constant on-screen size (styles.css, --u). A handful of paths for ~370
-// stations instead of ~740 elements to restyle on every zoom frame.
+// constant on-screen size (styles.css, --u). A handful of paths for ~2,800
+// stations instead of one element each to restyle on every zoom frame.
+// DWD spells umlauts out ("Gruendau"); people type them ("Gründau"). Both
+// sides of a search are folded to the spelled-out form.
+const fold = (text: string) => text.toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss');
+
 const dots = (stations: Station[]) => stations.map(s => `M${s.px[0].toFixed(1)},${s.px[1].toFixed(1)}h0`).join('');
 
 /// Picker for the DWD MOSMIX station the forecast comes from: the same map as
 /// the rain radar (GridMap), with every station from public/dwd-stations.json
-/// as a dot. Tapping near a dot picks the closest station; the search box
+/// as a dot — all ~2,800 stations DWD publishes a MOSMIX_L forecast for on
+/// this map, built by scripts/build-dwd-stations.mjs. Tapping near a dot picks the closest station; the search box
 /// filters by name or ID. No mapping library, no tiles.
 export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (id: string, name: string) => void }) {
   const { data, error } = useGermanyOutline();
@@ -26,11 +31,11 @@ export function DwdStationMap({ value, onSelect }: { value: string; onSelect: (i
   const frame = useRef<HTMLDivElement>(null);
 
   const stations = useMemo<Station[]>(() => (data?.stations ?? [])
-    .map(s => ({ id: s.id, name: s.name, px: lonLatToRadolanPixel(s.lon, s.lat) }))
+    .map(s => ({ id: s.id, name: s.name, search: fold(`${s.name} ${s.id}`), px: lonLatToRadolanPixel(s.lon, s.lat) }))
     .filter(s => s.px[0] >= 0 && s.px[0] <= GRID && s.px[1] >= 0 && s.px[1] <= GRID), [data]);
 
-  const q = query.trim().toLowerCase();
-  const matches = useMemo(() => (q ? stations.filter(s => s.name.toLowerCase().includes(q) || s.id.includes(q)).slice(0, 40) : null), [stations, q]);
+  const q = fold(query.trim());
+  const matches = useMemo(() => (q ? stations.filter(s => s.search.includes(q)).slice(0, 40) : null), [stations, q]);
   const matchIds = useMemo(() => (matches ? new Set(matches.map(s => s.id)) : null), [matches]);
   const selected = stations.find(s => s.id === value) || null;
 

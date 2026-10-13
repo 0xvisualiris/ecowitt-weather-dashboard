@@ -98,6 +98,7 @@ export interface AdminSettings {
   locked: {
     haUrl: boolean; haUrlEnv: boolean; haToken: boolean; haTokenEnv: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
     alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationPublicLocation: boolean; stationDevices: boolean;
+    design: boolean;
   };
   homeassistant: { url: string; tokenSet: boolean };
   sensors: Record<string, string>;
@@ -105,10 +106,13 @@ export interface AdminSettings {
   alerts: AlertRule[];
   defaultAlerts: AlertRule[];
   station: { name: string; subtitle: string; altitude_m: number | null; since: string; publicLocation: GeoPoint | null; devices: Device[] };
+  design: Design;
   timezone: string;
   demo: boolean;
   totpEnabled: boolean;
 }
+// Which frontend the server serves at "/": this one, or web/public/himmel.
+export type Design = 'classic' | 'himmel';
 
 // ---------------- units ----------------
 export interface Units { temp: '°C' | '°F'; wind: 'km/h' | 'm/s' | 'mph' | 'Bft'; press: 'hPa' | 'mmHg' | 'inHg'; rain: 'mm' | 'l/m²' | 'in' }

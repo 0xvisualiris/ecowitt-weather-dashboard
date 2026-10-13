@@ -81,3 +81,42 @@ export function bucketCounter(points, start, end, size) {
   }
   return out;
 }
+
+// Spreads a daily forecast (lo/hi/pop/conditionCode per day) over single
+// hours, for /api/forecast/hourly when there is no hourly source: a Home
+// Assistant weather entity and demo mode only know whole days. The result is
+// a plausible shape, not a forecast in its own right, and the API marks it
+// `synthetic` so the frontend can say so. Deterministic: the same day and
+// hour always give the same values, so a reload doesn't reshuffle the chart.
+export function hourlyFromDays(days, from, count) {
+  const noise = n => { const x = Math.sin(n * 91.7) * 43758.5453; return x - Math.floor(x); };
+  const COVER = { sunny: 5, 'clear-night': 5, partlycloudy: 35, cloudy: 80, rainy: 90, pouring: 100, 'lightning-rainy': 90, fog: 100, snowy: 95 };
+  const out = [];
+  if (!days?.length) return out;
+  for (let i = 0; i < count; i++) {
+    const t = from + i * HOUR, hour = new Date(t).getHours(), n = t / HOUR;
+    const day = days.find(d => startOfDay(d.date) === startOfDay(t)) ?? days[days.length - 1];
+    const lo = day.lo ?? 8, hi = day.hi ?? 16;
+    const warmth = 0.5 - 0.5 * Math.cos(((hour - 4) / 24) * 2 * Math.PI); // coldest around 4, warmest around 16
+    const wet = (day.pop ?? 0) / 100;
+    const afternoon = Math.exp(-(((hour - 16) / 5) ** 2));
+    const pop = Math.round(Math.min(100, (day.pop ?? 0) * (0.35 + 0.65 * afternoon) + noise(n) * 8));
+    const raining = pop > 45 && noise(n + 7) < wet;
+    const cloud = Math.max(0, Math.min(100, (COVER[day.conditionCode] ?? 50) + (noise(n + 3) - 0.5) * 30));
+    const light = hour >= 7 && hour <= 18;
+    const stormy = /lightning/.test(day.conditionCode ?? '') && raining && hour >= 12;
+    const wind = 6 + 9 * warmth + noise(n + 11) * 6 + wet * 6;
+    out.push({
+      t,
+      temp: round(lo + (hi - lo) * warmth + (noise(n + 5) - 0.5) * 0.6, 1),
+      conditionCode: stormy ? 'lightning-rainy' : raining ? (pop > 85 ? 'pouring' : 'rainy') : cloud > 70 ? 'cloudy' : cloud > 25 ? (light ? 'partlycloudy' : 'cloudy') : light ? 'sunny' : 'clear-night',
+      pop,
+      rain: raining ? round(0.2 + noise(n + 13) * 1.6 * (0.5 + wet), 1) : 0,
+      wind: round(wind, 1),
+      gust: round(wind * (1.5 + noise(n + 17) * 0.5), 1),
+      sunMin: light ? Math.round(60 * Math.max(0, 1 - cloud / 100) * (hour === 7 || hour === 18 ? 0.5 : 1)) : 0,
+      cloud: Math.round(cloud),
+    });
+  }
+  return out;
+}

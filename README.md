@@ -36,6 +36,15 @@ Alert rules themselves (their label, description and message text, whether defau
 
 Units from Home Assistant are converted automatically, so it doesn't matter whether your HA runs metric or imperial.
 
+## Two designs
+
+The dashboard comes with two interfaces for the same data. You choose which one visitors see on the admin page, under Erscheinungsbild/Appearance (or with `ui.design` in `config.yaml`):
+
+- **Klassisch/Classic** (the default): the card dashboard shown in the screenshots below, in German and English.
+- **Himmel:** draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun; drag across it to move through the day. It adds an hour-by-hour forecast for the next three days. German only.
+
+Both have the same screens, the same admin page and the same kiosk mode. While Classic is active, Himmel can be previewed at `/himmel/`.
+
 ## Screenshots
 
 All taken in demo mode with synthetic station data, in German. The rain radar shows real DWD data.
@@ -159,7 +168,7 @@ Everything lives in `config/config.yaml`. The most important sections:
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages — or set via the admin page           |
-| `ui`              | Refresh interval, "stale" timeout, default units for new visitors              |
+| `ui`              | Refresh interval, "stale" timeout, default units for new visitors, which of the two designs is shown (`design`) — the design can also be set via the admin page |
 
 ### Forecast
 
@@ -342,6 +351,7 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | `/api/radar`                           | Current rain radar frame: grid size and timestamp                              |
 | `/api/radar/grid`                      | Current rain radar frame: raw binary intensity grid (pairs with `/api/radar`)  |
 | `/api/alerts`                          | Alert rule status and history                                                  |
+| `/api/forecast/hourly`                 | The next 72 hours, hour by hour: temperature, condition, rain risk and amount, wind, gusts, sunshine, cloud cover. From DWD MOSMIX if a DWD station is set; otherwise derived from the daily forecast and marked `synthetic` |
 | `/healthz`                             | Health check                                                                   |
 
 ## Contributing & ideas
@@ -372,4 +382,9 @@ cd server && npm test
 - `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
 - `scripts/build-dwd-stations.mjs`: regenerates the list of DWD forecast stations the admin page offers (`web/public/dwd-stations.json`) from DWD's own catalogue. Run by hand; not part of the build.
 - `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/public/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
+- `web/public/himmel/`: the second design, "Himmel". Plain HTML, CSS and JavaScript modules without a build step; Vite copies it into the build as it is.
 - `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.
+
+## License
+
+The code is released under the [MIT License](LICENSE), copyright [0xvisualiris](https://github.com/0xvisualiris). The typeface of the Himmel design, the base map and the weather data have their own terms, listed in [NOTICE](NOTICE).

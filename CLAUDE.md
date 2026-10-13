@@ -47,7 +47,9 @@ The `v*` tag makes CI build and publish the image as `ghcr.io/0xvisualiris/ecowi
 
 ### Releasing to production (`dev` → `main`)
 
-Only when the user asks for a production release.
+Only when the user asks for a production release. A request to merge `dev` into `main` is a request for a production release.
+
+Carry out all four steps yourself, including writing the release notes, pushing the tag and creating the GitHub release. Don't hand the tag or the release back to the user as commands to run. The release is finished only when the `vX.Y.Z` tag and the GitHub release exist.
 
 1. Create `release/vX.Y.Z` from `dev`. Bump `version` in `server/package.json` and `web/package.json` (and their lockfiles) with `npm version <x.y.z> --no-git-tag-version`; npm reformats `"engines"` in `server/package.json`, so restore the one-line form.
 2. Add the release section to `CHANGELOG.md` (newest on top), summarising all dev pre-releases since the last production version. Merge `release/vX.Y.Z` into `dev` via PR. This release-prep merge does **not** get its own `-dev.N` tag.

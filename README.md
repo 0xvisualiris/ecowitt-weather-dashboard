@@ -40,46 +40,14 @@ Units from Home Assistant are converted automatically, so it doesn't matter whet
 
 The dashboard comes with two interfaces for the same data. You choose which one visitors see on the admin page, under Erscheinungsbild/Appearance (or with `ui.design` in `config.yaml`):
 
-- **Klassisch/Classic** (the default): the card dashboard shown in the screenshots below, in German and English.
+- **Klassisch/Classic** (the default): the card dashboard shown above, in German and English.
 - **Himmel:** draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun; drag across it to move through the day. It adds an hour-by-hour forecast for the next three days. German only.
 
 Both have the same screens, the same admin page and the same kiosk mode. While Classic is active, Himmel can be previewed at `/himmel/`.
 
 ## Screenshots
 
-All taken in demo mode with synthetic station data, in German. The rain radar shows real DWD data.
-
-**Verlauf/History:** a week of temperature, with the all-time records below.
-
-![History screen with a temperature chart for one week, metric and range pickers, a CSV export button and a table of records](docs/screenshots/history.png)
-
-**Details:** one measurement in depth.
-
-![Details screen for temperature with a 24-hour chart, today's values, records and sensor info](docs/screenshots/details.png)
-
-**Regenradar/Rain radar:** DWD radar on a map of Germany, with the two-hour loop controls.
-
-![Rain radar screen showing rain over a map of Germany with city labels, a play button, a time slider and a rain-rate legend](docs/screenshots/radar.png)
-
-**Warnungen/Alerts:** the current state of each alert rule and the history.
-
-![Alerts screen listing five alert rules, one of them active, next to the alert history](docs/screenshots/alerts.png)
-
-**Einstellungen/Settings:** units and language, chosen per visitor.
-
-![Settings screen with pickers for temperature, wind speed, pressure and rain units and the interface language](docs/screenshots/settings.png)
-
-**Admin page:** the top of the settings page behind the admin login.
-
-![Admin settings page with cards for two-factor authentication, Home Assistant, forecast and sensors](docs/screenshots/admin.png)
-
-**On a phone:**
-
-<p align="center">
-  <img src="docs/screenshots/overview-phone.png" width="300" alt="Overview screen on a phone, showing an alert banner, the outdoor temperature and the 5-day forecast">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/radar-phone.png" width="300" alt="Rain radar screen on a phone, showing rain over a map of Germany with the loop controls below">
-</p>
+Every screen of both designs, on a desktop and on a phone, is on the wiki: **[Screenshots](https://github.com/0xvisualiris/ecowitt-weather-dashboard/wiki/Screenshots)**.
 
 ## Requirements
 

@@ -13,6 +13,9 @@ export const SENSOR_KEYS = [
   'lightning_distance', 'lightning_time', 'lightning_count',
 ];
 
+// The frontends the server can serve, see ui.design below.
+export const DESIGNS = ['classic', 'himmel'];
+
 export const DEFAULT_ALERTS = [
   {
     id: 'lightning', label: 'Blitz in der Nähe', description: 'Einschlag näher als 15 km',
@@ -155,6 +158,10 @@ export function loadConfig() {
         press: ui.default_units?.pressure || 'hPa',
         rain: ui.default_units?.rain || 'mm',
       },
+      // Which of the two frontends is served: 'classic' (web/src, the Liquid
+      // Glass dashboard) or 'himmel' (web/public/himmel). Left unset here, it
+      // can be chosen on the admin page instead.
+      design: DESIGNS.includes(ui.design) ? ui.design : 'classic',
     },
   };
 
@@ -181,6 +188,7 @@ export function loadConfig() {
     stationAltitude: station.altitude_m != null,
     stationSince: !!station.since,
     stationPublicLocation: station.public_lat != null && station.public_lon != null,
+    design: DESIGNS.includes(ui.design),
     // homeassistant.url/token are the only two fields that can also be
     // locked by an environment variable (not just config.yaml) – HA_URL/
     // HA_TOKEN always win the `||` in cfg.homeassistant above when set, so

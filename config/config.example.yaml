@@ -197,6 +197,7 @@ ui:
     wind: km/h               # km/h | m/s | mph | Bft
     pressure: hPa            # hPa | mmHg | inHg
     rain: mm                 # mm | l/m² | in
+  # design: classic          # classic | himmel. Welche der beiden Oberflächen Besucher sehen; ohne Angabe auf der Admin-Seite wählbar
 
 # ---------------------------------------------------------------------
 # Server

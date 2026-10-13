@@ -2,7 +2,7 @@ import { normalize, toNumber, SENSOR_DIMENSION } from './units.js';
 import { astro } from './astro.js';
 import {
   HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour,
-  makeCache, counterIncrements, bucketLine, bucketCounter, round,
+  makeCache, counterIncrements, bucketLine, bucketCounter, round, hourlyFromDays,
 } from './util.js';
 
 // Fixed metric set the UI knows about. Which ones are shown depends on the configured sensors.
@@ -204,6 +204,19 @@ export class WeatherService {
         hi: d.temperature != null ? normalize('temperature', d.temperature, entity?.attributes?.temperature_unit || '°C') : null,
       })),
     };
+  }
+
+  // The next 72 hours, hour by hour (/api/forecast/hourly). Real values from
+  // DWD MOSMIX when a station is configured; otherwise the daily forecast
+  // spread over the hours and marked `synthetic`.
+  forecastHourly() {
+    if (this.dwd) {
+      const dwd = this.dwd.hours(this.value('temperature'), this.cfg.forecast.biasHours, this.location());
+      if (dwd) return { source: dwd.source, synthetic: false, hours: dwd.hours };
+    }
+    const daily = this.forecast();
+    if (!daily) return { source: null, synthetic: true, hours: [] };
+    return { source: daily.source, synthetic: true, hours: hourlyFromDays(daily.days, startOfHour() + HOUR, 72) };
   }
 
   // Raw value + unit, not a pre-formatted string: this is a shared, cached

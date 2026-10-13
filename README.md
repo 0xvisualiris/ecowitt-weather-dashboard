@@ -36,40 +36,95 @@ Alert rules themselves (their label, description and message text, whether defau
 
 Units from Home Assistant are converted automatically, so it doesn't matter whether your HA runs metric or imperial.
 
+## Two designs
+
+The dashboard comes with two interfaces for the same data. You choose which one visitors see on the admin page, under Erscheinungsbild/Appearance (or with `ui.design` in `config.yaml`):
+
+- **Klassisch/Classic** (the default): the card dashboard shown above, in German and English.
+- **Himmel:** draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun; drag across it to move through the day. It adds an hour-by-hour forecast for the next three days. German only.
+
+Both have the same screens, the same admin page and the same kiosk mode. While Classic is active, Himmel can be previewed at `/himmel/`.
+
 ## Screenshots
 
 All taken in demo mode with synthetic station data, in German. The rain radar shows real DWD data.
 
+### Klassisch/Classic
+
+The default: a card dashboard, in German and English. Its overview is the picture at the top of this page.
+
 **Verlauf/History:** a week of temperature, with the all-time records below.
 
-![History screen with a temperature chart for one week, metric and range pickers, a CSV export button and a table of records](docs/screenshots/history.png)
+![History screen with a temperature chart for one week, metric and range pickers, a CSV export button and a table of records](docs/screenshots/classic/history.png)
 
 **Details:** one measurement in depth.
 
-![Details screen for temperature with a 24-hour chart, today's values, records and sensor info](docs/screenshots/details.png)
+![Details screen for temperature with a 24-hour chart, today's values, records and sensor info](docs/screenshots/classic/details.png)
 
 **Regenradar/Rain radar:** DWD radar on a map of Germany, with the two-hour loop controls.
 
-![Rain radar screen showing rain over a map of Germany with city labels, a play button, a time slider and a rain-rate legend](docs/screenshots/radar.png)
+![Rain radar screen showing rain over a map of Germany with city labels, a play button, a time slider and a rain-rate legend](docs/screenshots/classic/radar.png)
 
 **Warnungen/Alerts:** the current state of each alert rule and the history.
 
-![Alerts screen listing five alert rules, one of them active, next to the alert history](docs/screenshots/alerts.png)
+![Alerts screen listing five alert rules, one of them active, next to the alert history](docs/screenshots/classic/alerts.png)
 
 **Einstellungen/Settings:** units and language, chosen per visitor.
 
-![Settings screen with pickers for temperature, wind speed, pressure and rain units and the interface language](docs/screenshots/settings.png)
+![Settings screen with pickers for temperature, wind speed, pressure and rain units and the interface language](docs/screenshots/classic/settings.png)
 
-**Admin page:** the top of the settings page behind the admin login.
+**Admin page:** the top of the settings page behind the admin login, with the design switch under Erscheinungsbild.
 
-![Admin settings page with cards for two-factor authentication, Home Assistant, forecast and sensors](docs/screenshots/admin.png)
+![Admin settings page with cards for two-factor authentication, appearance with the choice between Klassisch and Himmel, Home Assistant and forecast](docs/screenshots/classic/admin.png)
 
 **On a phone:**
 
 <p align="center">
-  <img src="docs/screenshots/overview-phone.png" width="300" alt="Overview screen on a phone, showing an alert banner, the outdoor temperature and the 5-day forecast">
+  <img src="docs/screenshots/classic/overview-phone.png" width="300" alt="Overview screen on a phone, showing an alert banner, the outdoor temperature and the 5-day forecast">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/radar-phone.png" width="300" alt="Rain radar screen on a phone, showing rain over a map of Germany with the loop controls below">
+  <img src="docs/screenshots/classic/radar-phone.png" width="300" alt="Rain radar screen on a phone, showing rain over a map of Germany with the loop controls below">
+</p>
+
+### Himmel
+
+Draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun. German only. These were taken in the evening, so the sky is dark.
+
+**Jetzt (now):** the last 24 hours as a landscape. Dragging across it moves through the day.
+
+![Jetzt screen at night: a large temperature reading over a dark ridge line of the last 24 hours, with lightning marks, a lightning alert and a row of current measurements below](docs/screenshots/himmel/now.png)
+
+**Verlauf (history):** a chart per measurement for day, week, month or year, with today's values, sensor info and records.
+
+![Verlauf screen with a temperature line chart for one day, measurement and range pickers, a CSV button, today's values, sensor info and a table of records](docs/screenshots/himmel/history.png)
+
+**Vorhersage (forecast):** the next three days hour by hour, then day by day.
+
+![Vorhersage screen with a three-day temperature landscape under a day and night sky, weather symbols, rain-risk bars and a list of five days](docs/screenshots/himmel/forecast.png)
+
+**Regenradar (rain radar):** DWD radar on a map of Germany, with the two-hour loop controls.
+
+![Regenradar screen showing rain over a dark map of Germany with city labels, a play button, a time slider and a rain-rate legend](docs/screenshots/himmel/radar.png)
+
+**Warnungen (alerts):** the current state of each alert rule and the history.
+
+![Warnungen screen listing the alert rules and the alert history](docs/screenshots/himmel/alerts.png)
+
+**Einstellungen (settings):** units, chosen per visitor.
+
+![Einstellungen screen with pickers for temperature, wind speed, pressure and rain units](docs/screenshots/himmel/settings.png)
+
+**Station verwalten (admin page):** the top of the page behind the admin login, with the design switch under Erscheinungsbild.
+
+![Station verwalten page with the appearance section and its choice of design, followed by the Home Assistant section and a save button](docs/screenshots/himmel/admin.png)
+
+**On a phone:**
+
+<p align="center">
+  <img src="docs/screenshots/himmel/phone-now.png" width="260" alt="Jetzt screen on a phone">
+  &nbsp;
+  <img src="docs/screenshots/himmel/phone-forecast.png" width="260" alt="Vorhersage screen on a phone, showing the hourly temperature landscape">
+  &nbsp;
+  <img src="docs/screenshots/himmel/phone-radar.png" width="260" alt="Regenradar screen on a phone, showing rain over a map of Germany with the loop controls below">
 </p>
 
 ## Requirements
@@ -159,7 +214,7 @@ Everything lives in `config/config.yaml`. The most important sections:
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages — or set via the admin page           |
-| `ui`              | Refresh interval, "stale" timeout, default units for new visitors              |
+| `ui`              | Refresh interval, "stale" timeout, default units for new visitors, which of the two designs is shown (`design`) — the design can also be set via the admin page |
 
 ### Forecast
 
@@ -342,6 +397,7 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | `/api/radar`                           | Current rain radar frame: grid size and timestamp                              |
 | `/api/radar/grid`                      | Current rain radar frame: raw binary intensity grid (pairs with `/api/radar`)  |
 | `/api/alerts`                          | Alert rule status and history                                                  |
+| `/api/forecast/hourly`                 | The next 72 hours, hour by hour: temperature, condition, rain risk and amount, wind, gusts, sunshine, cloud cover. From DWD MOSMIX if a DWD station is set; otherwise derived from the daily forecast and marked `synthetic` |
 | `/healthz`                             | Health check                                                                   |
 
 ## Contributing & ideas
@@ -372,4 +428,9 @@ cd server && npm test
 - `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
 - `scripts/build-dwd-stations.mjs`: regenerates the list of DWD forecast stations the admin page offers (`web/public/dwd-stations.json`) from DWD's own catalogue. Run by hand; not part of the build.
 - `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/public/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
+- `web/public/himmel/`: the second design, "Himmel". Plain HTML, CSS and JavaScript modules without a build step; Vite copies it into the build as it is.
 - `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.
+
+## License
+
+The code is released under the [MIT License](LICENSE), copyright [0xvisualiris](https://github.com/0xvisualiris). The typeface of the Himmel design, the base map and the weather data have their own terms, listed in [NOTICE](NOTICE).

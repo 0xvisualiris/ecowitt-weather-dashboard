@@ -37,6 +37,7 @@ const locked = {
   stationSince: cfg._locked.stationSince,
   stationPublicLocation: cfg._locked.stationPublicLocation,
   stationDevices: !!cfg.station.devices.length,
+  design: cfg._locked.design,
 };
 {
   const s = admin.getSettings();
@@ -52,6 +53,7 @@ const locked = {
   if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
   if (!locked.stationPublicLocation && s.station.publicLocation) cfg.station.publicLocation = s.station.publicLocation;
   if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
+  if (!locked.design && s.design) cfg.ui.design = s.design;
 }
 
 // No HA credentials anywhere (neither config.yaml nor the admin page) –
@@ -302,6 +304,7 @@ const routes = {
   '/api/detail': async q => svc.detail(q.get('metric')),
   '/api/records': async () => svc.records(),
   '/api/alerts': async () => alerts.view(),
+  '/api/forecast/hourly': async () => svc.forecastHourly(),
   '/api/radar': async () => {
     if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
     const { width, height, timestamp } = radar.latest;
@@ -311,7 +314,18 @@ const routes = {
   '/healthz': async () => ({ ok: true, connected: source.connected, lastMessage: source.lastMessage }),
 };
 
-const publicDir = cfg.server.public_dir;
+// Two frontends ship in the same build: the classic one at the root of
+// public_dir, and "himmel" in its himmel/ subfolder (web/public/himmel, copied
+// there by Vite). ui.design picks which one is served at "/"; the other is
+// not lost, "himmel" stays reachable at /himmel/ either way. Files only the
+// classic build has (base map, station list, icons) are shared with it.
+const classicDir = cfg.server.public_dir;
+const himmelDir = path.join(classicDir, 'himmel');
+const publicDir = cfg.ui.design === 'himmel' && fs.existsSync(path.join(himmelDir, 'index.html')) ? himmelDir : classicDir;
+const SHARED_FILES = ['radar-map.json', 'dwd-stations.json', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+if (cfg.ui.design === 'himmel') {
+  console.log(publicDir === himmelDir ? '[server] serving the "himmel" design' : `[server] ui.design is "himmel" but ${himmelDir} is missing – serving the classic design`);
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -350,6 +364,14 @@ const server = http.createServer(async (req, res) => {
   // static files with SPA fallback
   let file = path.normalize(path.join(publicDir, decodeURIComponent(url.pathname)));
   if (!file.startsWith(path.normalize(publicDir))) return send(req, res, 403, 'forbidden', 'text/plain');
+  if (publicDir !== classicDir && SHARED_FILES.includes(url.pathname.slice(1))) file = path.join(classicDir, url.pathname.slice(1));
+  // The preview of the other design: /himmel/ is a folder with its own page,
+  // and needs its trailing slash for the page's relative links to resolve.
+  if (url.pathname === '/himmel' && publicDir === classicDir && fs.existsSync(path.join(himmelDir, 'index.html'))) {
+    res.writeHead(302, { Location: '/himmel/' });
+    return res.end();
+  }
+  if (url.pathname === '/himmel/' && publicDir === classicDir && fs.existsSync(path.join(himmelDir, 'index.html'))) file = path.join(himmelDir, 'index.html');
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(publicDir, 'index.html');
   if (!fs.existsSync(file)) return send(req, res, 404, 'Frontend not built', 'text/plain');
   const ext = path.extname(file);

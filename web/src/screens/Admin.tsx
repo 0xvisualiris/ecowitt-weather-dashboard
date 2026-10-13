@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type GeoPoint, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
+import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Design, type Device, type GeoPoint, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
 import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
 import { DwdStationMap } from '../components/DwdStationMap';
@@ -52,6 +52,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   const [showLocationMap, setShowLocationMap] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
+  const [design, setDesign] = useState<Design>('classic');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -71,6 +72,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
     setPublicLocation(data.station.publicLocation);
     setDevices(data.station.devices);
     setAlerts(data.alerts);
+    setDesign(data.design);
   }, [data]);
 
   if (loadError) return <div className="admin-page"><div className="center-msg">{t('admin.loadError', { error: loadError })}</div></div>;
@@ -87,6 +89,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         forecast: { entity, dwdStationId, biasHours, label },
         station: { name: stationName, subtitle: stationSubtitle, altitude_m: stationAltitude === '' ? null : stationAltitude, since: stationSince, publicLocation, devices },
         alerts,
+        design,
       });
       setRestarting(true);
       const poll = setInterval(async () => {
@@ -131,6 +134,19 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
       <TotpSection initialEnabled={data.totpEnabled} />
 
       <form onSubmit={submit} className="stack">
+        <section className="card lg stack">
+          <div className="eyebrow"><span>{t('admin.design')}</span></div>
+          <Field label={t('admin.designLabel')} locked={data.locked.design}>
+            <Segmented
+              kind="radio" ariaLabel={t('admin.designLabel')}
+              items={[{ key: 'classic', label: t('admin.designClassic'), disabled: data.locked.design }, { key: 'himmel', label: t('admin.designHimmel'), disabled: data.locked.design }]}
+              value={design}
+              onChange={d => setDesign(d as Design)}
+            />
+          </Field>
+          <div className="faint" style={{ fontSize: '0.8125rem' }}>{t('admin.designHint')}</div>
+        </section>
+
         <section className="card lg stack">
           <div className="eyebrow"><span>{t('admin.ha')}</span></div>
           <Field label={t('admin.haUrl')} locked={data.locked.haUrl} lockedReason={data.locked.haUrlEnv ? t('admin.lockedEnvUrl') : undefined}>

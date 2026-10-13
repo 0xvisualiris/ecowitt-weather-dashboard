@@ -88,13 +88,27 @@ function parseKml(xml) {
   const ttt = extractElement(xml, 'TTT');
   const ww = extractElement(xml, 'ww');
   const pop = extractElement(xml, 'R101');
+  // Only the hourly forecast (hours() below) uses these; days() does not.
+  // RR1c: precipitation in the last hour (mm), FF/FX1: wind and strongest
+  // gust (m/s), SunD1: sunshine in the last hour (s), Neff: cloud cover (%).
+  const rr = extractElement(xml, 'RR1c');
+  const ff = extractElement(xml, 'FF');
+  const fx = extractElement(xml, 'FX1');
+  const sun = extractElement(xml, 'SunD1');
+  const neff = extractElement(xml, 'Neff');
   if (!timesteps.length || !ttt) throw new Error('DWD KML: expected elements (TimeStep/TTT) not found');
+  const at = (series, i, f = v => v) => (series && series[i] != null ? f(series[i]) : null);
   return timesteps
     .map((t, i) => ({
       t,
       tempC: ttt[i] != null ? normalize('temperature', ttt[i], 'K') : null,
       wwCode: ww ? ww[i] : null,
       popPct: pop ? pop[i] : null,
+      rainMm: at(rr, i),
+      windKmh: at(ff, i, v => v * 3.6),
+      gustKmh: at(fx, i, v => v * 3.6),
+      sunMin: at(sun, i, v => v / 60),
+      cloudPct: at(neff, i),
     }))
     .filter(h => h.tempC != null);
 }
@@ -126,21 +140,47 @@ export class DwdForecast {
     setInterval(tick, this.refreshMs);
   }
 
-  days(liveTempC, maxDays = 5, biasHours = 6, loc = null) {
-    if (!this.hourly?.length) return null;
-    const now = Date.now();
-
-    // Bias-correct the near-term hours toward what the station is actually
-    // reading right now, fading to 0 by `biasHours` out; day 2+ stays pure DWD.
+  // Bias-correct the near-term hours toward what the station is actually
+  // reading right now, fading to 0 by `biasHours` out; day 2+ stays pure DWD.
+  // Shared by days() and hours().
+  corrected(liveTempC, biasHours, now) {
     let offset = 0;
     if (liveTempC != null) {
       const nearest = this.hourly.reduce((a, h) => (Math.abs(h.t - now) < Math.abs(a.t - now) ? h : a));
       if (nearest.tempC != null && Math.abs(nearest.t - now) < 3 * HOUR) offset = liveTempC - nearest.tempC;
     }
     const biasEnd = now + biasHours * HOUR;
-    const corrected = offset
+    return offset
       ? this.hourly.map(h => (h.t > now && h.t < biasEnd ? { ...h, tempC: h.tempC + offset * (1 - (h.t - now) / (biasEnd - now)) } : h))
       : this.hourly;
+  }
+
+  // The next `count` hours, one entry each, for the hour-by-hour forecast of
+  // the "himmel" frontend (/api/forecast/hourly).
+  hours(liveTempC, biasHours = 6, loc = null, count = 72) {
+    if (!this.hourly?.length) return null;
+    const now = Date.now();
+    const hours = this.corrected(liveTempC, biasHours, now)
+      .filter(h => h.t > now)
+      .slice(0, count)
+      .map(h => ({
+        t: h.t,
+        temp: round(h.tempC, 1),
+        conditionCode: wwCondition(h.wwCode, isNightAt(loc, h.t)),
+        pop: h.popPct,
+        rain: round(h.rainMm, 1),
+        wind: round(h.windKmh, 1),
+        gust: round(h.gustKmh, 1),
+        sunMin: h.sunMin == null ? null : Math.round(h.sunMin),
+        cloud: h.cloudPct,
+      }));
+    return { source: this.label || 'DWD MOSMIX', hours };
+  }
+
+  days(liveTempC, maxDays = 5, biasHours = 6, loc = null) {
+    if (!this.hourly?.length) return null;
+    const now = Date.now();
+    const corrected = this.corrected(liveTempC, biasHours, now);
 
     const byDay = new Map();
     for (const h of corrected) {

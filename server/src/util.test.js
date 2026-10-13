@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour, counterIncrements, bucketLine, bucketCounter, round, makeCache } from './util.js';
+import { HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour, counterIncrements, bucketLine, bucketCounter, round, makeCache, hourlyFromDays } from './util.js';
 
 test('startOfDay zeroes the time of day', () => {
   const t = new Date(2026, 9, 15, 14, 32, 10).getTime();
@@ -109,4 +109,30 @@ test('makeCache serves the last good value if a refetch fails', async () => {
 test('makeCache throws if the very first fetch fails (nothing stale to serve)', async () => {
   const cached = makeCache();
   await assert.rejects(() => cached('k', 1000, async () => { throw new Error('boom'); }), /boom/);
+});
+
+test('hourlyFromDays gives one entry per hour, within each day\'s range, and is repeatable', () => {
+  const day0 = new Date(2026, 5, 10).getTime();
+  const days = [
+    { date: day0, conditionCode: 'rainy', pop: 80, lo: 10, hi: 20 },
+    { date: day0 + DAY, conditionCode: 'sunny', pop: 0, lo: 5, hi: 15 },
+  ];
+  const hours = hourlyFromDays(days, day0, 48);
+  assert.equal(hours.length, 48);
+  assert.equal(hours[1].t - hours[0].t, HOUR);
+  for (const h of hours.slice(0, 24)) assert.ok(h.temp >= 9.5 && h.temp <= 20.5, `day 1 temperature ${h.temp}`);
+  for (const h of hours.slice(24)) {
+    assert.ok(h.temp >= 4.5 && h.temp <= 15.5, `day 2 temperature ${h.temp}`);
+    assert.equal(h.rain, 0); // a dry day never rains
+  }
+  assert.deepEqual(hourlyFromDays(days, day0, 48), hours);
+});
+
+test('hourlyFromDays keeps using the last day past the end of the forecast, and copes with none', () => {
+  const day0 = new Date(2026, 5, 10).getTime();
+  const hours = hourlyFromDays([{ date: day0, conditionCode: 'cloudy', pop: 10, lo: 0, hi: 4 }], day0 + 3 * DAY, 6);
+  assert.equal(hours.length, 6);
+  for (const h of hours) assert.ok(h.temp >= -0.5 && h.temp <= 4.5);
+  assert.deepEqual(hourlyFromDays([], day0, 6), []);
+  assert.deepEqual(hourlyFromDays(null, day0, 6), []);
 });

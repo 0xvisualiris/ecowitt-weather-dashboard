@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SENSOR_KEYS, DEFAULT_ALERTS, normalizeAlerts } from './config.js';
+import { SENSOR_KEYS, DEFAULT_ALERTS, DESIGNS, normalizeAlerts } from './config.js';
 import { generateSecret, verifyTotp, otpauthUrl } from './totp.js';
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 h
@@ -35,6 +35,7 @@ const emptySettings = () => ({
   forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '' },
   alerts: null, // null = not customized, defer to config.yaml-or-DEFAULT_ALERTS; otherwise a normalizeAlerts()-validated array
   station: { name: '', subtitle: '', altitude_m: null, since: '', publicLocation: null, devices: [] },
+  design: '', // '' = not chosen here, defer to config.yaml's ui.design or the default; otherwise one of DESIGNS
 });
 
 // Maximum lengths for the free-text fields the admin page can set. These end
@@ -329,6 +330,7 @@ export class AdminStore {
         name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m,
         since: cfg.station.since || '', publicLocation: cfg.station.publicLocation, devices: cfg.station.devices,
       },
+      design: cfg.ui.design,
       timezone,
       demo: cfg.server.demo,
       totpEnabled: this.state.totp.enabled,
@@ -403,6 +405,8 @@ export class AdminStore {
       if (Number.isFinite(patch.forecast.biasHours)) next.settings.forecast.biasHours = patch.forecast.biasHours;
       if (typeof patch.forecast.label === 'string') next.settings.forecast.label = patch.forecast.label.trim();
     }
+
+    if (!locked.design && DESIGNS.includes(patch.design)) next.settings.design = patch.design;
 
     if (!this._save(next)) return { ok: false, error: 'could not save settings (DATA_DIR is not writable)' };
     this.state = next;

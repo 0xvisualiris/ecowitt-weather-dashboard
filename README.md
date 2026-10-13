@@ -47,7 +47,85 @@ Both have the same screens, the same admin page and the same kiosk mode. While C
 
 ## Screenshots
 
-Every screen of both designs, on a desktop and on a phone, is on the wiki: **[Screenshots](https://github.com/0xvisualiris/ecowitt-weather-dashboard/wiki/Screenshots)**.
+All taken in demo mode with synthetic station data, in German. The rain radar shows real DWD data.
+
+### Klassisch/Classic
+
+The default: a card dashboard, in German and English. Its overview is the picture at the top of this page.
+
+**Verlauf/History:** a week of temperature, with the all-time records below.
+
+![History screen with a temperature chart for one week, metric and range pickers, a CSV export button and a table of records](docs/screenshots/classic/history.png)
+
+**Details:** one measurement in depth.
+
+![Details screen for temperature with a 24-hour chart, today's values, records and sensor info](docs/screenshots/classic/details.png)
+
+**Regenradar/Rain radar:** DWD radar on a map of Germany, with the two-hour loop controls.
+
+![Rain radar screen showing rain over a map of Germany with city labels, a play button, a time slider and a rain-rate legend](docs/screenshots/classic/radar.png)
+
+**Warnungen/Alerts:** the current state of each alert rule and the history.
+
+![Alerts screen listing five alert rules, one of them active, next to the alert history](docs/screenshots/classic/alerts.png)
+
+**Einstellungen/Settings:** units and language, chosen per visitor.
+
+![Settings screen with pickers for temperature, wind speed, pressure and rain units and the interface language](docs/screenshots/classic/settings.png)
+
+**Admin page:** the top of the settings page behind the admin login, with the design switch under Erscheinungsbild.
+
+![Admin settings page with cards for two-factor authentication, appearance with the choice between Klassisch and Himmel, Home Assistant and forecast](docs/screenshots/classic/admin.png)
+
+**On a phone:**
+
+<p align="center">
+  <img src="docs/screenshots/classic/overview-phone.png" width="300" alt="Overview screen on a phone, showing an alert banner, the outdoor temperature and the 5-day forecast">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/classic/radar-phone.png" width="300" alt="Rain radar screen on a phone, showing rain over a map of Germany with the loop controls below">
+</p>
+
+### Himmel
+
+Draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun. German only. These were taken in the evening, so the sky is dark.
+
+**Jetzt (now):** the last 24 hours as a landscape. Dragging across it moves through the day.
+
+![Jetzt screen at night: a large temperature reading over a dark ridge line of the last 24 hours, with lightning marks, a lightning alert and a row of current measurements below](docs/screenshots/himmel/now.png)
+
+**Verlauf (history):** a chart per measurement for day, week, month or year, with today's values, sensor info and records.
+
+![Verlauf screen with a temperature line chart for one day, measurement and range pickers, a CSV button, today's values, sensor info and a table of records](docs/screenshots/himmel/history.png)
+
+**Vorhersage (forecast):** the next three days hour by hour, then day by day.
+
+![Vorhersage screen with a three-day temperature landscape under a day and night sky, weather symbols, rain-risk bars and a list of five days](docs/screenshots/himmel/forecast.png)
+
+**Regenradar (rain radar):** DWD radar on a map of Germany, with the two-hour loop controls.
+
+![Regenradar screen showing rain over a dark map of Germany with city labels, a play button, a time slider and a rain-rate legend](docs/screenshots/himmel/radar.png)
+
+**Warnungen (alerts):** the current state of each alert rule and the history.
+
+![Warnungen screen listing the alert rules and the alert history](docs/screenshots/himmel/alerts.png)
+
+**Einstellungen (settings):** units, chosen per visitor.
+
+![Einstellungen screen with pickers for temperature, wind speed, pressure and rain units](docs/screenshots/himmel/settings.png)
+
+**Station verwalten (admin page):** the top of the page behind the admin login, with the design switch under Erscheinungsbild.
+
+![Station verwalten page with the appearance section and its choice of design, followed by the Home Assistant section and a save button](docs/screenshots/himmel/admin.png)
+
+**On a phone:**
+
+<p align="center">
+  <img src="docs/screenshots/himmel/phone-now.png" width="260" alt="Jetzt screen on a phone">
+  &nbsp;
+  <img src="docs/screenshots/himmel/phone-forecast.png" width="260" alt="Vorhersage screen on a phone, showing the hourly temperature landscape">
+  &nbsp;
+  <img src="docs/screenshots/himmel/phone-radar.png" width="260" alt="Regenradar screen on a phone, showing rain over a map of Germany with the loop controls below">
+</p>
 
 ## Requirements
 

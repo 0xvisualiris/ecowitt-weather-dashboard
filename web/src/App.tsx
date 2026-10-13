@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { type AdminSession, type AppConfig, type Current, type MetricKey, type Range, type Units, UnitsContext, setTimeZone, useApi, longDate, clock, hhmm, fmtDeviceReading, fmtSignal } from './lib';
 import { LangContext, setLang as setLibLang, t, type Lang } from './i18n';
+import { Segmented } from './components/Segmented';
 import { Dashboard } from './screens/Dashboard';
 import { HistoryScreen } from './screens/History';
 import { DetailScreen } from './screens/Detail';
@@ -9,18 +10,20 @@ import { SettingsScreen } from './screens/Settings';
 import { AdminLoginScreen } from './screens/AdminLogin';
 import { AdminPasswordScreen } from './screens/AdminPassword';
 import { AdminScreen } from './screens/Admin';
+import { RadarScreen } from './screens/Radar';
 
 export type Route =
   | { screen: 'dash' }
   | { screen: 'hist'; metric: MetricKey; range: Range }
   | { screen: 'detail'; metric: MetricKey }
+  | { screen: 'radar' }
   | { screen: 'alerts' }
   | { screen: 'settings' }
   | { screen: 'adminLogin' }
   | { screen: 'adminPassword' }
   | { screen: 'admin' };
 
-const SLUG = { dash: '', hist: 'verlauf', detail: 'details', alerts: 'warnungen', settings: 'einstellungen', admin: 'admin' } as const;
+const SLUG = { dash: '', hist: 'verlauf', detail: 'details', radar: 'radar', alerts: 'warnungen', settings: 'einstellungen', admin: 'admin' } as const;
 
 function parseHash(metrics: MetricKey[]): Route {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
@@ -32,6 +35,7 @@ function parseHash(metrics: MetricKey[]): Route {
     return { screen: 'hist', metric: m(q.get('m')), range: ['day', 'week', 'month', 'year'].includes(r) ? r : 'day' };
   }
   if (a === SLUG.detail) return { screen: 'detail', metric: m(b) };
+  if (a === SLUG.radar) return { screen: 'radar' };
   if (a === SLUG.alerts) return { screen: 'alerts' };
   if (a === SLUG.settings) return { screen: 'settings' };
   if (a === SLUG.admin) {
@@ -85,6 +89,7 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
   setLibLang(lang);
   const setLang = (l: Lang) => { setLibLang(l); setLangState(l); try { localStorage.setItem(LANG_KEY, l); } catch { /* private mode */ } };
   const langCtx = useMemo(() => ({ lang, setLang }), [lang]);
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
 
   // First-ever boot (nothing configured in config.yaml or the admin page):
   // land directly on the admin login instead of an empty demo dashboard.
@@ -109,8 +114,6 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
   const unitsCtx = useMemo(() => ({ u, setU }), [u]);
 
   const { data: cur, error: curError, loadedAt } = useApi<Current>(isAdmin ? null : '/api/current', cfg.ui.refresh_seconds * 1000);
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
 
   useEffect(() => { document.title = cfg.station.name; }, [cfg.station.name]);
 
@@ -122,11 +125,9 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
     );
   }
 
-  const staleMs = cfg.ui.stale_after_seconds * 1000;
-  const stale = !cur || !!curError || !cur.updated || now - cur.updated > staleMs || now - loadedAt > staleMs;
   const screen = kiosk ? 'dash' : route.screen;
 
-  const nav: [Route['screen'], string][] = [['dash', t('nav.dash')], ['hist', t('nav.hist')], ['detail', t('nav.detail')], ['alerts', t('nav.alerts')], ['settings', t('nav.settings')]];
+  const nav: [Route['screen'], string][] = [['dash', t('nav.dash')], ['hist', t('nav.hist')], ['detail', t('nav.detail')], ['radar', t('nav.radar')], ['alerts', t('nav.alerts')], ['settings', t('nav.settings')]];
   const navTo = (s: Route['screen']) => {
     const metric = 'metric' in route ? route.metric : cfg.metrics[0];
     if (s === 'hist') go({ screen: 'hist', metric, range: 'day' });
@@ -148,28 +149,24 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
           <header className="header">
             <button className="kiosk-btn stack" style={{ gap: 4, cursor: kiosk ? 'pointer' : 'default' }} onClick={toggleFullscreen} tabIndex={kiosk ? 0 : -1}>
               <div className="title">{cfg.station.name}</div>
-              <div className="status">
-                <span className={'dot' + (stale ? ' stale' : '')} />
-                <span>
-                  {stale ? `${t('app.stale')}${cur?.updated ? t('app.lastUpdate', { time: hhmm(cur.updated) }) : ''}` : t('app.live')}
-                  {' · '}{longDate(now)}{' · '}{clock(now)}
-                </span>
-                {cfg.station.subtitle && <span className="faint">{cfg.station.subtitle}</span>}
-              </div>
+              <StatusLine cfg={cfg} cur={cur} curError={curError} loadedAt={loadedAt} />
             </button>
             {!kiosk && (
-              <nav className="nav" aria-label={t('nav.mainAria')}>
-                {nav.map(([k, label]) => (
-                  <button key={k} className={'seg' + (screen === k ? ' on' : '')} aria-current={screen === k ? 'page' : undefined} onClick={() => navTo(k)}>{label}</button>
-                ))}
+              <Segmented
+                as="nav" kind="nav" trackClassName="nav" ariaLabel={t('nav.mainAria')}
+                items={nav.map(([k, label]) => ({ key: k, label }))}
+                value={screen}
+                onChange={k => navTo(k as Route['screen'])}
+              >
                 <a href="#/admin/login" className="seg">Admin</a>
-              </nav>
+              </Segmented>
             )}
           </header>
 
           {screen === 'dash' && <Dashboard cfg={cfg} cur={cur} error={curError} />}
           {screen === 'hist' && route.screen === 'hist' && <HistoryScreen cfg={cfg} cur={cur} metric={route.metric} range={route.range} />}
           {screen === 'detail' && route.screen === 'detail' && <DetailScreen cfg={cfg} cur={cur} metric={route.metric} />}
+          {screen === 'radar' && <RadarScreen cfg={cfg} />}
           {screen === 'alerts' && <AlertsScreen />}
           {screen === 'settings' && <SettingsScreen cfg={cfg} />}
 
@@ -186,6 +183,25 @@ function Loaded({ cfg }: { cfg: AppConfig }) {
         </div>
       </UnitsContext.Provider>
     </LangContext.Provider>
+  );
+}
+
+// The live/stale dot and the ticking clock. The one-second timer lives here,
+// not in Loaded, so a tick re-renders this one line instead of every screen.
+function StatusLine({ cfg, cur, curError, loadedAt }: { cfg: AppConfig; cur: Current | null; curError: string | null; loadedAt: number }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  const staleMs = cfg.ui.stale_after_seconds * 1000;
+  const stale = !cur || !!curError || !cur.updated || now - cur.updated > staleMs || now - loadedAt > staleMs;
+  return (
+    <div className="status">
+      <span className={'dot' + (stale ? ' stale' : '')} />
+      <span>
+        {stale ? `${t('app.stale')}${cur?.updated ? t('app.lastUpdate', { time: hhmm(cur.updated) }) : ''}` : t('app.live')}
+        {' · '}{longDate(now)}{' · '}{clock(now)}
+      </span>
+      {cfg.station.subtitle && <span className="faint">{cfg.station.subtitle}</span>}
+    </div>
   );
 }
 

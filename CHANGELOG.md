@@ -3,6 +3,35 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.4.0 – 2026-10-13
+
+### New
+- **Rain radar.** A new "Regenradar" screen shows DWD's RADOLAN rain radar for Germany, updated every 5 minutes, on a base map with borders, federal states, rivers, lakes and place labels. Rain is coloured by rain rate with a legend in mm/h, and the last two hours can be played back as a loop or scrubbed through. (#26, #30)
+- **Approximate home location for the radar.** The admin page can set an optional public location (about 10 km accuracy), picked on a map. The radar then opens zoomed in on your area, draws 25/50/100 km rings around it and tells you the rain rate there or the distance and direction to the nearest rain. This is separate from your station's real coordinates, which stay private as always. (#26, #30)
+- **Map picker for the DWD forecast station.** Instead of typing a station ID on the admin page, pick the station on a map or search for it by name. Every station DWD publishes a forecast for is offered (about 2,800), including the ones with alphanumeric IDs such as `L771`. (#25, #27, #30, #31)
+- **Two-factor authentication for the admin login.** Optional TOTP, off by default, set up from a new card on the admin page; turning it off requires the current password. The README now explains how to recover admin access after a forgotten password or a lost 2FA device. (#23)
+- **Install to the home screen.** On iOS and Android the dashboard can be installed with its own icon and launches full screen without the browser's address bar. (#24)
+
+### Improved
+- The rain radar and the station map can be zoomed and panned with the mouse, a pinch or the +/− buttons, with momentum when you let go. A plain mouse wheel or a one-finger drag still scrolls the page; use a mouse drag, two fingers, or Ctrl/Cmd + wheel to move the map. (#27, #29, #30)
+- The selection highlight in the navigation, the range, unit and language pickers and the metric chips now slides to the new choice instead of jumping. (#28, #29)
+- Better on phones: larger touch targets, press feedback on buttons and cards, the navigation scrolls the selected tab into view, the records table stacks instead of scrolling sideways, and layouts hold down to 320 px wide. (#29)
+- Accessibility: charts can be stepped through with the arrow keys, the "reduce motion", "reduce transparency" and "increase contrast" system settings are respected, faint text is easier to read, and the page language follows the language switch. (#29)
+- Text entered on the admin page (station name and subtitle, alert texts, device names) is now length-limited; an over-long entry is rejected with a message naming the field. (#30)
+
+### Fixed
+- Forecast stations were shown up to about 45 km away from their real position on the station map. (#31)
+- The station map showed stations far outside Germany; it is now limited to stations within 50 km of the border. (#27)
+- The forecast card cut conditions down to a single letter on narrow phones. (#29)
+- The header looked cramped under the status bar once the dashboard was installed to the home screen on iOS. (#24)
+- Clicking the map to set the public location stored a spot beside the one you clicked. (#30)
+- The example config pointed to a DWD station list that no longer exists; it now points to the map on the admin page. (#31)
+
+### Upgrade
+No `config.yaml` changes required — every new option is opt-in and set from the admin page.
+
+    docker compose pull && docker compose up -d
+
 ## v1.3.0 – 2026-10-05
 
 ### Improved

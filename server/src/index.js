@@ -6,6 +6,7 @@ import { loadConfig } from './config.js';
 import { HomeAssistantSource } from './ha.js';
 import { DemoSource, DEMO_SENSORS, DEMO_DEVICES } from './demo.js';
 import { DwdForecast } from './dwd.js';
+import { RadarSource } from './radar.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
 import { AdminStore } from './admin.js';
@@ -34,6 +35,7 @@ const locked = {
   stationSubtitle: cfg._locked.stationSubtitle,
   stationAltitude: cfg._locked.stationAltitude,
   stationSince: cfg._locked.stationSince,
+  stationPublicLocation: cfg._locked.stationPublicLocation,
   stationDevices: !!cfg.station.devices.length,
 };
 {
@@ -48,6 +50,7 @@ const locked = {
   if (!locked.stationSubtitle && s.station.subtitle) cfg.station.subtitle = s.station.subtitle;
   if (!locked.stationAltitude && s.station.altitude_m != null) cfg.station.altitude_m = s.station.altitude_m;
   if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
+  if (!locked.stationPublicLocation && s.station.publicLocation) cfg.station.publicLocation = s.station.publicLocation;
   if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
 }
 
@@ -100,6 +103,11 @@ if (cfg.forecast.dwdStationId) {
   dwd.start();
 }
 
+// Nationwide, not tied to any per-deployment config — always on, same as
+// the rest of the public API being free/read-only with no setup required.
+const radar = new RadarSource();
+radar.start();
+
 const svc = new WeatherService(cfg, source, dwd);
 const alerts = new AlertEngine(cfg, svc);
 let evalTimer = null;
@@ -126,7 +134,9 @@ const SECURITY_HEADERS = {
 function send(req, res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
   const buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
   const headers = { 'Content-Type': type, ...SECURITY_HEADERS, ...extra };
-  const compressible = /json|text|javascript|svg/.test(type) && buf.length > 1024;
+  // octet-stream here is specifically the radar grid: a sparse byte array
+  // (mostly 0/255) that gzips very well, unlike a typical opaque binary blob.
+  const compressible = /json|text|javascript|svg|octet-stream/.test(type) && buf.length > 1024;
   if (compressible && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
     headers['Content-Encoding'] = 'gzip';
     headers['Vary'] = 'Accept-Encoding';
@@ -178,9 +188,13 @@ function requireSession(req, requirePasswordChanged) {
 async function handleAdmin(req, res, url) {
   try {
     if (url.pathname === '/api/admin/login' && req.method === 'POST') {
-      const { username, password } = await readJsonBody(req);
-      const result = admin.verifyLogin(clientIp(req), String(username || ''), String(password || ''));
-      if (!result.ok) return send(req, res, 401, { error: result.error });
+      const { username, password, code } = await readJsonBody(req);
+      const result = admin.verifyLogin(clientIp(req), String(username || ''), String(password || ''), code ? String(code) : undefined);
+      if (!result.ok) {
+        // needsTotp without an error is the expected "password was right, now ask for the code" step, not a failure – 200, not 401.
+        if (result.needsTotp && !result.error) return send(req, res, 200, { ok: false, needsTotp: true });
+        return send(req, res, 401, { error: result.error, needsTotp: result.needsTotp || false });
+      }
       return send(req, res, 200, { ok: true, mustChangePassword: result.mustChangePassword },
         'application/json; charset=utf-8', { 'Set-Cookie': `${SESSION_COOKIE}=${result.cookie}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
     }
@@ -207,6 +221,27 @@ async function handleAdmin(req, res, url) {
       // stay logged in rather than being logged out by their own request.
       return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8',
         { 'Set-Cookie': `${SESSION_COOKIE}=${result.cookie}; HttpOnly; SameSite=Strict; Path=/`, 'Cache-Control': 'no-store' });
+    }
+
+    if (url.pathname === '/api/admin/totp/setup' && req.method === 'POST') {
+      requireSession(req, true);
+      return send(req, res, 200, admin.beginTotpSetup(), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+
+    if (url.pathname === '/api/admin/totp/enable' && req.method === 'POST') {
+      requireSession(req, true);
+      const { code } = await readJsonBody(req);
+      const result = admin.confirmTotpSetup(clientIp(req), String(code || ''));
+      if (!result.ok) return send(req, res, 400, { error: result.error });
+      return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+
+    if (url.pathname === '/api/admin/totp/disable' && req.method === 'POST') {
+      requireSession(req, true);
+      const { password } = await readJsonBody(req);
+      const result = admin.disableTotp(clientIp(req), password);
+      if (!result.ok) return send(req, res, 400, { error: result.error });
+      return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
     }
 
     if (url.pathname === '/api/admin/settings' && req.method === 'GET') {
@@ -244,6 +279,9 @@ function publicConfig() {
   return {
     station: {
       name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m, since: cfg.station.since,
+      // Deliberately coarse (~10 km) and opt-in – see config.js's cfg.station.publicLocation comment.
+      // Unlike latitude/longitude, this one is meant to reach the browser.
+      publicLocation: cfg.station.publicLocation,
       devices: cfg.station.devices.map(d => ({ id: d.id, name: d.name, short: d.short, role: d.role, metrics: d.metrics })),
     },
     timezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -264,6 +302,12 @@ const routes = {
   '/api/detail': async q => svc.detail(q.get('metric')),
   '/api/records': async () => svc.records(),
   '/api/alerts': async () => alerts.view(),
+  '/api/radar': async () => {
+    if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
+    const { width, height, timestamp } = radar.latest;
+    // `frames`: timestamps of every composite held (oldest first), each fetchable as /api/radar/grid?t=<timestamp>
+    return { width, height, timestamp, frames: radar.frames.map(f => f.timestamp) };
+  },
   '/healthz': async () => ({ ok: true, connected: source.connected, lastMessage: source.lastMessage }),
 };
 
@@ -273,6 +317,22 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname.startsWith('/api/admin/')) return handleAdmin(req, res, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(req, res, 405, { error: 'read-only' });
+
+  // Raw binary (one byte per grid cell), not JSON — the generic `routes`
+  // table below always wraps its result as JSON, so this one short-circuits
+  // before it, same way /api/admin/ does above.
+  if (url.pathname === '/api/radar/grid') {
+    if (!radar.latest) return send(req, res, 503, { error: 'radar data not available yet' });
+    // ?t=<timestamp> names one past composite, which never changes again and
+    // can be cached; without it, the moving "latest" one, which can't.
+    const t = url.searchParams.get('t');
+    if (t != null) {
+      const frame = radar.frame(Number(t));
+      if (!frame) return send(req, res, 404, { error: 'no radar frame for that time' });
+      return send(req, res, 200, Buffer.from(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
+    }
+    return send(req, res, 200, Buffer.from(radar.latest.grid), 'application/octet-stream', { 'Cache-Control': 'no-store' });
+  }
 
   const route = routes[url.pathname];
   if (route) {

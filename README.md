@@ -28,6 +28,7 @@ Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic win
 - **Übersicht/Overview:** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
 - **Verlauf/History:** charts for day / week / month / year, plus all-time records and CSV export
 - **Details:** one measurement in depth, with today's values, records and sensor/battery info
+- **Regenradar/Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours as a loop; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), auto-centered on an optional approximate home location
 - **Warnungen/Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
 - **Einstellungen/Settings:** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in) and interface language
 
@@ -129,11 +130,30 @@ Everything lives in `config/config.yaml`. The most important sections:
 The "Vorhersage" card is calculated from [DWD](https://www.dwd.de) MOSMIX (a
 numerical weather model with statistical post-processing) for a station you
 pick, with the next few hours nudged toward what your own Ecowitt station is
-actually reading right now. Set `forecast.dwd_station_id` in `config.yaml` to
-a DWD station ID from [DWD's station list](https://opendata.dwd.de/weather/local_forecasts/poi/poi.txt)
-(look up the one nearest you by name). If it's left unset, or DWD can't be
-reached, the dashboard falls back to a Home Assistant `weather.*` entity
+actually reading right now. The admin page (below) lets you pick a station
+on a map instead of looking up an ID by hand; in `config.yaml` directly, set
+`forecast.dwd_station_id` to a DWD station ID (there's no current public,
+stable URL for DWD's own station list to look one up outside the app — use
+the admin page's map instead). If it's left unset, or DWD can't be reached,
+the dashboard falls back to a Home Assistant `weather.*` entity
 (`forecast.entity`), the same as before.
+
+### Rain radar
+
+The "Regenradar" screen shows [DWD](https://www.dwd.de)'s RADOLAN RY rain
+radar composite for Germany, updated every 5 minutes. Drag to pan, scroll
+or pinch to zoom; a button resets the view.
+
+To have it open already zoomed in on your area, set an approximate home
+location on the admin page ("Ungefährer Standort" in the Station section).
+This is deliberately a **separate, coarse** location (rounded to about 10
+km), not your station's real coordinates — those stay server-side only and
+are never sent to the browser, same as always. Leaving it unset just opens
+the radar zoomed out to all of Germany.
+
+Wind radar isn't implemented yet (DWD doesn't have a "wind radar" product —
+radar detects precipitation, not wind — so this would need a different,
+much larger data source).
 
 ### Admin page
 
@@ -144,6 +164,11 @@ sits in the header navigation). Default login is **admin / admin**, and
 you're required to change the password before doing anything else. Saving
 settings there restarts the container (same as editing `config.yaml` would)
 to apply them.
+
+The DWD station field has a **"Auf Karte auswählen" (pick on map)** button:
+a pannable, zoomable map of ~370 DWD weather stations (Germany plus nearby
+Austria/Switzerland/border regions) to click, or search by name, instead of looking up and
+typing a station ID by hand.
 
 Anything already set in `config.yaml` (or an `HA_URL`/`HA_TOKEN` environment
 variable) always wins and shows as locked on the admin page — the two are
@@ -171,6 +196,58 @@ ui:
   stale_after_seconds: 300
 ```
 
+### Two-factor authentication
+
+The admin page can require a second factor (TOTP, the standard 6-digit
+code from an authenticator app) on top of the password. It's off by
+default; turn it on from a "Zwei-Faktor-Authentifizierung" card near the
+top of the admin page, once you're logged in with the password already
+changed:
+
+1. Click **"2FA einrichten"**. A secret key and a link are shown.
+2. Add it to an authenticator app (Google Authenticator, Authy, 1Password,
+   Apple's built-in Passwords app, …) — either type the secret in manually,
+   or tap the link if you're setting this up on the same device the app is
+   on.
+3. Enter the 6-digit code the app now shows and confirm. From then on,
+   logging in asks for a fresh code after the password.
+
+No new dependency and no external service: the TOTP codes are generated
+and checked entirely on the server (`server/src/totp.js`), the same way
+every other authenticator app does it (RFC 6238). There's no QR code —
+just the secret and a tappable `otpauth://` link — to avoid pulling in a
+QR-code library or calling out to a third-party service to render one.
+
+Turning it off again (**"2FA deaktivieren"**) asks for the current
+password, not a code — if you still have your authenticator, you don't
+need to turn it off at all; if you've lost it, see below.
+
+### Forgot the admin password? Lost your 2FA device?
+
+There's no "forgot password" email flow (this app doesn't send email at
+all), so recovery is a filesystem operation: stop the container, delete
+(or move aside) `data/admin.json` — note this is the data directory you
+mounted at `/data`, not the `config/config.yaml` you mounted at `/config`,
+those are unrelated files — and start it again:
+
+```bash
+docker compose down
+rm data/admin.json   # or: mv data/admin.json data/admin.json.bak
+docker compose up -d
+```
+
+This resets the login to **admin / admin** (password-change required again
+on next login) and turns 2FA back off, exactly like a brand-new install.
+
+**What this does and doesn't affect:** `admin.json` only holds admin-page
+state — the password, the 2FA secret, and any Home Assistant/sensor/
+forecast/alert/station settings you entered *through the admin page*
+rather than `config.yaml`. Deleting it resets all of that, but never
+touches `config/config.yaml` — anything configured there (and already
+shown as "locked" on the admin page) is unaffected and doesn't need
+re-entering. If you've configured everything through `config.yaml` instead
+of the admin page, this reset has nothing else to undo.
+
 ### Environment variables
 
 | Variable      | Meaning                                                  | Default               |
@@ -196,6 +273,19 @@ docker compose up -d
 
 Open `http://<your-host>:47813/?kiosk=1` to show only the overview without navigation. Tapping the station name toggles fullscreen. Values refresh automatically.
 
+## Add to Home Screen
+
+The dashboard is an installable web app. On iOS/iPadOS: open it in Safari,
+tap **Share → Add to Home Screen**. On Android/Chrome: tap the browser menu
+→ **Add to Home screen** (Chrome may also offer an install prompt
+automatically). Either way you get a real app icon and it launches full
+screen, without the browser's address bar.
+
+If you already had it on your home screen from before this icon/full-screen
+support was added, remove that icon and add it again — iOS/Android decide
+whether a page is "installable" (and fetch its icon) at the moment you add
+it, not on every launch.
+
 ## Making it public
 
 Put the container behind a reverse proxy with HTTPS (e.g. Nginx Proxy Manager, Traefik, Caddy or a Cloudflare Tunnel).
@@ -213,6 +303,8 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | `/api/history?metric=temp&range=day`   | History and statistics. `metric`: temp, hum, wind, rain, press, solar, uv, light. `range`: day, week, month, year |
 | `/api/detail?metric=temp`              | Today's values, records, sensor info                                           |
 | `/api/records`                         | All-time records                                                               |
+| `/api/radar`                           | Current rain radar frame: grid size and timestamp                              |
+| `/api/radar/grid`                      | Current rain radar frame: raw binary intensity grid (pairs with `/api/radar`)  |
 | `/api/alerts`                          | Alert rule status and history                                                  |
 | `/healthz`                             | Health check                                                                   |
 
@@ -242,4 +334,6 @@ cd server && npm test
 
 - `server/`: Node 22 without a framework; only `yaml` and `suncalc` as dependencies. Talks to Home Assistant via its WebSocket API.
 - `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
+- `scripts/build-dwd-stations.mjs`: regenerates the list of DWD forecast stations the admin page offers (`web/public/dwd-stations.json`) from DWD's own catalogue. Run by hand; not part of the build.
+- `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/public/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
 - `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.

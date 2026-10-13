@@ -103,6 +103,14 @@ export function loadConfig() {
       timezone: station.timezone || null,
       latitude: station.latitude ?? null,     // server-side only, never sent to the browser
       longitude: station.longitude ?? null,
+      // Deliberately separate from latitude/longitude above and deliberately
+      // coarse (rounded to 1 decimal degree, ~10 km): this one IS sent to
+      // the public API, to auto-center the radar screen, without exposing
+      // where the station (and likely the admin) actually lives. See the
+      // README's "Public radar location" section.
+      publicLocation: station.public_lat != null && station.public_lon != null
+        ? { lat: Math.round(Number(station.public_lat) * 10) / 10, lon: Math.round(Number(station.public_lon) * 10) / 10 }
+        : null,
       devices: (station.devices || []).map((d, i) => ({
         id: d.id || `device${i}`,
         name: d.name || d.id || `Gerät ${i + 1}`,
@@ -172,6 +180,7 @@ export function loadConfig() {
     stationSubtitle: !!station.subtitle,
     stationAltitude: station.altitude_m != null,
     stationSince: !!station.since,
+    stationPublicLocation: station.public_lat != null && station.public_lon != null,
     // homeassistant.url/token are the only two fields that can also be
     // locked by an environment variable (not just config.yaml) – HA_URL/
     // HA_TOKEN always win the `||` in cfg.homeassistant above when set, so

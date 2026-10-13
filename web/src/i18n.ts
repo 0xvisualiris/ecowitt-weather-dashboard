@@ -22,6 +22,7 @@ const STRINGS = {
   'nav.detail': { de: 'Details', en: 'Details' },
   'nav.alerts': { de: 'Warnungen', en: 'Alerts' },
   'nav.settings': { de: 'Einstellungen', en: 'Settings' },
+  'nav.radar': { de: 'Regenradar', en: 'Rain radar' },
   'nav.mainAria': { de: 'Hauptnavigation', en: 'Main navigation' },
   'app.serverUnreachable': { de: 'Server nicht erreichbar: {error}', en: 'Server unreachable: {error}' },
   'app.loading': { de: 'Lade …', en: 'Loading…' },
@@ -36,6 +37,10 @@ const STRINGS = {
   'common.today': { de: 'heute', en: 'today' },
   'common.yesterday': { de: 'gestern', en: 'yesterday' },
   'common.now': { de: 'jetzt', en: 'now' },
+  'common.clockTime': { de: '{time}\u00a0Uhr', en: '{time}' },
+  'chart.aria': { de: 'Diagramm', en: 'Chart' },
+  'chart.ariaHint': { de: 'Diagramm, Pfeiltasten zeigen einzelne Werte', en: 'Chart, arrow keys step through the values' },
+  'chart.noData': { de: 'Keine Daten für diesen Zeitraum', en: 'No data for this period' },
 
   // ---- dashboard ----
   'dash.noData': { de: 'Keine Daten: {error}', en: 'No data: {error}' },
@@ -63,7 +68,7 @@ const STRINGS = {
   'dash.pressure': { de: 'Luftdruck', en: 'Pressure' },
   'dash.relative': { de: 'relativ', en: 'relative' },
   'dash.humidity': { de: 'Luftfeuchte', en: 'Humidity' },
-  'dash.todayMinMaxPct': { de: 'Heute {min} – {max} %', en: 'Today {min} – {max} %' },
+  'dash.todayMinMaxPct': { de: 'Heute {min} – {max}\u00a0%', en: 'Today {min} – {max}\u00a0%' },
   'dash.sunUv': { de: 'Sonne & UV', en: 'Sun & UV' },
   'dash.uvIndexAria': { de: 'UV-Index {v}', en: 'UV index {v}' },
   'dash.sunMoon': { de: 'Sonne & Mond', en: 'Sun & Moon' },
@@ -107,7 +112,7 @@ const STRINGS = {
   'detail.sunProtectionRecommended': { de: 'Sonnenschutz empfohlen', en: 'Sun protection recommended' },
   'detail.protectionFrom3': { de: 'Schutz ab 3 empfohlen', en: 'Protection recommended from 3' },
   'detail.lastAt': { de: 'Letzter {date} um {time}', en: 'Last {date} at {time}' },
-  'detail.strikesTodaySuffix': { de: '{n} Einschläge heute', en: '{n} strikes today' },
+  'detail.strikesTodaySuffix': { de: '{strikes} heute', en: '{strikes} today' },
 
   // ---- alerts ----
   'alerts.notAvailable': { de: 'Warnungen nicht verfügbar: {error}', en: 'Alerts unavailable: {error}' },
@@ -129,6 +134,8 @@ const STRINGS = {
   'adminLogin.password': { de: 'Passwort', en: 'Password' },
   'adminLogin.submit': { de: 'Anmelden', en: 'Sign in' },
   'adminLogin.note': { de: 'Standard: admin / admin. Das Passwort muss danach geändert werden.', en: 'Default: admin / admin. The password must be changed afterward.' },
+  'adminLogin.totpCode': { de: '2FA-Code', en: '2FA code' },
+  'adminLogin.totpHint': { de: 'Code aus deiner Authenticator-App eingeben.', en: 'Enter the code from your authenticator app.' },
   'adminPassword.mismatch': { de: 'Die Passwörter stimmen nicht überein.', en: "The passwords don't match." },
   'adminPassword.tooShort': { de: 'Das neue Passwort muss mindestens 8 Zeichen lang sein.', en: 'The new password must be at least 8 characters long.' },
   'adminPassword.title': { de: 'Passwort ändern', en: 'Change password' },
@@ -143,6 +150,19 @@ const STRINGS = {
   'admin.restarting': { de: 'Gespeichert – der Server startet neu …', en: 'Saved – the server is restarting…' },
   'admin.title': { de: 'Admin-Einstellungen', en: 'Admin settings' },
   'admin.logout': { de: 'Abmelden', en: 'Log out' },
+  'admin.totpHeader': { de: 'Zwei-Faktor-Authentifizierung', en: 'Two-factor authentication' },
+  'admin.totpActive': { de: 'Aktiv', en: 'Enabled' },
+  'admin.totpInactive': { de: 'Nicht aktiviert', en: 'Not enabled' },
+  'admin.totpSetupStart': { de: '2FA einrichten', en: 'Set up 2FA' },
+  'admin.totpSetupIntro': { de: 'Geheimen Schlüssel in deiner Authenticator-App speichern (z. B. Google Authenticator, Authy, 1Password) – manuell eingeben oder den Link auf diesem Gerät antippen – und den angezeigten Code zur Bestätigung eingeben.', en: 'Save the secret key in your authenticator app (e.g. Google Authenticator, Authy, 1Password) – enter it manually or tap the link on this device – then enter the code it shows to confirm.' },
+  'admin.totpSecretLabel': { de: 'Geheimer Schlüssel', en: 'Secret key' },
+  'admin.totpLinkLabel': { de: 'In Authenticator-App öffnen', en: 'Open in authenticator app' },
+  'admin.totpConfirmLabel': { de: 'Code zur Bestätigung', en: 'Confirmation code' },
+  'admin.totpConfirmButton': { de: 'Aktivieren', en: 'Enable' },
+  'admin.totpCancelButton': { de: 'Abbrechen', en: 'Cancel' },
+  'admin.totpDisableButton': { de: '2FA deaktivieren', en: 'Disable 2FA' },
+  'admin.totpDisablePasswordLabel': { de: 'Aktuelles Passwort zur Bestätigung', en: 'Current password to confirm' },
+  'admin.totpDisableConfirm': { de: 'Deaktivieren', en: 'Disable' },
   'admin.toDashboard': { de: 'Zum Dashboard', en: 'Go to dashboard' },
   'admin.ha': { de: 'Home Assistant', en: 'Home Assistant' },
   'admin.haUrl': { de: 'URL', en: 'URL' },
@@ -160,12 +180,30 @@ const STRINGS = {
   'admin.sourceLabel': { de: 'Quellenangabe (optional)', en: 'Source label (optional)' },
   'admin.egDwd': { de: 'z. B. DWD MOSMIX', en: 'e.g. DWD MOSMIX' },
   'admin.egStationId': { de: 'z. B. 10384', en: 'e.g. 10384' },
+  'admin.dwdPickOnMap': { de: 'Auf Karte auswählen', en: 'Pick on map' },
+  'admin.dwdMapClose': { de: 'Karte schließen', en: 'Close map' },
+  'admin.dwdMapLoading': { de: 'Lade Stationen …', en: 'Loading stations…' },
+  'admin.dwdMapError': { de: 'Stationen konnten nicht geladen werden: {error}', en: 'Could not load stations: {error}' },
+  'admin.dwdMapSearch': { de: 'Station suchen …', en: 'Search for a station…' },
+  'admin.dwdMapHint': { de: 'Station suchen oder auf der Karte antippen. Maus: ziehen, zoomen mit {key} + Scrollen. Touch: zwei Finger.', en: 'Search for a station or tap one on the map. Mouse: drag, zoom with {key} + scroll. Touch: two fingers.' },
+  'admin.dwdMapResetView': { de: 'Ansicht zurücksetzen', en: 'Reset view' },
+  'admin.dwdMapNoMatch': { de: 'Keine Treffer.', en: 'No matches.' },
+  'admin.dwdMapSelected': { de: 'Ausgewählt: {name} ({id})', en: 'Selected: {name} ({id})' },
   'admin.sensors': { de: 'Sensoren', en: 'Sensors' },
   'admin.station': { de: 'Station', en: 'Station' },
   'admin.name': { de: 'Name', en: 'Name' },
   'admin.subtitle': { de: 'Unterzeile (optional)', en: 'Subtitle (optional)' },
   'admin.altitude': { de: 'Höhe ü. NN in m (optional)', en: 'Altitude above sea level in m (optional)' },
   'admin.since': { de: 'In Betrieb seit (JJJJ-MM-TT, optional)', en: 'In service since (YYYY-MM-DD, optional)' },
+  'admin.publicLocation': { de: 'Ungefährer Standort (für Regenradar)', en: 'Approximate location (for rain radar)' },
+  'admin.publicLocationSetButton': { de: 'Standort festlegen', en: 'Set location' },
+  'admin.publicLocationChange': { de: 'Standort ändern', en: 'Change location' },
+  'admin.publicLocationHint': { de: 'Auf der Karte antippen. Der Standort rastet auf ein 0,1°-Raster ein (das markierte Feld, etwa 7 × 11 km) und ist für alle Besucher des Regenradars sichtbar — nicht der genaue Standort der Station. Maus: ziehen, zoomen mit {key} + Scrollen. Touch: zwei Finger.', en: 'Tap the map. The location snaps to a 0.1° grid (the highlighted cell, roughly 7 × 11 km) and is visible to every visitor of the rain radar — not the exact location of the station. Mouse: drag, zoom with {key} + scroll. Touch: two fingers.' },
+  'admin.publicLocationSet': { de: 'Standort: {where}', en: 'Location: {where}' },
+  'admin.publicLocationNone': { de: 'Noch kein Standort gewählt. Das Regenradar zeigt dann ganz Deutschland.', en: 'No location chosen yet. The rain radar then shows all of Germany.' },
+  'admin.publicLocationClear': { de: 'Standort entfernen', en: 'Remove location' },
+  'admin.publicLocationAt': { de: 'bei {place}', en: 'at {place}' },
+  'admin.publicLocationNear': { de: '{km} km von {place}', en: '{km} km from {place}' },
   'admin.timezone': { de: 'Zeitzone', en: 'Timezone' },
   'admin.dataSource': { de: 'Datenquelle', en: 'Data source' },
   'admin.demoMode': { de: 'Demo-Modus (synthetische Werte)', en: 'Demo mode (synthetic data)' },
@@ -243,7 +281,8 @@ const STRINGS = {
   'unit.press': { de: 'Luftdruck', en: 'Pressure' },
   'unit.rain': { de: 'Niederschlag', en: 'Precipitation' },
   'unit.perDay': { de: '/Tag', en: '/day' },
-  'unit.strikesCount': { de: '{n} Einschläge', en: '{n} strikes' },
+  'unit.strikesCount': { de: '{n}\u00a0Einschläge', en: '{n}\u00a0strikes' },
+  'unit.strikesCountOne': { de: '1\u00a0Einschlag', en: '1\u00a0strike' },
 
   // ---- stat-row slugs emitted by service.js (k field) ----
   'stat.min': { de: 'Minimum', en: 'Minimum' },
@@ -299,7 +338,7 @@ const STRINGS = {
   'trend.rising': { de: 'steigend', en: 'rising' },
   'trend.falling': { de: 'fallend', en: 'falling' },
   'trend.steady': { de: 'gleichbleibend', en: 'steady' },
-  'trend.sentence': { de: '{arrow} {delta} {unit} / {hours} h · {word}', en: '{arrow} {delta} {unit} in {hours}h · {word}' },
+  'trend.sentence': { de: '{arrow} {delta}\u00a0{unit} / {hours}\u00a0h · {word}', en: '{arrow} {delta}\u00a0{unit} in {hours}h · {word}' },
 
   // ---- UV ----
   'uv.low': { de: 'niedrig', en: 'low' },
@@ -307,6 +346,29 @@ const STRINGS = {
   'uv.high': { de: 'hoch', en: 'high' },
   'uv.veryHigh': { de: 'sehr hoch', en: 'very high' },
   'uv.extreme': { de: 'extrem', en: 'extreme' },
+
+  // ---- radar ----
+  'radar.title': { de: 'Regenradar', en: 'Rain radar' },
+  'radar.asOf': { de: 'Stand {time}', en: 'as of {time}' },
+  'radar.loading': { de: 'Lade Radardaten …', en: 'Loading radar data…' },
+  'radar.error': { de: 'Radar nicht verfügbar: {error}', en: 'Radar unavailable: {error}' },
+  'radar.past': { de: '{time} · vor {min} min', en: '{time} · {min} min ago' },
+  'radar.play': { de: 'Radarfilm abspielen', en: 'Play radar loop' },
+  'radar.pause': { de: 'Radarfilm anhalten', en: 'Pause radar loop' },
+  'radar.timeAria': { de: 'Zeitpunkt', en: 'Time' },
+  'radar.atLocation': { de: 'Am Standort', en: 'At the station' },
+  'radar.localRain': { de: 'Regen, {rate} mm/h', en: 'Rain, {rate} mm/h' },
+  'radar.localNear': { de: 'trocken · nächster Regen {km} km im {dir}', en: 'dry · nearest rain {km} km to the {dir}' },
+  'radar.localDry': { de: 'trocken · kein Regen im Umkreis von 150 km', en: 'dry · no rain within 150 km' },
+  'radar.localOutside': { de: 'außerhalb der Radarreichweite', en: 'outside radar range' },
+  'radar.legendUnit': { de: 'mm/h', en: 'mm/h' },
+  'radar.resetView': { de: 'Ansicht zurücksetzen', en: 'Reset view' },
+  'radar.zoomIn': { de: 'Hineinzoomen', en: 'Zoom in' },
+  'radar.zoomOut': { de: 'Herauszoomen', en: 'Zoom out' },
+  'radar.ctrlKey': { de: 'Strg', en: 'Ctrl' },
+  'radar.hintWheel': { de: '{key} + Scrollen zum Zoomen', en: '{key} + scroll to zoom' },
+  'radar.hintTouch': { de: 'Mit zwei Fingern verschieben', en: 'Use two fingers to move the map' },
+  'radar.sourceNote': { de: 'DWD RADOLAN (RY), alle 5 Minuten aktualisiert. Maus: ziehen, zoomen mit {key} + Scrollen oder den Tasten. Touch: zwei Finger.', en: 'DWD RADOLAN (RY), updated every 5 minutes. Mouse: drag, zoom with {key} + scroll or the buttons. Touch: two fingers.' },
 } satisfies Record<string, { de: string; en: string }>;
 
 export type TKey = keyof typeof STRINGS;
@@ -331,6 +393,11 @@ export const useLang = () => useContext(LangContext);
 // id). Pattern-matched rather than switching the backend to error codes –
 // low risk, since these essentially never change – with the original
 // message as a fallback for anything unrecognized.
+const TOO_LONG_DE: Record<string, string> = {
+  'station name': 'Der Stationsname', 'station subtitle': 'Der Untertitel', 'alert label': 'Die Bezeichnung der Regel', 'alert description': 'Die Beschreibung der Regel',
+  'alert banner text': 'Der Bannertext', 'alert message': 'Die Meldung', 'device name': 'Der Gerätename', 'device short name': 'Der Kurzname des Geräts', 'device role': 'Die Rolle des Geräts',
+};
+
 const API_ERROR_PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^invalid credentials$/, () => (LANG === 'de' ? 'Ungültige Anmeldedaten' : 'Invalid credentials')],
   [/^too many attempts – try again shortly$/, () => (LANG === 'de' ? 'Zu viele Versuche – bitte kurz warten' : 'Too many attempts – try again shortly')],
@@ -340,8 +407,13 @@ const API_ERROR_PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/^could not save settings \(DATA_DIR is not writable\)$/, () => (LANG === 'de' ? 'Einstellungen konnten nicht gespeichert werden (DATA_DIR ist nicht beschreibbar)' : 'Could not save settings (DATA_DIR is not writable)')],
   [/^alert "(.+)" needs "all:" or "any:" conditions$/, m => (LANG === 'de' ? `Regel "${m[1]}" benötigt "all:"- oder "any:"-Bedingungen` : `Rule "${m[1]}" needs "all:" or "any:" conditions`)],
   [/^alert "(.+)": each condition needs "sensor:" \(key\) or "entity:" \(HA entity id\)$/, m => (LANG === 'de' ? `Regel "${m[1]}": jede Bedingung braucht "sensor:" (Schlüssel) oder "entity:" (HA-Entität)` : `Rule "${m[1]}": each condition needs "sensor:" (key) or "entity:" (HA entity id)`)],
+  [/^(station name|station subtitle|alert label|alert description|alert banner text|alert message|device name|device short name|device role) is too long \(max (\d+) characters\)$/, m => (LANG === 'de' ? `${TOO_LONG_DE[m[1]] ?? m[1]} ist zu lang (höchstens ${m[2]} Zeichen)` : `${m[1][0].toUpperCase()}${m[1].slice(1)} is too long (max ${m[2]} characters)`)],
   [/^not logged in$/, () => (LANG === 'de' ? 'Nicht angemeldet' : 'Not logged in')],
   [/^password change required$/, () => (LANG === 'de' ? 'Passwortänderung erforderlich' : 'Password change required')],
+  [/^invalid 2FA code$/, () => (LANG === 'de' ? 'Ungültiger 2FA-Code' : 'Invalid 2FA code')],
+  [/^no 2FA setup in progress$/, () => (LANG === 'de' ? 'Keine 2FA-Einrichtung in Arbeit' : 'No 2FA setup in progress')],
+  [/^could not save \(DATA_DIR is not writable\) – 2FA was NOT enabled$/, () => (LANG === 'de' ? '2FA konnte nicht gespeichert werden (DATA_DIR ist nicht beschreibbar) – 2FA wurde NICHT aktiviert' : 'Could not save (DATA_DIR is not writable) – 2FA was NOT enabled')],
+  [/^could not save \(DATA_DIR is not writable\) – 2FA was NOT disabled$/, () => (LANG === 'de' ? '2FA konnte nicht gespeichert werden (DATA_DIR ist nicht beschreibbar) – 2FA wurde NICHT deaktiviert' : 'Could not save (DATA_DIR is not writable) – 2FA was NOT disabled')],
 ];
 
 export function translateApiError(message: string): string {

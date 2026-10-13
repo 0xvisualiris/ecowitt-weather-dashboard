@@ -1,7 +1,18 @@
 import { useContext, useEffect, useState } from 'react';
-import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
+import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Device, type GeoPoint, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
 import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
+import { DwdStationMap } from '../components/DwdStationMap';
+import { PublicLocationPicker, describeLocation } from '../components/PublicLocationPicker';
+import { Segmented } from '../components/Segmented';
+
+// Mirrors TEXT_LIMITS in server/src/admin.js, which is what actually enforces
+// these; the maxLength here only stops the form from offering a doomed save.
+const TEXT_LIMITS = {
+  stationName: 60, stationSubtitle: 80,
+  alertLabel: 60, alertDescription: 120, alertBanner: 120, alertMessage: 200,
+  deviceName: 60, deviceShort: 12, deviceRole: 40,
+};
 
 const SENSOR_FIELDS = (): [string, string][] => [
   ['temperature', t('admin.sensor.temperature')], ['feels_like', t('admin.sensor.feels_like')], ['dew_point', t('admin.sensor.dew_point')], ['humidity', t('admin.sensor.humidity')],
@@ -30,12 +41,15 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   const [sensors, setSensors] = useState<Record<string, string>>({});
   const [entity, setEntity] = useState('');
   const [dwdStationId, setDwdStationId] = useState('');
+  const [showDwdMap, setShowDwdMap] = useState(false);
   const [biasHours, setBiasHours] = useState(6);
   const [label, setLabel] = useState('');
   const [stationName, setStationName] = useState('');
   const [stationSubtitle, setStationSubtitle] = useState('');
   const [stationAltitude, setStationAltitude] = useState<number | ''>('');
   const [stationSince, setStationSince] = useState('');
+  const [publicLocation, setPublicLocation] = useState<GeoPoint | null>(null);
+  const [showLocationMap, setShowLocationMap] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [alerts, setAlerts] = useState<AlertRule[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +68,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
     setStationSubtitle(data.station.subtitle);
     setStationAltitude(data.station.altitude_m ?? '');
     setStationSince(data.station.since);
+    setPublicLocation(data.station.publicLocation);
     setDevices(data.station.devices);
     setAlerts(data.alerts);
   }, [data]);
@@ -70,7 +85,7 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         homeassistant: { url: haUrl, token: haToken },
         sensors,
         forecast: { entity, dwdStationId, biasHours, label },
-        station: { name: stationName, subtitle: stationSubtitle, altitude_m: stationAltitude === '' ? null : stationAltitude, since: stationSince, devices },
+        station: { name: stationName, subtitle: stationSubtitle, altitude_m: stationAltitude === '' ? null : stationAltitude, since: stationSince, publicLocation, devices },
         alerts,
       });
       setRestarting(true);
@@ -101,17 +116,19 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
       <div className="header">
         <div className="title">{t('admin.title')}</div>
         <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
-          <div className="segs inset" role="radiogroup" aria-label={t('settings.language')}>
-            {(['de', 'en'] as Lang[]).map(l => (
-              <button key={l} type="button" role="radio" aria-checked={lang === l} className={'seg xs' + (lang === l ? ' on' : '')}
-                onClick={() => setLang(l)}>{l === 'de' ? 'Deutsch' : 'English'}</button>
-            ))}
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={t('settings.language')}
+            items={(['de', 'en'] as Lang[]).map(l => ({ key: l, label: l === 'de' ? 'Deutsch' : 'English' }))}
+            value={lang}
+            onChange={l => setLang(l as Lang)}
+          />
           <button type="button" className="btn-ghost" onClick={() => go({ screen: 'adminPassword' })}>{t('adminPassword.title')}</button>
           <button type="button" className="btn-ghost" onClick={logout}>{t('admin.logout')}</button>
           <button type="button" className="btn-ghost" onClick={() => go({ screen: 'dash' })}>{t('admin.toDashboard')}</button>
         </div>
       </div>
+
+      <TotpSection initialEnabled={data.totpEnabled} />
 
       <form onSubmit={submit} className="stack">
         <section className="card lg stack">
@@ -132,6 +149,18 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
           <Field label={t('admin.dwdStationId')} locked={data.locked.dwdStationId}>
             <input className="input" value={dwdStationId} onChange={e => setDwdStationId(e.target.value)} disabled={data.locked.dwdStationId} placeholder={t('admin.egStationId')} />
           </Field>
+          {!data.locked.dwdStationId && (
+            <div className="field">
+              <button type="button" className="btn-ghost" onClick={() => setShowDwdMap(v => !v)}>
+                {showDwdMap ? t('admin.dwdMapClose') : t('admin.dwdPickOnMap')}
+              </button>
+              {showDwdMap && (
+                <div className="reveal" style={{ marginTop: 10 }}>
+                  <DwdStationMap value={dwdStationId} onSelect={(id) => { setDwdStationId(id); setShowDwdMap(false); }} />
+                </div>
+              )}
+            </div>
+          )}
           <Field label={t('admin.biasHours')} locked={data.locked.dwdStationId}>
             <input className="input" type="number" min={0} max={24} value={biasHours} disabled={data.locked.dwdStationId}
               onChange={e => setBiasHours(Number(e.target.value))} />
@@ -157,10 +186,10 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         <section className="card lg stack">
           <div className="eyebrow"><span>{t('admin.station')}</span></div>
           <Field label={t('admin.name')} locked={data.locked.stationName}>
-            <input className="input" value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
+            <input className="input" maxLength={TEXT_LIMITS.stationName} value={stationName} onChange={e => setStationName(e.target.value)} disabled={data.locked.stationName} />
           </Field>
           <Field label={t('admin.subtitle')} locked={data.locked.stationSubtitle}>
-            <input className="input" value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
+            <input className="input" maxLength={TEXT_LIMITS.stationSubtitle} value={stationSubtitle} onChange={e => setStationSubtitle(e.target.value)} disabled={data.locked.stationSubtitle} />
           </Field>
           <Field label={t('admin.altitude')} locked={data.locked.stationAltitude}>
             <input className="input" type="number" value={stationAltitude} disabled={data.locked.stationAltitude}
@@ -169,6 +198,28 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
           <Field label={t('admin.since')} locked={data.locked.stationSince}>
             <input className="input" value={stationSince} onChange={e => setStationSince(e.target.value)} disabled={data.locked.stationSince} placeholder="2024-04-01" />
           </Field>
+          {!data.locked.stationPublicLocation && (
+            <div className="field">
+              <label className="label">{t('admin.publicLocation')}</label>
+              <button type="button" className="btn-ghost" onClick={() => setShowLocationMap(v => !v)}>
+                {showLocationMap ? t('admin.dwdMapClose') : publicLocation ? t('admin.publicLocationChange') : t('admin.publicLocationSetButton')}
+              </button>
+              {!showLocationMap && publicLocation && (
+                <div className="note">{t('admin.publicLocationSet', { where: describeLocation(publicLocation) })}</div>
+              )}
+              {showLocationMap && (
+                <div className="reveal" style={{ marginTop: 10 }}>
+                  <PublicLocationPicker value={publicLocation} onChange={setPublicLocation} />
+                </div>
+              )}
+            </div>
+          )}
+          {data.locked.stationPublicLocation && publicLocation && (
+            <div className="row" style={{ padding: '12px 0' }}>
+              <span className="k">{t('admin.publicLocation')}</span>
+              <span className="v" style={{ fontWeight: 500 }}>{describeLocation(publicLocation)}</span>
+            </div>
+          )}
           <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.timezone')}</span><span className="v" style={{ fontWeight: 500 }}>{data.timezone}</span></div>
           {data.demo && <div className="row" style={{ padding: '12px 0' }}><span className="k">{t('admin.dataSource')}</span><span className="v" style={{ fontWeight: 500 }}>{t('admin.demoMode')}</span></div>}
 
@@ -212,6 +263,110 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
   );
 }
 
+function TotpSection({ initialEnabled }: { initialEnabled: boolean }) {
+  const [enabled, setEnabled] = useState(initialEnabled);
+  const [setup, setSetup] = useState<{ secret: string; otpauthUrl: string } | null>(null);
+  const [confirmCode, setConfirmCode] = useState('');
+  const [disablePassword, setDisablePassword] = useState('');
+  const [showDisable, setShowDisable] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const startSetup = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      setSetup(await postJson<{ secret: string; otpauthUrl: string }>('/api/admin/totp/setup', {}));
+      setConfirmCode('');
+    } catch (e) {
+      setError(translateApiError((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmSetup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await postJson('/api/admin/totp/enable', { code: confirmCode });
+      setEnabled(true);
+      setSetup(null);
+      setConfirmCode('');
+    } catch (e) {
+      setError(translateApiError((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disable = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await postJson('/api/admin/totp/disable', { password: disablePassword });
+      setEnabled(false);
+      setShowDisable(false);
+      setDisablePassword('');
+    } catch (e) {
+      setError(translateApiError((e as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="card lg stack">
+      <div className="eyebrow">
+        <span>{t('admin.totpHeader')}</span>
+        <span className={'pill' + (enabled ? ' on' : '')}>{enabled ? t('admin.totpActive') : t('admin.totpInactive')}</span>
+      </div>
+
+      {!enabled && !setup && (
+        <button type="button" className="btn-ghost" disabled={busy} onClick={startSetup}>{t('admin.totpSetupStart')}</button>
+      )}
+
+      {setup && (
+        <form onSubmit={confirmSetup} className="stack">
+          <div className="note">{t('admin.totpSetupIntro')}</div>
+          <Field label={t('admin.totpSecretLabel')} locked={false}>
+            <input className="input" readOnly value={setup.secret} onFocus={e => e.target.select()} style={{ fontFamily: 'var(--mono)' }} />
+          </Field>
+          <a href={setup.otpauthUrl} className="btn-ghost" style={{ alignSelf: 'flex-start' }}>{t('admin.totpLinkLabel')}</a>
+          <Field label={t('admin.totpConfirmLabel')} locked={false}>
+            <input className="input" inputMode="numeric" maxLength={6} autoFocus value={confirmCode}
+              onChange={e => setConfirmCode(e.target.value.replace(/\D/g, ''))} />
+          </Field>
+          <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
+            <button className="btn-primary" type="submit" disabled={busy || confirmCode.length !== 6}>{t('admin.totpConfirmButton')}</button>
+            <button type="button" className="btn-ghost" onClick={() => { setSetup(null); setConfirmCode(''); }}>{t('admin.totpCancelButton')}</button>
+          </div>
+        </form>
+      )}
+
+      {enabled && !showDisable && (
+        <button type="button" className="btn-ghost" style={{ alignSelf: 'flex-start' }} onClick={() => setShowDisable(true)}>{t('admin.totpDisableButton')}</button>
+      )}
+
+      {enabled && showDisable && (
+        <form onSubmit={disable} className="stack">
+          <Field label={t('admin.totpDisablePasswordLabel')} locked={false}>
+            <input className="input" type="password" autoFocus value={disablePassword} onChange={e => setDisablePassword(e.target.value)} />
+          </Field>
+          <div className="row" style={{ border: 0, padding: 0, gap: 8 }}>
+            <button className="btn-primary" type="submit" disabled={busy || !disablePassword}>{t('admin.totpDisableConfirm')}</button>
+            <button type="button" className="btn-ghost" onClick={() => { setShowDisable(false); setDisablePassword(''); }}>{t('admin.totpCancelButton')}</button>
+          </div>
+        </form>
+      )}
+
+      {error && <div className="form-error">{error}</div>}
+    </section>
+  );
+}
+
 function Field({ label, locked, lockedReason, children }: { label: string; locked: boolean; lockedReason?: string; children: React.ReactNode }) {
   return (
     <div className="field">
@@ -229,9 +384,9 @@ function DeviceEditor({ device, locked, onChange, onRemove }: { device: Device; 
         {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
       <Field label={t('admin.id')} locked={locked}><input className="input" value={device.id} disabled={locked} onChange={e => onChange({ ...device, id: e.target.value })} /></Field>
-      <Field label={t('admin.name')} locked={locked}><input className="input" value={device.name} disabled={locked} onChange={e => onChange({ ...device, name: e.target.value })} /></Field>
-      <Field label={t('admin.role')} locked={locked}><input className="input" value={device.role} disabled={locked} onChange={e => onChange({ ...device, role: e.target.value })} placeholder={t('admin.rolePlaceholder')} /></Field>
-      <Field label={t('admin.shortName')} locked={locked}><input className="input" value={device.short} disabled={locked} onChange={e => onChange({ ...device, short: e.target.value })} /></Field>
+      <Field label={t('admin.name')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.deviceName} value={device.name} disabled={locked} onChange={e => onChange({ ...device, name: e.target.value })} /></Field>
+      <Field label={t('admin.role')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.deviceRole} value={device.role} disabled={locked} onChange={e => onChange({ ...device, role: e.target.value })} placeholder={t('admin.rolePlaceholder')} /></Field>
+      <Field label={t('admin.shortName')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.deviceShort} value={device.short} disabled={locked} onChange={e => onChange({ ...device, short: e.target.value })} /></Field>
       <Field label={t('admin.batteryEntity')} locked={locked}>
         <input className="input" value={device.battery || ''} disabled={locked} onChange={e => onChange({ ...device, battery: e.target.value || null })} placeholder="sensor.xxx_battery" />
       </Field>
@@ -282,7 +437,7 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
         {COMPARISONS().map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
       <input className="input" style={{ width: 80 }} disabled={locked} type="number" value={val} onChange={e => onChange({ ...cond, [cmp]: Number(e.target.value) })} />
-      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.8125rem' }}>
         <input type="checkbox" disabled={locked} checked={hasRecent}
           onChange={e => {
             if (e.target.checked) onChange({ ...cond, recent: { sensor: SENSOR_FIELDS()[0][0], minutes: 30 } });
@@ -298,7 +453,7 @@ function ConditionEditor({ cond, locked, onChange, onRemove }: { cond: AlertCond
           </select>
           <input className="input" style={{ width: 70 }} disabled={locked} type="number" value={cond.recent.minutes ?? 30}
             onChange={e => onChange({ ...cond, recent: { ...cond.recent, minutes: Number(e.target.value) } })} />
-          <span className="faint" style={{ fontSize: 13 }}>{t('admin.minutesAbbrev')}</span>
+          <span className="faint" style={{ fontSize: '0.8125rem' }}>{t('admin.minutesAbbrev')}</span>
         </>
       )}
       {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
@@ -317,27 +472,37 @@ function RuleEditor({ rule, locked, onChange, onRemove }: { rule: AlertRule; loc
         <span className="label" style={{ fontWeight: 500 }}>{rule.label || t('admin.newRule')}</span>
         {!locked && <button type="button" className="btn-ghost" onClick={onRemove}>{t('admin.remove')}</button>}
       </div>
-      <Field label={t('admin.label')} locked={locked}><input className="input" value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
-      <Field label={t('admin.description')} locked={locked}><input className="input" value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
+      <Field label={t('admin.label')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.alertLabel} value={rule.label} disabled={locked} onChange={e => onChange({ ...rule, label: e.target.value })} /></Field>
+      <Field label={t('admin.description')} locked={locked}><input className="input" maxLength={TEXT_LIMITS.alertDescription} value={rule.description} disabled={locked} onChange={e => onChange({ ...rule, description: e.target.value })} /></Field>
       <div className="row" style={{ flexWrap: 'wrap', gap: 16, border: 0, padding: 0 }}>
         <Field label={t('admin.level')} locked={locked}>
-          <div className="segs inset">
-            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'warning' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'warning' })}>{t('admin.levelWarning')}</button>
-            <button type="button" disabled={locked} className={'seg xs' + (rule.level === 'info' ? ' on' : '')} onClick={() => onChange({ ...rule, level: 'info' })}>{t('admin.levelInfo')}</button>
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={t('admin.level')}
+            items={[
+              { key: 'warning', label: t('admin.levelWarning'), disabled: locked },
+              { key: 'info', label: t('admin.levelInfo'), disabled: locked },
+            ]}
+            value={rule.level}
+            onChange={level => onChange({ ...rule, level: level as AlertRule['level'] })}
+          />
         </Field>
         <Field label={t('admin.combination')} locked={locked}>
-          <div className="segs inset">
-            <button type="button" disabled={locked} className={'seg xs' + (mode === 'all' ? ' on' : '')} onClick={() => onChange({ ...rule, all: conds, any: undefined })}>{t('admin.all')}</button>
-            <button type="button" disabled={locked} className={'seg xs' + (mode === 'any' ? ' on' : '')} onClick={() => onChange({ ...rule, any: conds, all: undefined })}>{t('admin.any')}</button>
-          </div>
+          <Segmented
+            kind="radio" size="xs" inset ariaLabel={t('admin.combination')}
+            items={[
+              { key: 'all', label: t('admin.all'), disabled: locked },
+              { key: 'any', label: t('admin.any'), disabled: locked },
+            ]}
+            value={mode}
+            onChange={next => onChange(next === 'any' ? { ...rule, any: conds, all: undefined } : { ...rule, all: conds, any: undefined })}
+          />
         </Field>
       </div>
       <Field label={t('admin.banner')} locked={locked}>
-        <input className="input" value={rule.banner || ''} disabled={locked} onChange={e => onChange({ ...rule, banner: e.target.value })} placeholder={rule.label} />
+        <input className="input" maxLength={TEXT_LIMITS.alertBanner} value={rule.banner || ''} disabled={locked} onChange={e => onChange({ ...rule, banner: e.target.value })} placeholder={rule.label} />
       </Field>
       <Field label={t('admin.message')} locked={locked}>
-        <input className="input" value={rule.message} disabled={locked} onChange={e => onChange({ ...rule, message: e.target.value })} placeholder={t('admin.messagePlaceholder')} />
+        <input className="input" maxLength={TEXT_LIMITS.alertMessage} value={rule.message} disabled={locked} onChange={e => onChange({ ...rule, message: e.target.value })} placeholder={t('admin.messagePlaceholder')} />
       </Field>
       <div className="field">
         <label className="label">{t('admin.conditions')}</label>

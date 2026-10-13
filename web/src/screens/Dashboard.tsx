@@ -3,7 +3,7 @@ import { go } from '../App';
 import { Spark } from '../components/Chart';
 import { ConditionIcon } from '../components/ConditionIcon';
 import {
-  type AppConfig, type Current, type MetricKey, beaufort, compass, convFor, fmt, fmtC, hhmm, trendText, useUnits, uvLabel, dateFmt, dayKey, weekday,
+  type AppConfig, type Current, type MetricKey, NBSP, beaufort, compass, convFor, fmt, fmtC, hhmm, trendText, useUnits, uvLabel, dateFmt, dayKey, weekday,
 } from '../lib';
 import { t, type TKey } from '../i18n';
 
@@ -65,7 +65,7 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
 
   const moonSlug = astro?.moon.name;
   const moonValue = moonSlug == null ? '' : ['waxing', 'waning'].includes(moonSlug)
-    ? `${t(`moon.${moonSlug}` as TKey)} ${astro!.moon.illumination} %`
+    ? `${t(`moon.${moonSlug}` as TKey)} ${astro!.moon.illumination}${NBSP}%`
     : t(`moon.${moonSlug}` as TKey);
 
   return (
@@ -85,7 +85,7 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
           <Card metric="temp" title={t('dash.cardTemp')} right={deviceFor('temp')} lg>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 28px' }}>
               <div className="hero-num">{fmt(v.temperature != null ? T.f(v.temperature) : null, 1)}<span className="u">{T.unit}</span></div>
-              <div className="stack" style={{ gap: 6, fontSize: 15, color: 'var(--text-2)', paddingBottom: 6 }}>
+              <div className="stack" style={{ gap: 6, fontSize: '0.9375rem', color: 'var(--text-2)', paddingBottom: 6 }}>
                 {has('feels_like') && <div>{t('dash.feelsLike')} <b className="v">{deg(v.feels_like)}</b></div>}
                 {has('dew_point') && <div>{t('dash.dewPoint')} <b className="v">{deg(v.dew_point)}</b></div>}
                 {cur.today.temp && (
@@ -108,9 +108,9 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
               {fc.map((f, i) => (
                 <div className="fc-row" key={f.date}>
                   <span style={{ fontWeight: 500 }}>{dayKey(f.date) === dayKey(Date.now()) || (i === 0 && f.date < Date.now()) ? t('dash.today') : weekday(f.date)}</span>
-                  <span className="fc-icon"><ConditionIcon code={f.conditionCode} /></span>
-                  <span className="cond">{f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : '—'}</span>
-                  <span className="pop">{f.pop != null ? `${f.pop} %` : ''}</span>
+                  <span className="fc-icon" title={f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : undefined}><ConditionIcon code={f.conditionCode} /></span>
+                  <span className="cond" title={f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : undefined}>{f.conditionCode ? t(`cond.${f.conditionCode}` as TKey) : '—'}</span>
+                  <span className="pop">{f.pop != null ? `${f.pop}${NBSP}%` : ''}</span>
                   <span className="lo">{deg(f.lo, 0)}</span>
                   <div className="fc-bar">
                     {f.lo != null && f.hi != null && <div style={{ left: `${((f.lo - fLo) / fRg) * 100}%`, width: `${Math.max(2, ((f.hi - f.lo) / fRg) * 100)}%` }} />}
@@ -128,8 +128,8 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
           <Card metric="wind" title={t('dash.wind')} right={wind != null ? `Bft ${beaufort(wind)}` : ''}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <svg viewBox="0 0 120 120" style={{ width: 112, height: 112, flexShrink: 0 }} aria-hidden="true">
-                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--line-strong)" strokeWidth="1" />
-                <path d={TICKS} stroke="oklch(0.45 0.01 250)" strokeWidth="1" />
+                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--glass-line)" strokeWidth="1" />
+                <path d={TICKS} stroke="var(--glass-line-strong)" strokeWidth="1" />
                 {([['N', 60, 20, 'var(--muted)'], [compass(90), 103, 64, 'var(--faint)'], ['S', 60, 107, 'var(--faint)'], ['W', 17, 64, 'var(--faint)']] as [string, number, number, string][]).map(([lbl, x, y, c]) => (
                   <text key={lbl} x={x} y={y} textAnchor="middle" fontSize="10" fill={c} fontFamily="var(--mono)">{lbl}</text>
                 ))}
@@ -179,7 +179,7 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
           <Card metric="press" title={t('dash.pressure')} right={t('dash.relative')}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
               <div className="num">{fmt(v.pressure != null ? P.f(v.pressure) : null, P.d)} <span className="u">{P.unit}</span></div>
-              {trend && <div style={{ fontSize: 14, paddingBottom: 3, color: trend.word === 'falling' ? 'var(--amber)' : trend.word === 'rising' ? 'var(--blue)' : 'var(--text-2)' }}>{trend.text}</div>}
+              {trend && <div style={{ fontSize: '0.875rem', paddingBottom: 3, color: trend.word === 'falling' ? 'var(--amber)' : trend.word === 'rising' ? 'var(--blue)' : 'var(--text-2)' }}>{trend.text}</div>}
             </div>
             {cur.spark.press && <Spark values={cur.spark.press} height={44} color="var(--text)" kind="line" area={false} />}
           </Card>
@@ -218,8 +218,8 @@ export function Dashboard({ cfg, cur, error }: { cfg: AppConfig; cur: Current | 
         {astro && (
           <Card title={t('dash.sunMoon')} right={dayLen}>
             <svg viewBox="0 0 160 80" style={{ width: '100%', maxHeight: 92, display: 'block' }} aria-hidden="true">
-              <path d="M10,74 A70,70 0 0 1 150,74" fill="none" stroke="var(--line-strong)" strokeDasharray="3 4" />
-              <line x1="0" y1="74" x2="160" y2="74" stroke="var(--line-strong)" />
+              <path d="M10,74 A70,70 0 0 1 150,74" fill="none" stroke="var(--glass-line-strong)" strokeDasharray="3 4" />
+              <line x1="0" y1="74" x2="160" y2="74" stroke="var(--glass-line-strong)" />
               {sunAng != null && <circle cx={(80 + 70 * Math.cos(sunAng)).toFixed(1)} cy={(74 - 70 * Math.sin(sunAng)).toFixed(1)} r="6" fill="var(--amber)" />}
             </svg>
             <Mini items={[

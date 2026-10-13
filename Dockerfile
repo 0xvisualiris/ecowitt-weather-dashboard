@@ -14,7 +14,7 @@ RUN npm ci --omit=dev
 
 # ---------- 3) Laufzeit-Image ----------
 FROM node:22-alpine
-RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata bzip2
 ENV NODE_ENV=production \
     PORT=47813 \
     CONFIG_PATH=/config/config.yaml \

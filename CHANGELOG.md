@@ -3,6 +3,19 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.4.1 – 2026-10-13
+
+Documentation release. No changes to the dashboard itself.
+
+### Improved
+- The README now shows screenshots of every screen (History, Details, Rain radar, Alerts, Settings, the admin page and two phone views), and the Overview screenshot is up to date. (#35)
+- The release instructions for contributors now state that a production release includes the version tag and the GitHub release. (#34)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v1.4.0 – 2026-10-13
 
 ### New

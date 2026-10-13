@@ -3,6 +3,23 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.5.0 – 2026-10-13
+
+### New
+- **A second design, "Himmel".** It draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun; drag across it to move through the day. It has the same screens as the existing design plus an hour-by-hour forecast for the next three days, its own admin page and a kiosk mode (`?kiosk=1`). German only. (#38)
+- **Choose the design on the admin page.** Under Erscheinungsbild/Appearance you pick Klassisch/Classic or Himmel for all visitors, or set `ui.design: himmel` in `config.yaml` (default `classic`). Existing installations keep the classic design until you switch. While the classic design is active, Himmel can be previewed at `/himmel/`. (#38)
+- New API endpoint `/api/forecast/hourly` with the next 72 hours, from the DWD forecast when a station is set and otherwise derived from the daily forecast. (#38)
+
+### Improved
+- New app icon, also used when the dashboard is installed to the home screen. (#38)
+- The project is now released under the MIT License. (#38)
+- The README screenshots are retaken and show both designs. (#39)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v1.4.1 – 2026-10-13
 
 Documentation release. No changes to the dashboard itself.

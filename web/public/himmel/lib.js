@@ -165,11 +165,47 @@ export function skyAt(t, astro, conditionCode) {
 export function applyTheme(sky) {
   document.documentElement.style.setProperty('--zenith', rgb(sky.zenith));
   document.documentElement.style.setProperty('--ground', rgb(sky.ground));
+  syncBarColour();
+}
+
+// The browser bar above the page takes the colour at the top of the view: the sky on Jetzt, the ground elsewhere.
+export function syncBarColour() {
+  const css = getComputedStyle(document.documentElement);
+  const colour = css.getPropertyValue(document.body.dataset.view === 'now' ? '--zenith' : '--ground').trim();
+  if (colour) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', colour);
 }
 
 // ---------- Canvas ----------
 
 export const canvasFont = (px, weight = 500) => `${weight} ${px}px "Bricolage Grotesque", system-ui, sans-serif`;
+
+// A sideways drag on a chart that must not steal the page's vertical scroll. A mouse drags at
+// once; a finger first has to show which way it is going: mostly sideways and the chart follows
+// it, mostly up or down and the page scrolls (touch-action: pan-y) while the chart ignores it.
+// A tap without movement still counts, as a drag that starts and ends on the spot.
+export function scrub(el, { begin, move, end }) {
+  let down = null, active = false;
+  const start = (e) => { active = true; down = null; el.setPointerCapture(e.pointerId); begin(e); };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') { if (e.button === 0) start(e); return; }
+    down = e;
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (active) { move(e); return; }
+    if (!down || e.pointerId !== down.pointerId) return;
+    const dx = Math.abs(e.clientX - down.clientX), dy = Math.abs(e.clientY - down.clientY);
+    if (dy > 8 && dy >= dx) down = null;                 // a scroll: leave it to the page
+    else if (dx > 8) { start(down); move(e); }           // sideways: the chart takes over
+  });
+  el.addEventListener('pointerup', (e) => {
+    if (down && e.pointerId === down.pointerId) { start(down); active = false; end(e); return; }
+    if (active) { active = false; end(e); }
+  });
+  el.addEventListener('pointercancel', (e) => {
+    down = null;
+    if (active) { active = false; end(e); }
+  });
+}
 
 // Sizes a canvas to its CSS box and returns a context scaled to CSS pixels.
 export function fitCanvas(canvas) {

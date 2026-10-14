@@ -5,7 +5,7 @@
 import {
   DAY, $, reducedMotion, n0, n1, clock, weekday, weekdayShort, clamp, lerp, getJson, store,
   sunHeight as sunHeightFor, skyAt as skyFor, hex, mix, rgb, applyTheme, CONDITION, fromWord,
-  units, conv, show, degree, temp as tempText,
+  units, conv, show, degree, temp as tempText, scrub,
 } from './lib.js';
 
 // ---------- Data ----------
@@ -169,9 +169,7 @@ function stepSpring(dt) {
   }
 }
 
-canvas.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 && e.pointerType === 'mouse') return;
-  canvas.setPointerCapture(e.pointerId);
+function grab(e) {
   const x = e.clientX - canvas.getBoundingClientRect().left;
   cursor.dragging = true; cursor.live = false;
   trail.length = 0; trail.push({ x, t: e.timeStamp });
@@ -185,9 +183,9 @@ canvas.addEventListener('pointerdown', (e) => {
   }
   $('hint').classList.add('gone');
   renderReadout();
-});
+}
 
-canvas.addEventListener('pointermove', (e) => {
+function drag(e) {
   if (!cursor.dragging) return;
   const x = e.clientX - canvas.getBoundingClientRect().left;
   trail.push({ x, t: e.timeStamp });
@@ -200,23 +198,24 @@ canvas.addEventListener('pointermove', (e) => {
     cursor.x = cursor.target = want;
   }
   renderReadout();
-});
+}
 
 function release(e) {
   if (!cursor.dragging) return;
+  // Still on its way to the finger (a tap, a short press): it goes where the finger was.
+  const from = catching ? cursor.target : cursor.x;
   cursor.dragging = false; catching = false;
   let v = 0;
   if (e.type === 'pointerup' && trail.length > 1) {
     const a = trail[0], b = trail[trail.length - 1];
     if (b.t > a.t && e.timeStamp - b.t < 60) v = (b.x - a.x) / (b.t - a.t) * 1000;
   }
-  let target = clamp(cursor.x + project(v), geo.x0 + 2, geo.xNow);
+  let target = clamp(from + project(v), geo.x0 + 2, geo.xNow);
   // The present is a magnet: a throw that lands near it goes all the way.
   if (geo.xNow - target < 36) target = geo.xNow;
   springTo(target, { velocity: v, damping: Math.abs(v) > 250 ? 0.82 : 1, response: 0.36 });
 }
-canvas.addEventListener('pointerup', release);
-canvas.addEventListener('pointercancel', release);
+scrub(canvas, { begin: grab, move: drag, end: release });
 
 canvas.addEventListener('keydown', (e) => {
   const step = (geo.xNow - geo.x0) / 144;   // ten minutes

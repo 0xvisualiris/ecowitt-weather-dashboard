@@ -1,8 +1,8 @@
-// Vorhersage: the coming hours as a landscape that has not happened yet, and each day in detail.
+// Vorhersage: the coming hours as a line chart, and each day in detail.
 
 import {
-  $, el, getJson, store, stationReady, CONDITION, num, clock, weekday, dayMonth, show, conv, temp as tempText,
-  clamp, lerp, skyAt, mix, rgb, fitCanvas, canvasFont, drawCondition, HOUR,
+  $, el, getJson, store, stationReady, CONDITION, num, weekday, dayMonth, show, conv, metricConv, temp as tempText,
+  clamp, lerp, fitCanvas, canvasFont, drawCondition, scrub, HOUR,
 } from './lib.js';
 
 const state = { hours: [], source: '', synthetic: false, cursor: 0, built: false, loadedAt: 0 };
@@ -46,88 +46,98 @@ function renderReadout() {
   canvas.setAttribute('aria-valuetext', `${$('fcWhen').textContent}: ${num(h.temp, 1)} Grad, ${parts.join(', ')}`);
 }
 
+// Round axis steps: 1, 2 or 5 times a power of ten.
+function niceStep(span, target) {
+  const raw = span / target, pow = 10 ** Math.floor(Math.log10(raw)), n = raw / pow;
+  return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * pow;
+}
+
+// A line chart like the one under Verlauf: temperature on a value scale, the sky every few hours
+// above it and the chance of rain as bars in a strip of its own below.
 function draw() {
   if (canvas.offsetParent === null) return;
   const { ctx, W, H } = fitCanvas(canvas);
-  const hours = shown(), cur = store.cur, astro = cur?.astro;
+  ctx.clearRect(0, 0, W, H);
+  const hours = shown(), c = metricConv('temp'), colour = '#ffcf5c';
   view = null;
-  if (hours.length < 2) { ctx.fillStyle = rgb(skyAt(Date.now(), astro).zenith); ctx.fillRect(0, 0, W, H); return; }
+  if (hours.length < 2) return;
 
-  const padL = 22, padR = 22, t0 = hours[0].t, t1 = hours[hours.length - 1].t;
+  const padL = 52, padR = 14, top = 76, base = H - 116, rainTop = H - 84, rainBase = H - 34;
+  const t0 = hours[0].t, t1 = hours[hours.length - 1].t;
   const X = (t) => padL + (t - t0) / (t1 - t0) * (W - padL - padR);
-  const cover = (t) => hours[clamp(Math.round((t - t0) / HOUR), 0, hours.length - 1)].conditionCode;
+  let lo = Math.min(...hours.map((h) => c.f(h.temp))), hi = Math.max(...hours.map((h) => c.f(h.temp)));
+  if (hi - lo < 1e-6) hi = lo + 1;
+  const step = niceStep(hi - lo, H < 400 ? 3 : 4);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step;
+  const Y = (v) => lerp(base, top, (v - lo) / (hi - lo));
+  const digits = step < 1 ? 1 : 0;
 
-  // The sky passes through day and night from left to right.
-  for (let x = 0; x < W; x += 4) {
-    const t = t0 + (x - padL) / (W - padL - padR) * (t1 - t0);
-    // Averaged over a few hours, so dawn and dusk are a slow change of light instead of a hard stripe.
-    const around = [-2, -1, 0, 1, 2].map((k) => skyAt(t + k * 0.75 * HOUR, astro, cover(t)));
-    const avg = (key) => around.reduce((sum, s) => sum.map((v, i) => v + s[key][i] / around.length), [0, 0, 0]);
-    const g = ctx.createLinearGradient(0, 0, 0, H * 0.8);
-    g.addColorStop(0, rgb(avg('zenith'))); g.addColorStop(1, rgb(avg('horizon')));
-    ctx.fillStyle = g; ctx.fillRect(x, 0, 5, H);
+  // Horizontal rules with their values
+  ctx.font = canvasFont(12, 400); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let v = lo; v <= hi + step / 2; v += step) {
+    const y = Math.round(Y(v)) + 0.5;
+    ctx.strokeStyle = 'rgba(243,246,242,0.13)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(243,246,242,0.62)';
+    ctx.fillText(`${num(v, digits)}${c.unit}`, padL - 10, y);
   }
 
-  const top = H * 0.36, base = H - 104;
-  let lo = Math.min(...hours.map((h) => h.temp)), hi = Math.max(...hours.map((h) => h.temp));
-  if (hi - lo < 2) { hi += 1; lo -= 1; }
-  const Y = (v) => lerp(base, top, (v - lo) / (hi - lo));
+  // The rain strip: its own 0 and 100 % rules
+  for (const y of [rainTop, rainBase]) {
+    ctx.strokeStyle = 'rgba(243,246,242,0.13)'; ctx.beginPath(); ctx.moveTo(padL, Math.round(y) + 0.5); ctx.lineTo(W - padR, Math.round(y) + 0.5); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(243,246,242,0.62)';
+  ctx.fillText('100 %', padL - 10, rainTop); ctx.fillText('Regen', padL - 10, (rainTop + rainBase) / 2);
+  ctx.textBaseline = 'alphabetic';
 
   // Days: a faint line at each midnight and the name of the day
-  ctx.font = canvasFont(14, 600); ctx.textAlign = 'left';
+  ctx.font = canvasFont(13, 600); ctx.textAlign = 'left';
   const starts = [t0];
   for (const h of hours) if (new Date(h.t).getHours() === 0 && h.t !== t0) starts.push(h.t);
   starts.forEach((t, i) => {
-    const x = X(t), next = i + 1 < starts.length ? X(starts[i + 1]) : W;
-    if (i) { ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, 14); ctx.lineTo(x, H - 30); ctx.stroke(); }
-    if (next - x > 74) { ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillText(dayWord(t), x + (i ? 10 : 0), 28); }
+    const x = X(t), next = i + 1 < starts.length ? X(starts[i + 1]) : W - padR;
+    if (i) { ctx.strokeStyle = 'rgba(243,246,242,0.22)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, 6); ctx.lineTo(Math.round(x) + 0.5, rainBase); ctx.stroke(); }
+    if (next - x > 64) { ctx.fillStyle = 'rgba(243,246,242,0.95)'; ctx.fillText(dayWord(t), x + (i ? 8 : 0), 20); }
   });
 
-  // What the sky does, every three hours
-  const step = W < 700 ? 3 : hours.length > 48 ? 3 : 2;
-  hours.forEach((h, i) => { if (i % step === 1) drawCondition(ctx, h.conditionCode, X(h.t), 62, W < 700 ? 8 : 9); });
+  // What the sky does, every few hours
+  const every = W < 700 ? 3 : hours.length > 48 ? 3 : 2;
+  hours.forEach((h, i) => { if (i % every === 1) drawCondition(ctx, h.conditionCode, X(h.t), 48, W < 700 ? 8 : 9); });
 
-  // The land ahead: the forecast temperature. Dashed, because it is only expected.
-  const ground = skyAt(Date.now(), astro).ground;
-  ctx.fillStyle = rgb(ground, 0.94);
-  ctx.beginPath(); ctx.moveTo(0, H); ctx.lineTo(0, Y(hours[0].temp));
-  for (const h of hours) ctx.lineTo(X(h.t), Y(h.temp));
-  ctx.lineTo(W, Y(hours[hours.length - 1].temp)); ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.6; ctx.setLineDash([5, 5]);
-  ctx.beginPath(); hours.forEach((h, i) => (i ? ctx.lineTo(X(h.t), Y(h.temp)) : ctx.moveTo(X(h.t), Y(h.temp)))); ctx.stroke();
-  ctx.setLineDash([]);
+  // Temperature: a soft fill under the line, fading towards the axis
+  const path = () => { ctx.beginPath(); hours.forEach((h, i) => (i ? ctx.lineTo(X(h.t), Y(c.f(h.temp))) : ctx.moveTo(X(h.t), Y(c.f(h.temp))))); };
+  const fill = ctx.createLinearGradient(0, top, 0, base);
+  fill.addColorStop(0, colour); fill.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 0.28; ctx.fillStyle = fill;
+  path(); ctx.lineTo(X(t1), base); ctx.lineTo(X(t0), base); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = colour; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  path(); ctx.stroke();
 
-  // Temperatures written on the ridge
-  ctx.font = canvasFont(13, 600); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,255,255,0.95)';
-  const every = W < 700 ? 6 : hours.length > 48 ? 6 : 4;
-  hours.forEach((h, i) => { if (i % every === 2 && Math.abs(i - state.cursor) > 1) ctx.fillText(tempText(h.temp, 0), X(h.t), Y(h.temp) - 10); });
-
-  // Chance of rain as columns rising from the bottom of the land
-  const colW = Math.max(2, (W - padL - padR) / hours.length * 0.6), rainBase = H - 40;
+  // Chance of rain as bars
+  const colW = clamp((W - padL - padR) / hours.length * 0.7, 2, 14);
+  ctx.fillStyle = '#7fc4ff';
   for (const h of hours) {
     if (!(h.pop > 0)) continue;
-    const height = h.pop / 100 * 46;
-    ctx.fillStyle = `rgba(150,205,255,${0.3 + 0.6 * h.pop / 100})`;
-    ctx.fillRect(X(h.t) - colW / 2, rainBase - height, colW, height);
+    const height = h.pop / 100 * (rainBase - rainTop), r = Math.min(colW / 2, 3);
+    ctx.beginPath(); ctx.roundRect(X(h.t) - colW / 2, rainBase - height, colW, height, [r, r, 0, 0]); ctx.fill();
   }
-  ctx.font = canvasFont(12, 400); ctx.fillStyle = 'rgba(243,246,242,0.6)'; ctx.textAlign = 'left';
-  ctx.fillText('Regenrisiko', padL, rainBase - 52);
 
   // Hours along the bottom
-  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(243,246,242,0.62)'; ctx.font = canvasFont(12, 400); ctx.textAlign = 'center';
   hours.forEach((h) => {
     const hour = new Date(h.t).getHours(), x = X(h.t);
-    if (hour % (W < 700 ? 6 : hours.length > 48 ? 6 : 3) === 0 && x > 30 && x < W - 30) ctx.fillText(`${hour} Uhr`, x, H - 14);
+    if (hour % (W < 700 ? 6 : hours.length > 48 ? 6 : 3) === 0 && x > padL + 16 && x < W - padR - 16) ctx.fillText(`${hour} Uhr`, x, H - 10);
   });
 
   // Cursor
-  const c = hours[state.cursor];
-  if (c) {
-    const x = X(c.t), y = Y(c.temp);
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(x, 78); ctx.lineTo(x, rainBase); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(x, y, 11, 0, 6.283); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 5, 0, 6.283); ctx.fill();
+  const cur = hours[state.cursor];
+  if (cur) {
+    const x = X(cur.t), y = Y(c.f(cur.temp));
+    ctx.strokeStyle = 'rgba(243,246,242,0.5)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, top); ctx.lineTo(Math.round(x) + 0.5, rainBase); ctx.stroke();
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--ground') || '#12261f';
+    ctx.beginPath(); ctx.arc(x, y, 6.5, 0, 6.283); ctx.fill();
+    ctx.fillStyle = colour; ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 6.283); ctx.fill();
   }
   view = { X, hours };
 }
@@ -203,8 +213,8 @@ function renderDays() {
 
 function build() {
   state.built = true;
-  canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e.clientX); });
-  canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); pick(e.clientX); });
+  canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !e.buttons) pick(e.clientX); });   // hover
+  scrub(canvas, { begin: (e) => pick(e.clientX), move: (e) => pick(e.clientX), end: () => {} });
   canvas.addEventListener('keydown', (e) => {
     const n = shown().length;
     const next = { ArrowLeft: state.cursor - 1, ArrowRight: state.cursor + 1, PageUp: state.cursor + 6, PageDown: state.cursor - 6, Home: 0, End: n - 1 }[e.key];

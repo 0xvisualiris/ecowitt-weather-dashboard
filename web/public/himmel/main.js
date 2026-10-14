@@ -1,7 +1,7 @@
 // Routing between the views, the sliding mark under the active nav item, and the page colours
 // while the "Jetzt" view (which normally sets them) is not on screen.
 
-import { $, store, skyAt, applyTheme } from './lib.js';
+import { $, store, skyAt, applyTheme, syncBarColour } from './lib.js';
 import * as history from './history.js';
 import * as forecast from './forecast.js';
 import * as alerts from './alerts.js';
@@ -36,7 +36,7 @@ function route() {
     window.scrollTo(0, 0);
     placeMark(true);
     window.dispatchEvent(new Event('viewchange'));
-    if (view !== 'now') themeFromNow();
+    if (view !== 'now') themeFromNow(); else syncBarColour();
   }
   modules[view]?.enter?.(params);
 }

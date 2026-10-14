@@ -3,6 +3,18 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.5.2 – 2026-10-14
+
+### Fixed
+- Himmel: the Vorhersage chart is now a plain line chart with a temperature scale, like the Verlauf charts, with the chance of rain in its own strip below. The landscape it replaces was hard to read, with stripes in the sky and labels on top of the line. (#46)
+- Himmel: on iPhone the strip behind the status bar on Jetzt now shows the sky colour instead of a dark band above it. (#46)
+- Himmel: swiping up or down over a chart on a phone scrolls the page instead of moving the chart. A sideways swipe still moves through the day, and a tap moves the cursor to that spot. (#46)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v1.5.1 – 2026-10-13
 
 Documentation release. No changes to the dashboard itself.

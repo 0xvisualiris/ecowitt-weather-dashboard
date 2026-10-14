@@ -30,8 +30,12 @@
 * { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; }
-/* Safari tints the strip behind the status bar with the page background, so on Jetzt that is the sky. */
+/* Safari 26 tints the strip behind the status bar with the background colour of html or body, so on
+   Jetzt both are the sky; the ground is painted on top of body's colour from the bottom of the sky down. */
 html:has(body[data-view="now"]) { background: var(--zenith); }
+body[data-view="now"] {
+  background: linear-gradient(var(--ground), var(--ground)) 0 var(--sky-h) / 100% 100% no-repeat var(--zenith);
+}
 
 body {
   margin: 0;
@@ -47,9 +51,10 @@ p, h2, ol { margin: 0; }
 
 /* ---------- Sky: the scene and everything that floats in it ---------- */
 
+:root { --sky-h: clamp(35rem, 86svh, 56rem); }
 .sky {
   position: relative;
-  height: clamp(35rem, 86svh, 56rem);
+  height: var(--sky-h);
   overflow: hidden;
   background: var(--zenith);
 }
@@ -332,7 +337,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
 }
 
 @media (max-width: 40rem) {
-  .sky { height: clamp(34rem, 88svh, 46rem); }
+  :root { --sky-h: clamp(34rem, 88svh, 46rem); }
   .top { flex-wrap: wrap; }
   .status { font-size: 0.85rem; margin-left: auto; }
   .nav { order: 3; width: 100%; margin: 0 -0.8rem; overflow-x: auto; scrollbar-width: none; }

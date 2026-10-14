@@ -3,6 +3,16 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.5.3 – 2026-10-14
+
+### Fixed
+- Himmel: on iPhone (Safari 26) the strip behind the status bar on Jetzt still showed a dark band instead of the sky colour. (#49)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v1.5.2 – 2026-10-14
 
 ### Fixed

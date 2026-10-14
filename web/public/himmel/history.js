@@ -3,7 +3,7 @@
 
 import {
   $, el, getJson, store, METRICS, metricConv, conv, show, units, num, clock, weekday, weekdayShort, dateShort, dateLong, dayMonth, monthName,
-  clamp, lerp, fitCanvas, canvasFont, DAY, HOUR,
+  clamp, lerp, fitCanvas, canvasFont, scrub, DAY, HOUR,
 } from './lib.js';
 
 const RANGES = { day: 'Tag', week: 'Woche', month: 'Monat', year: 'Jahr' };
@@ -242,8 +242,8 @@ async function loadRecords() {
 
 function build() {
   state.built = true;
-  canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || e.buttons) pick(e.clientX); });
-  canvas.addEventListener('pointerdown', (e) => { canvas.setPointerCapture(e.pointerId); pick(e.clientX); });
+  canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !e.buttons) pick(e.clientX); });   // hover
+  scrub(canvas, { begin: (e) => pick(e.clientX), move: (e) => pick(e.clientX), end: () => {} });
   canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') { state.cursor = null; draw(); renderReadout(); } });
   canvas.addEventListener('keydown', (e) => {
     const n = state.data?.points.length ?? 0;

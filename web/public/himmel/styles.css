@@ -30,6 +30,8 @@
 * { box-sizing: border-box; }
 
 html { -webkit-text-size-adjust: 100%; }
+/* Safari tints the strip behind the status bar with the page background, so on Jetzt that is the sky. */
+html:has(body[data-view="now"]) { background: var(--zenith); }
 
 body {
   margin: 0;

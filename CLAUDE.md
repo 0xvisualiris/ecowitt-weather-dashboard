@@ -192,7 +192,9 @@ rain radar: DWD RADOLAN RY composite (opendata.dwd.de, 5-min poll, bz2 → bunzi
 - `statistics(ids, start, end, period)` → `{ entity_id: [{ start: ms, mean, min, max, change, state }] }`, where `period` is `hour`, `day` or `month`
 - Events: `update`, `status`, `config` (HA `get_config`), `forecast`
 
-HA calls used: `auth`, `get_config`, `subscribe_entities` (compressed diffs `a`/`c`/`r`), `weather/subscribe_forecast` (daily), `history/history_during_period` (`minimal_response`, `no_attributes`), `recorder/statistics_during_period`. Reconnects with exponential backoff (max 60 s).
+HA calls used: `auth`, `get_config`, `subscribe_entities` (compressed diffs `a`/`c`/`r`), `weather/subscribe_forecast` (daily), `history/history_during_period` (`minimal_response`, `no_attributes`), `recorder/statistics_during_period`, `ping`.
+
+**HA reconnect** (`ha.js`): every way a connection can end goes through `_drop(ws, reason)`, which ignores sockets that are no longer current (so a late `close` from an old socket can't kill its replacement), rejects pending requests and schedules a reconnect with exponential backoff (max 60 s). Besides the `close` event it is triggered by: a 20 s handshake timeout (Node's WebSocket has none – a proxy or half-started HA that accepts TCP but never answers would otherwise hang forever), a failed `_afterAuth` (HA still starting – used to leave the source "connected" with no subscription), a missed `pong` to the 30 s `ping` heartbeat (a connection that died without a close, e.g. HA's host rebooted), and no entity event at all for 15 min (re-subscribes from scratch). The backoff only resets after setup succeeds.
 
 ### Sensors and metrics
 

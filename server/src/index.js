@@ -2,8 +2,9 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { loadConfig } from './config.js';
+import { loadConfig, SENSOR_KEYS } from './config.js';
 import { HomeAssistantSource } from './ha.js';
+import { EcowittSource } from './ecowitt.js';
 import { DemoSource, DEMO_SENSORS, DEMO_DEVICES } from './demo.js';
 import { DwdForecast } from './dwd.js';
 import { RadarSource } from './radar.js';
@@ -23,6 +24,9 @@ if (cfg.station.timezone) process.env.TZ = cfg.station.timezone;
 // touch them either (checked again in handleAdmin, not just hidden client-side).
 const admin = new AdminStore(cfg.server.data_dir);
 const locked = {
+  source: cfg._locked.source,
+  ecowittHost: !!cfg.ecowitt.host,
+  ecowittHostEnv: cfg._locked.ecowittHostEnv,
   haUrl: !!cfg.homeassistant.url,
   haUrlEnv: cfg._locked.haUrlEnv,
   haToken: !!cfg.homeassistant.token,
@@ -43,6 +47,8 @@ const locked = {
   const s = admin.getSettings();
   if (!cfg.homeassistant.url) cfg.homeassistant.url = s.homeassistant.url;
   if (!cfg.homeassistant.token) cfg.homeassistant.token = s.homeassistant.token;
+  if (!locked.source && s.source) cfg.source = s.source;
+  if (!cfg.ecowitt.host) cfg.ecowitt.host = s.ecowitt.host;
   for (const [k, v] of Object.entries(s.sensors)) if (!cfg.sensors[k] && v) cfg.sensors[k] = v;
   if (!cfg.forecast.entity) cfg.forecast.entity = s.forecast.entity || null;
   if (!cfg.forecast.dwdStationId) cfg.forecast.dwdStationId = s.forecast.dwdStationId || null;
@@ -56,26 +62,31 @@ const locked = {
   if (!locked.design && s.design) cfg.ui.design = s.design;
 }
 
-// No HA credentials anywhere (neither config.yaml nor the admin page) –
-// force demo mode instead of crashing, so the admin login page is still
-// reachable to set it up. This also covers config.yaml being entirely
-// absent, which config.js already defaults to demo mode for on its own.
-// `needsSetup` (exposed via /api/config) is true exactly when demo mode is
-// active *because* nothing is configured – not when `server.demo: true` was
-// deliberately set in config.yaml alongside real HA credentials being beside
-// the point – so the frontend can land first-time visitors on the admin page
-// without ever bothering a deployment that's fully configured via
-// config.yaml and simply doesn't use the admin page at all.
+// Pick the data source: whatever config.yaml / the admin page chose,
+// otherwise whichever one is configured (Home Assistant first, so existing
+// setups never change behaviour). Nothing configured anywhere – force demo
+// mode instead of crashing, so the admin login page is still reachable to set
+// it up. This also covers config.yaml being entirely absent, which config.js
+// already defaults to demo mode for on its own. `needsSetup` (exposed via
+// /api/config) is true exactly when demo mode is active *because* nothing is
+// configured – not when `server.demo: true` was deliberately set in
+// config.yaml alongside a real source – so the frontend can land first-time
+// visitors on the admin page without ever bothering a deployment that's fully
+// configured via config.yaml and simply doesn't use the admin page at all.
 const haConfigured = !!(cfg.homeassistant.url && cfg.homeassistant.token);
-if (!haConfigured) cfg.server.demo = true;
-const needsSetup = cfg.server.demo && !haConfigured;
+const ecowittConfigured = !!cfg.ecowitt.host;
+cfg.source ??= haConfigured ? 'homeassistant' : ecowittConfigured ? 'ecowitt' : 'homeassistant';
+const sourceConfigured = cfg.source === 'ecowitt' ? ecowittConfigured : haConfigured;
+if (!sourceConfigured) cfg.server.demo = true;
+const needsSetup = cfg.server.demo && !sourceConfigured;
 if (needsSetup) {
-  console.warn('[server] Home Assistant is not configured yet (config.yaml or the admin page) – starting in DEMO MODE until set up at /#/admin/login');
+  const what = cfg.source === 'ecowitt' ? 'the Ecowitt gateway address' : 'Home Assistant';
+  console.warn(`[server] ${what} is not configured yet (config.yaml or the admin page) – starting in DEMO MODE until set up at /#/admin/login`);
 }
 
 let source;
 if (cfg.server.demo) {
-  console.log('[server] DEMO MODE – synthetic data, Home Assistant is not contacted');
+  console.log('[server] DEMO MODE – synthetic data, no weather station is contacted');
   if (!Object.keys(cfg.sensors).length) cfg.sensors = { ...DEMO_SENSORS };
   if (!cfg.station.devices.length) cfg.station.devices = DEMO_DEVICES;
   if (!cfg.station.since) cfg.station.since = '2024-04-01';
@@ -83,6 +94,30 @@ if (cfg.server.demo) {
   if (cfg.station.name === 'Wetterstation') cfg.station.name = 'Wetterstation Demo';
   cfg.forecast.label ??= 'Demo';
   source = new DemoSource(cfg.sensors);
+} else if (cfg.source === 'ecowitt') {
+  source = new EcowittSource({ ...cfg.ecowitt, dataDir: cfg.server.data_dir });
+  // The gateway itself says which sensors exist; ask it once so the dashboard
+  // shows exactly the cards it can fill. The answer is cached in DATA_DIR, so
+  // a restart while the gateway is unreachable still knows them.
+  const cacheFile = path.join(cfg.server.data_dir, 'ecowitt', 'detected.json');
+  let detected = null;
+  try {
+    detected = await source.probe();
+    try { fs.writeFileSync(cacheFile, JSON.stringify(detected)); } catch { /* not fatal */ }
+  } catch (e) {
+    try { detected = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch { /* first start */ }
+    console.warn(`[ecowitt] gateway ${cfg.ecowitt.host} not reachable at startup (${e.cause?.message || e.message})` +
+      (detected ? ' – using the sensors found last time' : ' – showing every sensor until it answers'));
+    if (detected) { source.model = detected.model; source.sensors = detected.sensors; }
+  }
+  // Entity ids of this source are the sensor keys themselves; config.yaml
+  // `sensors:` entries (whatever their value) narrow the selection instead.
+  // The admin page keeps showing (and saving) the Home Assistant mapping.
+  cfg.configuredSensors = cfg.sensors;
+  const keys = Object.keys(cfg.sensors).length ? Object.keys(cfg.sensors) : (detected?.keys ?? SENSOR_KEYS);
+  cfg.sensors = Object.fromEntries(keys.filter(k => SENSOR_KEYS.includes(k)).map(k => [k, k]));
+  if (!cfg.station.devices.length) cfg.station.devices = source.autoDevices();
+  console.log(`[ecowitt] gateway ${cfg.ecowitt.host}${source.model ? ` (${source.model})` : ''}: ${Object.keys(cfg.sensors).join(', ')}`);
 } else {
   const extra = cfg.station.devices.flatMap(d => [d.battery, d.signal]).filter(Boolean);
   const alertEntities = cfg.alerts.flatMap(a => [...(a.all || []), ...(a.any || [])])

@@ -1,4 +1,4 @@
-// Verwaltung: sign in, then set up the station (Home Assistant, forecast, sensors, station details,
+// Verwaltung: sign in, then set up the station (data source, forecast, sensors, station details,
 // devices, alert rules, password and two-factor sign-in). Talks to the dashboard's own admin API.
 
 import { $, el, getJson, postJson, METRICS } from './lib.js';
@@ -106,6 +106,8 @@ function makeDraft() {
   const s = settings, loc = s.station.publicLocation;
   dirty = { devices: false, alerts: false, restoreAlerts: false };
   draft = {
+    source: s.source ?? 'homeassistant',
+    ecowitt: { host: s.ecowitt?.host ?? '' },
     ha: { url: s.homeassistant.url ?? '', token: '' },
     forecast: { dwdStationId: s.forecast.dwdStationId ?? '', biasHours: String(s.forecast.biasHours ?? 6), entity: s.forecast.entity ?? '', label: s.forecast.label ?? '' },
     sensors: Object.fromEntries(Object.keys(SENSORS).map((k) => [k, s.sensors?.[k] ?? ''])),
@@ -121,6 +123,8 @@ function buildPatch() {
   const put = (group, key, value) => { (patch[group] ??= {})[key] = value; };
   const number = (text) => { const n = Number(String(text).replace(',', '.')); return text === '' || !Number.isFinite(n) ? null : n; };
 
+  if (d.source !== s.source) patch.source = d.source;
+  if (d.ecowitt.host.trim() !== (s.ecowitt?.host ?? '')) put('ecowitt', 'host', d.ecowitt.host);
   if (d.ha.url.trim() !== (s.homeassistant.url ?? '')) put('homeassistant', 'url', d.ha.url);
   if (d.ha.token.trim()) put('homeassistant', 'token', d.ha.token);
 
@@ -257,6 +261,25 @@ function renderSettings() {
   const saveNote = el('p.form-msg', { role: 'status' });
   const lockNote = (flag, extra) => (flag ? LOCKED : extra);
 
+  // Only the fields of the chosen data source are shown.
+  const haFields = el('div.grid', {},
+    field('Adresse', input(draft.ha, 'url', { placeholder: 'http://homeassistant.local:8123', disabled: L.haUrl }), lockNote(L.haUrl)),
+    field('Zugriffstoken', input(draft.ha, 'token', { type: 'password', placeholder: settings.homeassistant.tokenSet ? 'Gesetzt. Leer lassen, um ihn zu behalten.' : 'Long-Lived Access Token einfügen', disabled: L.haToken, autocomplete: 'new-password' }), lockNote(L.haToken)));
+  const ecowittFields = el('div.grid', {},
+    field('Gateway-Adresse', input(draft.ecowitt, 'host', { placeholder: '192.168.1.50', disabled: L.ecowittHost }),
+      L.ecowittHost ? (L.ecowittHostEnv ? 'Durch die Umgebungsvariable ECOWITT_HOST festgelegt.' : LOCKED) : 'IP-Adresse oder Hostname des Gateways (GW1100, GW2000, GW3000, …) im lokalen Netz.'));
+  const sensorsSection = section('Sensoren', 'Zu jedem Messwert die Entität aus Home Assistant. Leere Felder werden auf der Station ausgeblendet.',
+    el('div.grid', {}, ...Object.entries(SENSORS).map(([k, label]) =>
+      field(label, input(draft.sensors, k, { placeholder: 'sensor.…', disabled: L.sensors?.[k] }), lockNote(L.sensors?.[k])))));
+  const showSource = () => {
+    const ecowitt = draft.source === 'ecowitt';
+    haFields.hidden = ecowitt;
+    ecowittFields.hidden = !ecowitt;
+    sensorsSection.hidden = ecowitt;
+  };
+  const sourceSelect = Object.assign(select(draft, 'source', { homeassistant: 'Home Assistant', ecowitt: 'Ecowitt-Gateway direkt' }, showSource), { disabled: !!L.source });
+  showSource();
+
   // These three fields can also be filled from a map, so the inputs are kept to write the choice back into them.
   const stationInput = input(draft.forecast, 'dwdStationId', { placeholder: 'z. B. 10384 oder L771', disabled: L.dwdStationId });
   const latInput = input(draft.station, 'lat', { inputMode: 'decimal', placeholder: 'z. B. 50,1', disabled: L.stationPublicLocation });
@@ -292,17 +315,16 @@ function renderSettings() {
       el('p.actions', {},
         el('button.btn', { type: 'button', onclick: () => renderPassword(false) }, 'Passwort ändern'),
         el('button.btn', { type: 'button', onclick: async () => { await postJson('/api/admin/logout', {}).catch(() => {}); location.hash = '#/'; } }, 'Abmelden'))),
-    settings.demo ? el('p.banner', {}, 'Die Station zeigt gerade Demo-Daten. Trage unten Home Assistant ein, um echte Messwerte zu sehen.') : null,
+    settings.demo ? el('p.banner', {}, 'Die Station zeigt gerade Demo-Daten. Trage unten Home Assistant oder ein Ecowitt-Gateway ein, um echte Messwerte zu sehen.') : null,
 
     section('Erscheinungsbild', 'Die Station hat zwei Oberflächen mit denselben Daten: „Klassisch“ mit Karten, auf Deutsch und Englisch, und „Himmel“, das den Tag als Landschaft zeigt, nur auf Deutsch. Besucher sehen die hier gewählte.',
       el('div.grid', {},
         field('Oberfläche', Object.assign(select(draft, 'design', { classic: 'Klassisch', himmel: 'Himmel' }), { disabled: !!L.design }),
           L.design ? LOCKED : 'Nach dem Speichern startet die Station neu und zeigt die gewählte Oberfläche.'))),
 
-    section('Home Assistant', 'Von hier holt die Station ihre Messwerte. Die Adresse und der Token bleiben auf dem Server.',
-      el('div.grid', {},
-        field('Adresse', input(draft.ha, 'url', { placeholder: 'http://homeassistant.local:8123', disabled: L.haUrl }), lockNote(L.haUrl)),
-        field('Zugriffstoken', input(draft.ha, 'token', { type: 'password', placeholder: settings.homeassistant.tokenSet ? 'Gesetzt. Leer lassen, um ihn zu behalten.' : 'Long-Lived Access Token einfügen', disabled: L.haToken, autocomplete: 'new-password' }), lockNote(L.haToken)))),
+    section('Datenquelle', 'Von hier holt die Station ihre Messwerte. Direkt vom Ecowitt-Gateway braucht es kein Home Assistant: die Station erkennt die Sensoren selbst und speichert den Verlauf. Adressen und Token bleiben auf dem Server.',
+      el('div.grid', {}, field('Messwerte von', sourceSelect, L.source ? LOCKED : null)),
+      haFields, ecowittFields),
 
     section('Vorhersage', 'Mit einer DWD-Station kommt die Vorhersage stundengenau aus dem MOSMIX-Modell. Ohne sie wird die Wetter-Entität aus Home Assistant verwendet.',
       el('div.grid', {},
@@ -312,9 +334,7 @@ function renderSettings() {
         field('Quellenangabe', input(draft.forecast, 'label', { placeholder: 'z. B. DWD MOSMIX' }))),
       stationMap),
 
-    section('Sensoren', 'Zu jedem Messwert die Entität aus Home Assistant. Leere Felder werden auf der Station ausgeblendet.',
-      el('div.grid', {}, ...Object.entries(SENSORS).map(([k, label]) =>
-        field(label, input(draft.sensors, k, { placeholder: 'sensor.…', disabled: L.sensors?.[k] }), lockNote(L.sensors?.[k]))))),
+    sensorsSection,
 
     section('Station', 'Was Besucher über die Station lesen.',
       el('div.grid', {},

@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SENSOR_KEYS, DEFAULT_ALERTS, DESIGNS, normalizeAlerts } from './config.js';
+import { SENSOR_KEYS, DEFAULT_ALERTS, DESIGNS, SOURCES, normalizeAlerts } from './config.js';
 import { generateSecret, verifyTotp, otpauthUrl } from './totp.js';
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 h
@@ -30,7 +30,9 @@ function timingSafeEqualHex(a, b) {
 const emptyTotp = () => ({ enabled: false, secret: null });
 
 const emptySettings = () => ({
+  source: '', // '' = not chosen here, defer to config.yaml's source or whichever is configured; otherwise one of SOURCES
   homeassistant: { url: '', token: '' },
+  ecowitt: { host: '' },
   sensors: {},
   forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '' },
   alerts: null, // null = not customized, defer to config.yaml-or-DEFAULT_ALERTS; otherwise a normalizeAlerts()-validated array
@@ -316,8 +318,10 @@ export class AdminStore {
   getPublicSettings(locked, cfg, timezone) {
     return {
       locked,
+      source: cfg.source,
       homeassistant: { url: cfg.homeassistant.url, tokenSet: !!cfg.homeassistant.token },
-      sensors: cfg.sensors,
+      ecowitt: { host: cfg.ecowitt.host },
+      sensors: cfg.configuredSensors ?? cfg.sensors,
       forecast: {
         entity: cfg.forecast.entity || '',
         dwdStationId: cfg.forecast.dwdStationId || '',
@@ -388,6 +392,11 @@ export class AdminStore {
       if (!locked.haToken && typeof patch.homeassistant.token === 'string' && patch.homeassistant.token.trim()) {
         next.settings.homeassistant.token = patch.homeassistant.token.trim();
       }
+    }
+
+    if (!locked.source && SOURCES.includes(patch.source)) next.settings.source = patch.source;
+    if (!locked.ecowittHost && typeof patch.ecowitt?.host === 'string') {
+      next.settings.ecowitt = { ...next.settings.ecowitt, host: patch.ecowitt.host.trim().replace(/\/+$/, '') };
     }
 
     if (patch.sensors && typeof patch.sensors === 'object') {

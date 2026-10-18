@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type Design, type Device, type GeoPoint, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
+import { type AdminSession, type AdminSettings, type AlertCondition, type AlertRule, type DataSource, type Design, type Device, type GeoPoint, type MetricKey, METRIC_META, metricLabel, postJson, useApi } from '../lib';
 import { go } from '../App';
 import { LangContext, t, translateApiError, type Lang } from '../i18n';
 import { DwdStationMap } from '../components/DwdStationMap';
@@ -36,6 +36,8 @@ const newDevice = (): Device => ({ id: '', name: '', short: '', role: '', batter
 export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => void }) {
   const { data, error: loadError } = useApi<AdminSettings>('/api/admin/settings');
   const { lang, setLang } = useContext(LangContext);
+  const [dataSource, setDataSource] = useState<DataSource>('homeassistant');
+  const [ecowittHost, setEcowittHost] = useState('');
   const [haUrl, setHaUrl] = useState('');
   const [haToken, setHaToken] = useState('');
   const [sensors, setSensors] = useState<Record<string, string>>({});
@@ -59,6 +61,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
 
   useEffect(() => {
     if (!data) return;
+    setDataSource(data.source);
+    setEcowittHost(data.ecowitt.host);
     setHaUrl(data.homeassistant.url);
     setSensors(data.sensors);
     setEntity(data.forecast.entity);
@@ -84,6 +88,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
     setSaving(true);
     try {
       await postJson('/api/admin/settings', {
+        source: dataSource,
+        ecowitt: { host: ecowittHost },
         homeassistant: { url: haUrl, token: haToken },
         sensors,
         forecast: { entity, dwdStationId, biasHours, label },
@@ -148,16 +154,36 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
         </section>
 
         <section className="card lg stack">
-          <div className="eyebrow"><span>{t('admin.ha')}</span></div>
-          <Field label={t('admin.haUrl')} locked={data.locked.haUrl} lockedReason={data.locked.haUrlEnv ? t('admin.lockedEnvUrl') : undefined}>
-            <input className="input" value={haUrl} onChange={e => setHaUrl(e.target.value)} disabled={data.locked.haUrl}
-              placeholder="http://homeassistant.local:8123" />
+          <div className="eyebrow"><span>{t('admin.source')}</span></div>
+          <Field label={t('admin.sourceLabelPicker')} locked={data.locked.source}>
+            <Segmented
+              kind="radio" ariaLabel={t('admin.sourceLabelPicker')}
+              items={[{ key: 'homeassistant', label: t('admin.ha'), disabled: data.locked.source }, { key: 'ecowitt', label: t('admin.ecowitt'), disabled: data.locked.source }]}
+              value={dataSource}
+              onChange={v => setDataSource(v as DataSource)}
+            />
           </Field>
-          <Field label={`${t('admin.token')}${data.homeassistant.tokenSet ? t('admin.tokenSetSuffix') : ''}`} locked={data.locked.haToken}
-            lockedReason={data.locked.haTokenEnv ? t('admin.lockedEnvToken') : undefined}>
-            <input className="input" type="password" value={haToken} onChange={e => setHaToken(e.target.value)} disabled={data.locked.haToken}
-              placeholder={data.homeassistant.tokenSet ? t('admin.tokenPlaceholderUnchanged') : t('admin.tokenPlaceholderEnter')} autoComplete="off" />
-          </Field>
+          {dataSource === 'ecowitt' ? (
+            <>
+              <Field label={t('admin.ecowittHost')} locked={data.locked.ecowittHost} lockedReason={data.locked.ecowittHostEnv ? t('admin.lockedEnvEcowitt') : undefined}>
+                <input className="input" value={ecowittHost} onChange={e => setEcowittHost(e.target.value)} disabled={data.locked.ecowittHost}
+                  placeholder="192.168.1.50" />
+              </Field>
+              <div className="faint" style={{ fontSize: '0.8125rem' }}>{t('admin.ecowittHint')}</div>
+            </>
+          ) : (
+            <>
+              <Field label={t('admin.haUrl')} locked={data.locked.haUrl} lockedReason={data.locked.haUrlEnv ? t('admin.lockedEnvUrl') : undefined}>
+                <input className="input" value={haUrl} onChange={e => setHaUrl(e.target.value)} disabled={data.locked.haUrl}
+                  placeholder="http://homeassistant.local:8123" />
+              </Field>
+              <Field label={`${t('admin.token')}${data.homeassistant.tokenSet ? t('admin.tokenSetSuffix') : ''}`} locked={data.locked.haToken}
+                lockedReason={data.locked.haTokenEnv ? t('admin.lockedEnvToken') : undefined}>
+                <input className="input" type="password" value={haToken} onChange={e => setHaToken(e.target.value)} disabled={data.locked.haToken}
+                  placeholder={data.homeassistant.tokenSet ? t('admin.tokenPlaceholderUnchanged') : t('admin.tokenPlaceholderEnter')} autoComplete="off" />
+              </Field>
+            </>
+          )}
         </section>
 
         <section className="card lg stack">
@@ -191,7 +217,8 @@ export function AdminScreen({ onSession }: { onSession: (s: AdminSession) => voi
 
         <section className="card lg stack">
           <div className="eyebrow"><span>{t('admin.sensors')}</span></div>
-          {SENSOR_FIELDS().map(([key, labelText]) => (
+          {dataSource === 'ecowitt' && <div className="faint" style={{ fontSize: '0.8125rem' }}>{t('admin.sensorsEcowittHint')}</div>}
+          {dataSource === 'homeassistant' && SENSOR_FIELDS().map(([key, labelText]) => (
             <Field key={key} label={labelText} locked={!!data.locked.sensors[key]}>
               <input className="input" value={sensors[key] || ''} disabled={!!data.locked.sensors[key]}
                 onChange={e => setSensors({ ...sensors, [key]: e.target.value })} placeholder={`sensor.${key}`} />

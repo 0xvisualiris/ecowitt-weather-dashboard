@@ -13,6 +13,9 @@ export const SENSOR_KEYS = [
   'lightning_distance', 'lightning_time', 'lightning_count',
 ];
 
+// Where readings come from: Home Assistant, or an Ecowitt gateway read directly.
+export const SOURCES = ['homeassistant', 'ecowitt'];
+
 // The frontends the server can serve, see ui.design below.
 export const DESIGNS = ['classic', 'himmel'];
 
@@ -93,6 +96,7 @@ export function loadConfig() {
 
   const station = raw.station || {};
   const ha = raw.homeassistant || {};
+  const ecowitt = raw.ecowitt || {};
   const server = raw.server || {};
   const ui = raw.ui || {};
   const cache = server.cache || {};
@@ -127,6 +131,16 @@ export function loadConfig() {
     homeassistant: {
       url: (process.env.HA_URL || ha.url || '').replace(/\/+$/, ''),
       token: process.env.HA_TOKEN || ha.token || '',
+    },
+    // Left null when config.yaml doesn't say: index.js then picks whichever
+    // source is configured (Home Assistant first, for existing setups).
+    source: SOURCES.includes(raw.source) ? raw.source : null,
+    ecowitt: {
+      host: (process.env.ECOWITT_HOST || ecowitt.host || '').trim().replace(/\/+$/, ''),
+      pollSeconds: Number(ecowitt.poll_seconds ?? 30),
+      rainGauge: ['auto', 'piezo', 'tipping'].includes(ecowitt.rain_gauge) ? ecowitt.rain_gauge : 'auto',
+      pressure: ecowitt.pressure === 'absolute' ? 'absolute' : 'relative',
+      keepRawDays: Number(ecowitt.keep_raw_days ?? 10),
     },
     server: {
       port: Number(process.env.PORT || server.port || 47813),
@@ -165,6 +179,10 @@ export function loadConfig() {
     },
   };
 
+  if (raw.source !== undefined && !SOURCES.includes(raw.source)) {
+    console.warn(`[config] unknown source "${raw.source}" ignored (allowed: ${SOURCES.join(', ')})`);
+  }
+
   for (const key of SENSOR_KEYS) {
     const v = raw.sensors?.[key];
     if (v) cfg.sensors[key] = String(v).trim();
@@ -196,6 +214,8 @@ export function loadConfig() {
     // rather than always blaming "config.yaml" even when that's not it.
     haUrlEnv: !!process.env.HA_URL,
     haTokenEnv: !!process.env.HA_TOKEN,
+    source: SOURCES.includes(raw.source),
+    ecowittHostEnv: !!process.env.ECOWITT_HOST,
   };
 
   // homeassistant.url/token are no longer required here even when not in demo

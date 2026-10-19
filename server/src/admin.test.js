@@ -4,7 +4,7 @@ import { TEXT_LIMITS, tooLongError } from './admin.js';
 
 test('tooLongError accepts a patch whose text fields are at their limits', () => {
   const patch = {
-    station: { name: 'n'.repeat(TEXT_LIMITS.stationName), subtitle: 's'.repeat(TEXT_LIMITS.stationSubtitle), devices: [{ name: 'd'.repeat(TEXT_LIMITS.deviceName), short: 'WH90', role: 'Außensensor' }] },
+    station: { name: 'n'.repeat(TEXT_LIMITS.stationName), subtitle: 's'.repeat(TEXT_LIMITS.stationSubtitle), devices: [{ name: 'd'.repeat(TEXT_LIMITS.deviceName), short: 'WH90', role: 'Outdoor sensor' }] },
     alerts: [{ label: 'l'.repeat(TEXT_LIMITS.alertLabel), description: '', banner: 'b'.repeat(TEXT_LIMITS.alertBanner), message: 'm'.repeat(TEXT_LIMITS.alertMessage) }],
   };
   assert.equal(tooLongError(patch), null);
@@ -18,7 +18,7 @@ test('tooLongError names the over-long field and its limit', () => {
 });
 
 test('tooLongError measures the trimmed value and ignores non-strings and restore-defaults', () => {
-  assert.equal(tooLongError({ station: { name: ' '.repeat(100) + 'Wetterstation' } }), null);
+  assert.equal(tooLongError({ station: { name: ' '.repeat(100) + 'Weather Station' } }), null);
   assert.equal(tooLongError({ station: { name: 12345, devices: 'nope' }, alerts: null }), null);
   assert.equal(tooLongError({}), null);
   assert.equal(tooLongError(null), null);

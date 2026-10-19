@@ -1,20 +1,26 @@
 // Shared helpers: formatting, API access, the sky colours and small drawing routines.
 
+import { LOCALE, tr, words } from './i18n.js';
+
 export const DAY = 24 * 3600 * 1000;
 export const HOUR = 3600 * 1000;
 export const $ = (id) => document.getElementById(id);
 export const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
-const nf = (digits) => new Intl.NumberFormat('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+// Numbers and dates are written the way the visitor's language writes them.
+const nf = (digits) => new Intl.NumberFormat(LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
 export const n0 = nf(0), n1 = nf(1);
 export const num = (v, digits = 1) => (v == null || !Number.isFinite(v) ? '–' : nf(digits).format(Math.abs(v) < 0.5 * 10 ** -digits ? 0 : v).replace('-', '−'));
-export const clock = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' });
-export const weekday = new Intl.DateTimeFormat('de-DE', { weekday: 'long' });
-export const weekdayShort = new Intl.DateTimeFormat('de-DE', { weekday: 'short' });
-export const dateLong = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'long', year: 'numeric' });
-export const dateShort = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-export const dayMonth = new Intl.DateTimeFormat('de-DE', { day: 'numeric', month: 'short' });
-export const monthName = new Intl.DateTimeFormat('de-DE', { month: 'short' });
+export const clock = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+export const weekday = new Intl.DateTimeFormat(LOCALE, { weekday: 'long' });
+export const weekdayShort = new Intl.DateTimeFormat(LOCALE, { weekday: 'short' });
+export const dateLong = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' });
+export const dateShort = new Intl.DateTimeFormat(LOCALE, { day: '2-digit', month: '2-digit', year: 'numeric' });
+export const dayMonth = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: 'short' });
+export const monthName = new Intl.DateTimeFormat(LOCALE, { month: 'short' });
+// A time of day as a sentence uses it ("20:46" in English, "20:46 Uhr" in German), and a full hour on an axis.
+export const atClock = (t) => tr('time.at', { time: clock.format(t) });
+export const hourLabel = (hour) => tr('time.hour', { hour });
 
 export const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 export const lerp = (a, b, t) => a + (b - a) * t;
@@ -35,7 +41,7 @@ export async function postJson(url, body) {
   return j;
 }
 
-// What the "Jetzt" view has loaded, shared with the other views.
+// What the "Now" view has loaded, shared with the other views.
 export const store = { cfg: null, cur: null };
 export const stationReady = () => new Promise((resolve) => {
   if (store.cur) return resolve(store.cur);
@@ -45,27 +51,32 @@ export const stationReady = () => new Promise((resolve) => {
 // ---------- Metrics ----------
 
 export const METRICS = {
-  temp: { label: 'Temperatur', unit: '°C', digits: 1 },
-  hum: { label: 'Luftfeuchte', unit: '%', digits: 0 },
-  wind: { label: 'Wind', unit: 'km/h', digits: 1 },
-  rain: { label: 'Regen', unit: 'mm', digits: 1, bars: true },
-  press: { label: 'Luftdruck', unit: 'hPa', digits: 1 },
-  solar: { label: 'Sonne', unit: 'W/m²', digits: 0 },
-  uv: { label: 'UV-Index', unit: '', digits: 0 },
-  light: { label: 'Blitze', unit: 'Einschläge', digits: 0, bars: true },
+  temp: { label: tr('metric.temp'), unit: '°C', digits: 1 },
+  hum: { label: tr('metric.hum'), unit: '%', digits: 0 },
+  wind: { label: tr('metric.wind'), unit: 'km/h', digits: 1 },
+  rain: { label: tr('metric.rain'), unit: 'mm', digits: 1, bars: true },
+  press: { label: tr('metric.press'), unit: 'hPa', digits: 1 },
+  solar: { label: tr('metric.solar'), unit: 'W/m²', digits: 0 },
+  uv: { label: tr('metric.uv'), unit: '', digits: 0 },
+  light: { label: tr('metric.light'), unit: tr('unit.strikes'), digits: 0, bars: true },
 };
 
 // ---------- Units: chosen by each visitor, kept in their browser ----------
 
 export const UNIT_OPTIONS = {
-  temp: { label: 'Temperatur', options: ['°C', '°F'] },
-  wind: { label: 'Wind', options: ['km/h', 'm/s', 'mph', 'Bft'] },
-  press: { label: 'Luftdruck', options: ['hPa', 'mmHg', 'inHg'] },
-  rain: { label: 'Regen', options: ['mm', 'l/m²', 'in'] },
+  temp: { label: tr('metric.temp'), options: ['°C', '°F'] },
+  wind: { label: tr('metric.wind'), options: ['km/h', 'm/s', 'mph', 'Bft'] },
+  press: { label: tr('metric.press'), options: ['hPa', 'mmHg', 'inHg'] },
+  rain: { label: tr('metric.rain'), options: ['mm', 'l/m²', 'in'] },
 };
-const UNITS_KEY = 'himmel-units';
-export const units = { temp: '°C', wind: 'km/h', press: 'hPa', rain: 'mm' };
-try { Object.assign(units, JSON.parse(localStorage.getItem(UNITS_KEY) || '{}')); } catch { /* private mode */ }
+const UNITS_KEY = 'himmel-units';   // named after the design, as it was before v2.0.0, so saved choices carry over
+const saved = (() => { try { return JSON.parse(localStorage.getItem(UNITS_KEY) || '{}'); } catch { return {}; } })();   // private mode
+export const units = { temp: '°C', wind: 'km/h', press: 'hPa', rain: 'mm', ...saved };
+// The station's own defaults (ui.default_units in config.yaml) for every unit this visitor hasn't chosen.
+export function useDefaultUnits(defaults = {}) {
+  for (const [kind, { options }] of Object.entries(UNIT_OPTIONS)) if (!(kind in saved) && options.includes(defaults[kind])) units[kind] = defaults[kind];
+  window.dispatchEvent(new Event('units'));
+}
 export function setUnit(kind, value) {
   units[kind] = value;
   try { localStorage.setItem(UNITS_KEY, JSON.stringify(units)); } catch { /* private mode */ }
@@ -100,7 +111,7 @@ export function show(kind, v, digits) {
   const c = conv(kind);
   return v == null ? '–' : num(c.f(v), digits ?? c.digits);
 }
-// Temperatures are written "14,3°"; only Fahrenheit names its scale.
+// Temperatures are written "14.3°"; only Fahrenheit names its scale.
 export const degree = () => (units.temp === '°F' ? '°F' : '°');
 export const temp = (v, digits = 1) => `${show('temp', v, digits)}${degree()}`;
 
@@ -112,12 +123,12 @@ export function metricConv(metric) {
   return { ...c, unit: kind === 'temp' ? degree() : c.unit };
 }
 
-export const CONDITION = {
-  sunny: 'Sonnig', 'clear-night': 'Klar', partlycloudy: 'Heiter', cloudy: 'Bewölkt', fog: 'Nebel', rainy: 'Regen', pouring: 'Starkregen',
-  'lightning-rainy': 'Gewitter', lightning: 'Gewitter', snowy: 'Schnee', 'snowy-rainy': 'Schneeregen', hail: 'Hagel', windy: 'Windig', exceptional: 'Unwetter',
-};
+// The forecast's condition codes (the server sends these, never text) as words.
+const CONDITION_CODES = ['sunny', 'clear-night', 'partlycloudy', 'cloudy', 'fog', 'rainy', 'pouring', 'lightning-rainy', 'lightning', 'snowy', 'snowy-rainy', 'hail', 'windy', 'exceptional'];
+export const CONDITION = Object.fromEntries(CONDITION_CODES.map((c) => [c, tr(`cond.${c}`)]));
 
-const COMPASS = ['Nord', 'Nordost', 'Ost', 'Südost', 'Süd', 'Südwest', 'West', 'Nordwest'];
+// A direction in degrees as one of eight compass words ("south-west").
+const COMPASS = words('compass');
 export const fromWord = (deg) => COMPASS[Math.round(deg / 45) % 8];
 
 // ---------- Sun and sky ----------
@@ -168,7 +179,7 @@ export function applyTheme(sky) {
   syncBarColour();
 }
 
-// The browser bar above the page takes the colour at the top of the view: the sky on Jetzt, the ground elsewhere.
+// The browser bar above the page takes the colour at the top of the view: the sky on Now, the ground elsewhere.
 export function syncBarColour() {
   const css = getComputedStyle(document.documentElement);
   const colour = css.getPropertyValue(document.body.dataset.view === 'now' ? '--zenith' : '--ground').trim();

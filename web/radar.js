@@ -1,6 +1,7 @@
-// Regenradar: DWD's RADOLAN rain radar for Germany on the map, with the last two hours as a loop.
+// Rain radar: DWD's RADOLAN rain radar for Germany on the map, with the last two hours as a loop.
 
-import { $, getJson, store, stationReady, clock, num, fromWord, show, conv } from './lib.js';
+import { $, getJson, store, stationReady, num, fromWord, show, conv, atClock } from './lib.js';
+import { tr } from './i18n.js';
 import { GRID, createMap, toGridPos, nearestPlace } from './map.js';
 
 const POLL_MS = 60 * 1000;   // DWD adds a frame every five minutes
@@ -73,25 +74,25 @@ function localRain(grid, home) {
 function describe(grid) {
   const node = $('radarLocal');
   if (!state.marker || !grid) {
-    node.textContent = state.marker ? '' : 'Ist unter „Station verwalten“ ein ungefährer Standort eingetragen, steht hier, ob es dort regnet oder wie weit der nächste Regen entfernt ist.';
+    node.textContent = state.marker ? '' : tr('radar.noLocation');
     return;
   }
-  const r = localRain(grid, state.marker), where = `bei ${nearestPlace(...state.marker).place.name}`;
+  const r = localRain(grid, state.marker), place = nearestPlace(...state.marker).place.name;
   const unit = conv('rain').unit;
   node.textContent = !r ? ''
-    : r.kind === 'outside' ? `Der Standort ${where} liegt außerhalb der Radarabdeckung.`
-      : r.kind === 'rain' ? `Am Standort ${where} regnet es mit etwa ${show('rain', r.mmh)} ${unit} pro Stunde.`
-        : r.kind === 'near' ? `Am Standort ${where} ist es trocken. Der nächste Regen ist ${num(r.km, 0)} km entfernt, Richtung ${fromWord(r.bearing)}.`
-          : `Am Standort ${where} ist es trocken, im Umkreis von 150 km regnet es nirgends.`;
+    : r.kind === 'outside' ? tr('radar.outside', { place })
+      : r.kind === 'rain' ? tr('radar.raining', { place, rate: show('rain', r.mmh), unit })
+        : r.kind === 'near' ? tr('radar.nearest', { place, km: num(r.km, 0), dir: fromWord(r.bearing) })
+          : tr('radar.dry', { place });
 }
 
 async function showFrame(i) {
   const t = state.frames[i];
   if (t == null) return;
   state.index = i;
-  $('radarTime').textContent = `${clock.format(t)} Uhr`;
+  $('radarTime').textContent = atClock(t);
   $('radarSlider').value = String(i);
-  $('radarSlider').setAttribute('aria-valuetext', `${clock.format(t)} Uhr`);
+  $('radarSlider').setAttribute('aria-valuetext', atClock(t));
   try {
     const grid = await loadGrid(t);
     if (state.index !== i) return;   // the loop has moved on meanwhile
@@ -104,7 +105,7 @@ function setPlaying(on) {
   state.playing = on;
   clearTimeout(state.timer);
   $('radarPlay').setAttribute('aria-pressed', String(on));
-  $('radarPlay').textContent = on ? 'Anhalten' : 'Abspielen';
+  $('radarPlay').textContent = tr(on ? 'radar.pause' : 'radar.play');
   if (!on) return;
   const step = () => {
     if (!state.playing) return;
@@ -125,19 +126,19 @@ async function refresh() {
     $('radarSlider').max = String(state.frames.length - 1);
     $('radarSlider').disabled = state.frames.length < 2;
     $('radarPlay').disabled = state.frames.length < 2;
-    $('radarStatus').textContent = `Stand ${clock.format(state.frames[state.frames.length - 1])} Uhr, ${state.frames.length} Bilder aus den letzten zwei Stunden.`;
+    $('radarStatus').textContent = tr('radar.status', { time: atClock(state.frames[state.frames.length - 1]), n: state.frames.length });
     if (!state.playing && wasLatest) await showFrame(state.frames.length - 1);
     // The rest of the loop is fetched quietly, newest first, so pressing play does not stall.
     for (const t of [...state.frames].reverse()) await loadGrid(t).catch(() => {});
   } catch (e) {
-    $('radarStatus').textContent = e.status === 503 ? 'Die Radardaten werden gerade vom DWD geholt. Das dauert beim Start einen Moment.' : `Das Radar ist gerade nicht erreichbar (${e.message}).`;
+    $('radarStatus').textContent = e.status === 503 ? tr('radar.fetching') : tr('radar.unreachable', { error: e.message });
   }
 }
 
 function build() {
   state.built = true;
   map = createMap($('radarMap'), {
-    label: 'Regenradar-Karte von Deutschland. Pfeiltasten verschieben, Plus und Minus zoomen, Null setzt zurück.',
+    label: tr('radar.mapLabel'),
     under: (ctx) => { if (painted) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(layer, 0, 0, GRID, GRID); } },
     lines: (ctx, m) => {
       if (!state.marker) return;

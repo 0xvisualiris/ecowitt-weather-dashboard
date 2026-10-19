@@ -26,7 +26,7 @@ export const DEMO_SENSORS = {
   lightning_count: 'sensor.demo_lightning_strikes',
 };
 export const DEMO_DEVICES = [
-  { id: 'wh90', name: 'Ecowitt WH90', short: 'WH90', role: 'Außensensor', battery: 'sensor.demo_wh90_battery', signal: 'sensor.demo_wh90_signal', metrics: ['temp', 'hum', 'wind', 'rain', 'solar', 'uv'] },
+  { id: 'wh90', name: 'Ecowitt WH90', short: 'WH90', role: 'Outdoor sensor', battery: 'sensor.demo_wh90_battery', signal: 'sensor.demo_wh90_signal', metrics: ['temp', 'hum', 'wind', 'rain', 'solar', 'uv'] },
   { id: 'wh57', name: 'Ecowitt WH57', short: 'WH57', role: 'Blitzsensor', battery: 'sensor.demo_wh57_battery', signal: 'sensor.demo_wh57_signal', metrics: ['light'] },
   { id: 'gw', name: 'Ecowitt GW2000', short: 'Gateway', role: 'Gateway', metrics: ['press'] },
 ];

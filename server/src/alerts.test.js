@@ -64,23 +64,30 @@ test('_message interpolates sensor placeholders plus |time and |compass filters'
     lightning_time: { state: '2026-10-04T14:05:00.000Z' },
   });
   const engine = new AlertEngine({ server: { data_dir: tmpDir() }, alerts: [] }, svc);
-  const text = engine._message('Entfernung {lightning_distance} km aus {wind_direction|compass}, um {lightning_time|time} Uhr');
-  // lightning_distance formats with 0 decimals (DECIMALS.distance), wind_direction 90° -> compass 'O'
-  assert.match(text, /^Entfernung 3 km aus O, um \d{2}:\d{2} Uhr$/);
+  const text = engine._message('Strike {lightning_distance} km from {wind_direction|compass} at {lightning_time|time}');
+  // lightning_distance formats with 0 decimals (DECIMALS.distance); 90° is 'E' in English and 'O' in German
+  assert.match(text.en, /^Strike 3 km from E at \d{2}:\d{2}$/);
+  assert.match(text.de, /^Strike 3 km from O at \d{2}:\d{2}$/);
+});
+
+test('_message uses the text of each language when a rule has one per language', () => {
+  const engine = new AlertEngine({ server: { data_dir: tmpDir() }, alerts: [] }, makeSvc({ temperature: { state: '-2.5' } }));
+  const text = engine._message({ en: 'It is {temperature} °C', de: 'Es sind {temperature} °C' });
+  assert.deepEqual(text, { en: 'It is -2.5 °C', de: 'Es sind -2,5 °C' });
 });
 
 test('evaluate activates a rule, logs it once, and keeps it active while still true', () => {
   const cfg = {
     server: { data_dir: tmpDir() },
     alert_clear_minutes: 10,
-    alerts: [{ id: 'frost', label: 'Frost', level: 'info', all: [{ sensor: 'temperature', below: 0 }], message: 'Temperatur {temperature} °C' }],
+    alerts: [{ id: 'frost', label: 'Frost', level: 'info', all: [{ sensor: 'temperature', below: 0 }], message: 'Temperature {temperature} °C' }],
   };
   const engine = new AlertEngine(cfg, makeSvc({ temperature: { state: '-2' } }));
   engine.evaluate();
   let v = engine.view();
   assert.equal(v.rules[0].active, true);
   assert.equal(v.log.length, 1);
-  assert.match(v.log[0].text, /^Temperatur -2,0 °C$/);
+  assert.deepEqual(v.log[0].text, { en: 'Temperature -2.0 °C', de: 'Temperature -2,0 °C' });
 
   engine.evaluate(); // still true -> no duplicate log entry
   v = engine.view();
@@ -92,7 +99,7 @@ test('evaluate clears a rule only after it has been false for alert_clear_minute
   const cfg = {
     server: { data_dir: tmpDir() },
     alert_clear_minutes: 1 / 1200, // 50ms, so the test doesn't need to wait long
-    alerts: [{ id: 'frost', label: 'Frost', level: 'info', all: [{ sensor: 'temperature', below: 0 }], message: 'kalt' }],
+    alerts: [{ id: 'frost', label: 'Frost', level: 'info', all: [{ sensor: 'temperature', below: 0 }], message: 'cold' }],
   };
   let temp = -2;
   const svc = {

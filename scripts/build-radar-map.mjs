@@ -1,4 +1,4 @@
-// Builds web/public/radar-map.json: the base map drawn under the rain radar
+// Builds web/radar-map.json: the base map drawn under the rain radar
 // (land, country and federal-state borders, rivers, lakes), as SVG path data
 // already projected onto DWD's 900x900 km RADOLAN grid (1 unit = 1 km).
 //
@@ -20,9 +20,9 @@ import { fileURLToPath } from 'node:url';
 
 const SOURCE = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson';
 const cacheDir = process.argv[2] || path.join(os.tmpdir(), 'natural-earth');
-const outFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'public', 'radar-map.json');
+const outFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'radar-map.json');
 
-// ---- projection: must match web/src/radolanProjection.ts ----
+// ---- projection: must match toGridPos() in web/map.js ----
 const R = 6370.040, PHI0 = (60 * Math.PI) / 180, LAM0 = (10 * Math.PI) / 180, X0 = -523.4621, Y0 = -3758.645;
 function project([lon, lat]) {
   const phi = (lat * Math.PI) / 180, lam = (lon * Math.PI) / 180;

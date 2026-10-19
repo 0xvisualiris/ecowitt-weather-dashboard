@@ -2,10 +2,10 @@ Ecowitt Weather Dashboard
 Third-party material used by this project. The MIT License in LICENSE covers
 the project's own code only; the items below keep their own terms.
 
-Bricolage Grotesque (web/public/himmel/fonts/*.woff2)
+Bricolage Grotesque (web/fonts/*.woff2)
   Copyright 2022 The Bricolage Grotesque Project Authors
   https://github.com/ateliertriay/bricolage
-  SIL Open Font License, Version 1.1. Full text in web/public/himmel/fonts/OFL.txt.
+  SIL Open Font License, Version 1.1. Full text in web/fonts/OFL.txt.
 
 Weather forecast and rain radar data
   Deutscher Wetterdienst (DWD), https://opendata.dwd.de
@@ -13,13 +13,13 @@ Weather forecast and rain radar data
   not stored in this repository. DWD's open data may be used provided the
   source is named ("Deutscher Wetterdienst").
 
-DWD station list (web/public/dwd-stations.json)
+DWD station list (web/dwd-stations.json)
   Built from DWD's MOSMIX station catalogue and forecast listing by
   scripts/build-dwd-stations.mjs. Source: Deutscher Wetterdienst.
 
-Base map (web/public/radar-map.json)
+Base map (web/radar-map.json)
   Made with Natural Earth, 1:10m, by scripts/build-radar-map.mjs.
   https://www.naturalearthdata.com. Public domain.
 
-Other fonts and npm packages are installed from the registry at build time
-and carry their own licences in their packages.
+The server's npm packages are installed from the registry at build time and
+carry their own licences in their packages.

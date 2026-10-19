@@ -2,7 +2,8 @@
 // small persisted log (data_dir/alerts.json). Read-only for the browser.
 import fs from 'node:fs';
 import path from 'node:path';
-import { normalize, toNumber, compass, fmtDe, SENSOR_DIMENSION } from './units.js';
+import { normalize, toNumber, compass, fmtNumber, SENSOR_DIMENSION } from './units.js';
+import { LANGS, LOCALES, textIn } from './i18n.js';
 
 const DECIMALS = { temperature: 1, speed: 1, rain: 1, rate: 1, pressure: 1, distance: 0 };
 const MAX_LOG = 200;
@@ -58,8 +59,16 @@ export class AlertEngine {
     return true;
   }
 
+  // A rule's message filled in with the current values, once per language
+  // ({ en: '…', de: '…' }), so numbers, times and compass points read the way
+  // each visitor's language writes them. A message given as a plain string is
+  // filled in the same way for every language.
   _message(tpl) {
     if (!tpl) return '';
+    return Object.fromEntries(LANGS.map(lang => [lang, this._fill(textIn(tpl, lang), lang)]));
+  }
+
+  _fill(tpl, lang) {
     return tpl.replace(/\{([a-z0-9_.]+)(?:\|([a-z]+))?\}/gi, (_, key, filter) => {
       let raw, v;
       if (key.includes('.')) {
@@ -72,12 +81,12 @@ export class AlertEngine {
       }
       if (filter === 'time') {
         const t = Date.parse(raw);
-        return Number.isFinite(t) ? new Date(t).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—';
+        return Number.isFinite(t) ? new Date(t).toLocaleTimeString(LOCALES[lang], { hour: '2-digit', minute: '2-digit' }) : '—';
       }
-      if (filter === 'compass') return compass(v);
+      if (filter === 'compass') return compass(v, lang);
       if (v == null) return raw ?? '—';
       const d = DECIMALS[SENSOR_DIMENSION[key]] ?? (Number.isInteger(v) ? 0 : 1);
-      return fmtDe(v, d);
+      return fmtNumber(v, d, lang);
     });
   }
 
@@ -101,7 +110,7 @@ export class AlertEngine {
         } else {
           act.lastTrue = now;
           const entry = this.state.log.find(l => l.id === act.logId);
-          if (entry && entry.text !== text) { entry.text = text; changed = true; }
+          if (entry && JSON.stringify(entry.text) !== JSON.stringify(text)) { entry.text = text; changed = true; }
         }
       } else if (act && now - act.lastTrue > clearMs) {
         const entry = this.state.log.find(l => l.id === act.logId);

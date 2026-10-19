@@ -156,7 +156,7 @@ export class DwdForecast {
   }
 
   // The next `count` hours, one entry each, for the hour-by-hour forecast of
-  // the "himmel" frontend (/api/forecast/hourly).
+  // the frontend (/api/forecast/hourly).
   hours(liveTempC, biasHours = 6, loc = null, count = 72) {
     if (!this.hourly?.length) return null;
     const now = Date.now();

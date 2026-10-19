@@ -41,7 +41,6 @@ const locked = {
   stationSince: cfg._locked.stationSince,
   stationPublicLocation: cfg._locked.stationPublicLocation,
   stationDevices: !!cfg.station.devices.length,
-  design: cfg._locked.design,
 };
 {
   const s = admin.getSettings();
@@ -59,7 +58,6 @@ const locked = {
   if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
   if (!locked.stationPublicLocation && s.station.publicLocation) cfg.station.publicLocation = s.station.publicLocation;
   if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
-  if (!locked.design && s.design) cfg.ui.design = s.design;
 }
 
 // Pick the data source: whatever config.yaml / the admin page chose,
@@ -91,7 +89,7 @@ if (cfg.server.demo) {
   if (!cfg.station.devices.length) cfg.station.devices = DEMO_DEVICES;
   if (!cfg.station.since) cfg.station.since = '2024-04-01';
   if (!cfg.station.subtitle) cfg.station.subtitle = 'Demo-Daten';
-  if (cfg.station.name === 'Wetterstation') cfg.station.name = 'Wetterstation Demo';
+  if (cfg.station.name === 'Weather Station') cfg.station.name = 'Weather Station Demo';
   cfg.forecast.label ??= 'Demo';
   source = new DemoSource(cfg.sensors);
 } else if (cfg.source === 'ecowitt') {
@@ -349,18 +347,8 @@ const routes = {
   '/healthz': async () => ({ ok: true, connected: source.connected, lastMessage: source.lastMessage }),
 };
 
-// Two frontends ship in the same build: the classic one at the root of
-// public_dir, and "himmel" in its himmel/ subfolder (web/public/himmel, copied
-// there by Vite). ui.design picks which one is served at "/"; the other is
-// not lost, "himmel" stays reachable at /himmel/ either way. Files only the
-// classic build has (base map, station list, icons) are shared with it.
-const classicDir = cfg.server.public_dir;
-const himmelDir = path.join(classicDir, 'himmel');
-const publicDir = cfg.ui.design === 'himmel' && fs.existsSync(path.join(himmelDir, 'index.html')) ? himmelDir : classicDir;
-const SHARED_FILES = ['radar-map.json', 'dwd-stations.json', 'favicon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
-if (cfg.ui.design === 'himmel') {
-  console.log(publicDir === himmelDir ? '[server] serving the "himmel" design' : `[server] ui.design is "himmel" but ${himmelDir} is missing – serving the classic design`);
-}
+// The frontend (web/): plain HTML, CSS and JavaScript modules, served as they are.
+const publicDir = cfg.server.public_dir;
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -399,14 +387,11 @@ const server = http.createServer(async (req, res) => {
   // static files with SPA fallback
   let file = path.normalize(path.join(publicDir, decodeURIComponent(url.pathname)));
   if (!file.startsWith(path.normalize(publicDir))) return send(req, res, 403, 'forbidden', 'text/plain');
-  if (publicDir !== classicDir && SHARED_FILES.includes(url.pathname.slice(1))) file = path.join(classicDir, url.pathname.slice(1));
-  // The preview of the other design: /himmel/ is a folder with its own page,
-  // and needs its trailing slash for the page's relative links to resolve.
-  if (url.pathname === '/himmel' && publicDir === classicDir && fs.existsSync(path.join(himmelDir, 'index.html'))) {
-    res.writeHead(302, { Location: '/himmel/' });
+  // Before v2.0.0 this design was previewed at /himmel/; send old links and home-screen apps to the root.
+  if (url.pathname === '/himmel' || url.pathname.startsWith('/himmel/')) {
+    res.writeHead(301, { Location: '/' + url.search });
     return res.end();
   }
-  if (url.pathname === '/himmel/' && publicDir === classicDir && fs.existsSync(path.join(himmelDir, 'index.html'))) file = path.join(himmelDir, 'index.html');
   if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(publicDir, 'index.html');
   if (!fs.existsSync(file)) return send(req, res, 404, 'Frontend not built', 'text/plain');
   const ext = path.extname(file);
@@ -414,8 +399,8 @@ const server = http.createServer(async (req, res) => {
   send(req, res, 200, withStationName(file, fs.readFileSync(file)), MIME[ext] || 'application/octet-stream', { 'Cache-Control': cache });
 });
 
-// The pages and manifests ship with "Wetterstation" as a placeholder; put the
-// configured station name in, so the browser tab, the himmel header before its
+// The page and manifest ship with "Weather Station" as a placeholder; put the
+// configured station name in, so the browser tab, the header before its
 // script runs, and the name of an app added to a home screen all show it.
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 function withStationName(file, buf) {

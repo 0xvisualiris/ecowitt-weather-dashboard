@@ -7,14 +7,14 @@ services:
     ports:
       - "47813:47813"
     environment:
-      # Long-Lived Access Token aus Home Assistant (Profil → Sicherheit)
+      # Long-lived access token from Home Assistant (Profile → Security)
       HA_TOKEN: ${HA_TOKEN}
-      # Optional: überschreibt homeassistant.url aus der config.yaml
+      # Optional: overrides homeassistant.url from config.yaml
       # HA_URL: http://192.168.1.10:8123
       TZ: Europe/Berlin
     volumes:
-      - ./config:/config:ro          # enthält config.yaml
-      - wetterstation-data:/data     # Warnungs-Verlauf
+      - ./config:/config:ro          # holds config.yaml
+      - wetterstation-data:/data     # alert log, admin settings, Ecowitt history
 
 volumes:
   wetterstation-data:

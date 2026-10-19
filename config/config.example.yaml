@@ -51,6 +51,30 @@ station:
       metrics: [press]
 
 # ---------------------------------------------------------------------
+# Datenquelle: Home Assistant (Standard) oder das Ecowitt-Gateway direkt
+#
+# Ohne Angabe wird Home Assistant verwendet, wenn URL und Token gesetzt sind,
+# sonst das Ecowitt-Gateway, wenn ecowitt.host gesetzt ist. Kann auch über
+# die Admin-Seite gewählt werden.
+# ---------------------------------------------------------------------
+# source: ecowitt           # homeassistant | ecowitt
+
+# Ecowitt-Gateway direkt (GW1100, GW2000, GW3000, WS3900, … mit aktueller
+# Firmware), ohne Home Assistant. Die Station fragt die lokale HTTP-API des
+# Gateways ab (/get_livedata_info), erkennt die Sensoren selbst und speichert
+# den Verlauf in DATA_DIR/ecowitt (Rohwerte für keep_raw_days Tage,
+# Stundenwerte für immer). `sensors:` unten wird dann nicht gebraucht; wenn
+# vorhanden, schränkt es nur ein, welche Messwerte gezeigt werden.
+# Ohne Home Assistant gibt es keine Zeitzone und keine Koordinaten von dort:
+# station.timezone (oder TZ) und station.latitude/longitude setzen.
+# ecowitt:
+#   host: ${ECOWITT_HOST:-192.168.1.50}   # IP oder Hostname des Gateways
+#   poll_seconds: 30        # Abfrageintervall
+#   rain_gauge: auto        # auto | piezo | tipping (auto: Piezo, wenn vorhanden)
+#   pressure: relative      # relative | absolute
+#   keep_raw_days: 10       # wie lange die Rohwerte (Tagesverlauf) bleiben
+
+# ---------------------------------------------------------------------
 # Home Assistant – bleibt auf dem Server, nie im Browser
 #
 # Alternative zu dieser Datei: URL, Token, Sensor-Entitäten und die

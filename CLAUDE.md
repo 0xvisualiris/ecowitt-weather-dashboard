@@ -85,9 +85,41 @@ docker compose pull && docker compose up -d   (plus any extra steps)
 - One line per change, no commit hashes, no internal refactors unless they affect users.
 - Mention new config options with their key and default, and say whether `config.yaml` needs changing.
 
+## Agent skills (addyosmani/agent-skills)
+
+This project uses the [agent-skills](https://github.com/addyosmani/agent-skills) plugin for its engineering workflow. Install it once per machine:
+
+```
+/plugin marketplace add https://github.com/addyosmani/agent-skills.git
+/plugin install agent-skills@addy-agent-skills
+```
+
+Claude Code picks skills from their descriptions, so there is no need to load `using-agent-skills` by hand. Use them at these points:
+
+| When | Skill or command |
+|---|---|
+| A request is vague or has several readings | `interview-me` before writing anything |
+| New feature, screen, metric, config option or alert capability | `spec-driven-development`, then `planning-and-task-breakdown` (`/spec`, `/plan`) |
+| Implementing | `incremental-implementation`; add `frontend-ui-engineering` for `web/src` or `web/public/himmel`, and `api-and-interface-design` for any `/api/*` change |
+| Code that uses DWD data, the HA WebSocket API or the Ecowitt gateway API | `source-driven-development`: check the real format or docs, never guess |
+| Something broke | `debugging-and-error-recovery` |
+| Before opening a PR into `dev` | `code-review-and-quality` (`/agent-skills:review`); add `security-and-hardening` when touching `admin.js`, `totp.js`, sessions, the CSP or anything under `/api/admin/*` |
+| Radar, charts or anything that renders per frame | `performance-optimization` |
+| Changing `README.md`, this file or `config.example.yaml` | `documentation-and-adrs` |
+
+### Where this project's rules win
+
+The skills are generic. Where one disagrees with this file, this file wins:
+
+- **Git and releases:** follow "Branching, versioning and releases" above, not `git-workflow-and-versioning`'s trunk-based model. Changes go `feature/*` / `fix/*` → `dev` (squash merge) → `main` (merge commit). `/ship` and `shipping-and-launch` don't replace that process. There are no feature flags or staged rollouts here: a release is a Docker image tag.
+- **Tests:** use `test-driven-development` for the server's pure logic, where `node:test` suites already exist (`util.js`, `units.js`, `alerts.js`, `totp.js`, `radolan.js`, `ecowitt.js`, `recorder.js`). Don't add a test framework or test React components or the himmel modules. Verify those in demo mode, as described under "Commands".
+- **Dependencies:** no skill justifies a new dependency. "Keep the dependency footprint small" under "Hard constraints" still applies, so discuss any addition first.
+- **Scope:** this is a hobby project kept deliberately simple. Keep specs and plans short. A small fix doesn't need a spec document.
+- **Hard constraints** (no secrets in the browser, the CSP, the read-only public API, a non-root container, `DemoSource` kept in sync, port 47813) override any skill's advice.
+
 ## What this is
 
-A public, read-only web dashboard for a personal weather station whose data lives in **Home Assistant** (HA). One Docker container serves a static React frontend plus a small Node API. The backend holds the HA URL and token; the browser never sees them, nor coordinates or entity IDs.
+A public, read-only web dashboard for a personal weather station whose data lives in **Home Assistant** (HA), or is read straight from an **Ecowitt gateway** (`source: ecowitt`). One Docker container serves a static React frontend plus a small Node API. The backend holds the HA URL and token; the browser never sees them, nor coordinates or entity IDs.
 
 - Hardware it was built for: Ecowitt WH90 (temp, humidity, ultrasonic wind, piezo rain, solar/UV), Ecowitt WH57 (lightning) and an Ecowitt gateway (pressure), via the HA Ecowitt integration. Any HA sensors work.
 - Hobby project, vibe-coded with AI, not actively maintained. Keep changes simple and dependency-light.
@@ -105,6 +137,8 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/index.js              HTTP server, routes, static files + SPA fallback, security headers, gzip
   src/config.js             loads YAML, ${ENV} substitution, defaults, validation, SENSOR_KEYS, DEFAULT_ALERTS
   src/ha.js                 HomeAssistantSource: HA WebSocket client
+  src/ecowitt.js            EcowittSource: polls an Ecowitt gateway's local HTTP API directly (no HA), parseLiveData/parseSensors
+  src/recorder.js           Recorder: the Ecowitt source's own history in DATA_DIR/ecowitt (raw samples + hourly rows), HA-shaped history()/statistics()
   src/demo.js               DemoSource: synthetic data, same interface as HomeAssistantSource
   src/dwd.js                DwdForecast: fetches/parses a DWD MOSMIX_L station KMZ, bias-corrects near-term with the live reading
   src/radolan.js            decodeRadolan: parses a DWD RADOLAN composite (ASCII header + binary uint16 grid) into {width,height,grid}
@@ -158,7 +192,7 @@ cd web && npm install && npm run dev
 # Type-check + production build of the frontend (output: web/dist)
 cd web && npm run build
 
-# Run the backend test suite (util.js, units.js, alerts.js, totp.js, radolan.js)
+# Run the backend test suite (util.js, units.js, alerts.js, totp.js, radolan.js, ecowitt.js, recorder.js)
 cd server && npm test
 
 # Run backend serving the built frontend
@@ -176,13 +210,14 @@ There's **no linter config**, and only a small, deliberately-scoped test suite �
 
 ```
 Ecowitt → HA (Ecowitt integration, ~60 s) → HA WebSocket push → server (in-memory states)
+   or: Ecowitt gateway ← server polls /get_livedata_info (poll_seconds) → in-memory states + Recorder (DATA_DIR/ecowitt)
 browser polls /api/current every ui.refresh_seconds; charts fetch /api/history etc.
 forecast: DWD MOSMIX_L KMZ (opendata.dwd.de, hourly poll) + live reading → bias-corrected daily forecast
           (falls back to the HA weather.* entity if dwd_station_id isn't set or DWD is unreachable)
 rain radar: DWD RADOLAN RY composite (opendata.dwd.de, 5-min poll, bz2 → bunzip2 → binary grid) → /api/radar + /api/radar/grid
 ```
 
-### Data source interface (`ha.js` and `demo.js` must stay compatible)
+### Data source interface (`ha.js`, `ecowitt.js` and `demo.js` must stay compatible)
 
 - `start()`; `connected` (bool); `lastMessage` (ms)
 - `states`: `{ entity_id: { state, attributes, lu, lc } }`, with `lu`/`lc` (last updated/changed) in **milliseconds**
@@ -192,7 +227,11 @@ rain radar: DWD RADOLAN RY composite (opendata.dwd.de, 5-min poll, bz2 → bunzi
 - `statistics(ids, start, end, period)` → `{ entity_id: [{ start: ms, mean, min, max, change, state }] }`, where `period` is `hour`, `day` or `month`
 - Events: `update`, `status`, `config` (HA `get_config`), `forecast`
 
-HA calls used: `auth`, `get_config`, `subscribe_entities` (compressed diffs `a`/`c`/`r`), `weather/subscribe_forecast` (daily), `history/history_during_period` (`minimal_response`, `no_attributes`), `recorder/statistics_during_period`. Reconnects with exponential backoff (max 60 s).
+HA calls used: `auth`, `get_config`, `subscribe_entities` (compressed diffs `a`/`c`/`r`), `weather/subscribe_forecast` (daily), `history/history_during_period` (`minimal_response`, `no_attributes`), `recorder/statistics_during_period`, `ping`.
+
+**HA reconnect** (`ha.js`): every way a connection can end goes through `_drop(ws, reason)`, which ignores sockets that are no longer current (so a late `close` from an old socket can't kill its replacement), rejects pending requests and schedules a reconnect with exponential backoff (max 60 s). Besides the `close` event it is triggered by: a 20 s handshake timeout (Node's WebSocket has none – a proxy or half-started HA that accepts TCP but never answers would otherwise hang forever), a failed `_afterAuth` (HA still starting – used to leave the source "connected" with no subscription), a missed `pong` to the 30 s `ping` heartbeat (a connection that died without a close, e.g. HA's host rebooted), and no entity event at all for 15 min (re-subscribes from scratch). The backoff only resets after setup succeeds.
+
+**Ecowitt source** (`ecowitt.js`, `recorder.js`): polls `get_livedata_info` every `ecowitt.poll_seconds` – stateless, so an unreachable gateway just means the next poll succeeds again; there is nothing to reconnect. Its entity ids are the sensor keys themselves (`cfg.sensors = { temperature: 'temperature', … }`, set in `index.js` from a startup `probe()`, cached in `DATA_DIR/ecowitt/detected.json` for starts while the gateway is down); battery/signal from `get_sensors_info` become `<img>_battery`/`<img>_signal` (level 0–5 → %), and `station.devices` is generated from the paired sensors if none are configured. Values are converted to canonical units in the source (gateway unit strings like `mm/Hr`, `Klux`), and `lu` moves on every successful poll, so the stale dot means "gateway answered recently". `Recorder` appends every poll to `samples-YYYY-MM-DD.jsonl` (purged after `keep_raw_days`) and derives one row per completed hour into `hours.jsonl` (`[mean,min,max,last,change,n]`, `change` only for the daily-reset counters, computed with `counterIncrements`); `statistics()` rolls hours up to day/month in station time and includes the running hour, like HA. No forecast entity and no HA `get_config`, so `station.timezone`/`latitude`/`longitude` matter in this mode. `index.js` keeps the configured (HA) sensor mapping in `cfg.configuredSensors` so the admin page doesn't save the placeholder ids.
 
 ### Sensors and metrics
 
@@ -289,7 +328,8 @@ Dashboard sparklines: temp, humidity and pressure in 15-minute buckets, rain in 
   - `homeassistant.url`/`token` are the only fields lockable by an environment variable too (`HA_URL`/`HA_TOKEN`, which always win the `||` in `cfg.homeassistant`), not just config.yaml — `cfg._locked.haUrlEnv`/`haTokenEnv` record which it actually was, so the admin UI's "locked" label can say the right thing (`Admin.tsx`'s `Field` `lockedReason` prop) instead of always blaming config.yaml.
   - `alerts` is all-or-nothing, not per-field: a config.yaml `alerts:` key (including an explicit `alerts: []`) locks the whole list; otherwise the admin's array (or `null`, meaning "use `DEFAULT_ALERTS`") fully replaces it, never merges rule-by-rule. Same for `station.devices`.
   - Rule validation (`all`/`any` required, each condition needs `sensor` or `entity`, id/label/description/level defaulting) is `config.js`'s exported `normalizeAlerts()`, called from both `loadConfig()` (YAML path) and `saveSettings()` (admin-UI path, wrapped in try/catch so a bad rule becomes a `400` with the validation message instead of corrupting `admin.json` or crashing a later boot).
-- If, after that merge, Home Assistant is still unconfigured anywhere, `index.js` forces demo mode with a warning instead of crashing — `config.js` no longer throws on a missing HA url/token, specifically so the admin login page stays reachable to fix it. The resulting `needsSetup` flag (`/api/config`) is true exactly in that forced-fallback case — not for a deliberate `server.demo: true` in config.yaml with real HA credentials also present — so the frontend can land first-time visitors on `#/admin/login` without ever redirecting a deployment that's fully configured via config.yaml and doesn't use the admin page.
+- `source` (`homeassistant`/`ecowitt`) and `ecowitt.host` are admin-settable too (`ECOWITT_HOST` locks the host like `HA_URL`). Unset, `index.js` picks Home Assistant if URL+token exist, else Ecowitt if a host exists – existing setups never change behaviour.
+- If, after that merge, the chosen source (Home Assistant or the Ecowitt gateway) is still unconfigured anywhere, `index.js` forces demo mode with a warning instead of crashing — `config.js` no longer throws on a missing HA url/token, specifically so the admin login page stays reachable to fix it. The resulting `needsSetup` flag (`/api/config`) is true exactly in that forced-fallback case — not for a deliberate `server.demo: true` in config.yaml with real HA credentials also present — so the frontend can land first-time visitors on `#/admin/login` without ever redirecting a deployment that's fully configured via config.yaml and doesn't use the admin page.
 - Sessions are an HMAC-SHA256-signed cookie (`node:crypto`, zero new dependencies) over an expiry timestamp, verified with `timingSafeEqual`; a simple in-memory per-IP backoff throttles repeated failed logins/password attempts. There's no per-session store, so revocation works by rotating the shared `sessionSecret` (invalidating every outstanding token at once) — `changePassword()` does this and re-issues a fresh cookie for the caller so they stay logged in, and `logout()` does the same without re-issuing one. With a single admin account, "log out" and "log out everywhere" are the same operation.
 - Settings changes only take effect at boot (same as `config.yaml`), so a successful `POST /api/admin/settings` responds first, then the process exits after a short delay, relying on the container's restart policy to reload with the new settings — password changes don't restart anything.
 - Every `/api/admin/*` route except `/login` and `/session` requires a valid session; every one except `/password` additionally requires `mustChangePassword` to already be false — enforced server-side (`requireSession` in `index.js`), not just hidden in the UI.
@@ -364,7 +404,7 @@ The response types in `web/src/lib.ts` are maintained by hand. There is no share
 ## Configuration & environment
 
 - Config file: `CONFIG_PATH` (default `/config/config.yaml`). If it's missing (or unreadable for the container user), the server starts in **demo mode**. It also falls back to demo mode (with a warning, not a crash) if, after merging in any admin-set settings, Home Assistant still isn't configured anywhere.
-- Environment overrides: `HA_URL`, `HA_TOKEN`, `PORT`, `DEMO`, `DATA_DIR` (default `/data`), `PUBLIC_DIR` (default `/app/public` in the image), `TZ`.
+- Environment overrides: `HA_URL`, `HA_TOKEN`, `ECOWITT_HOST`, `PORT`, `DEMO`, `DATA_DIR` (default `/data`), `PUBLIC_DIR` (default `/app/public` in the image), `TZ`.
 - `config/config.example.yaml` is the single source of truth for options. When adding an option, update it, `config.js` and the README together.
 - `config/config.yaml` and `.env` are gitignored and must never be committed. `DATA_DIR/admin.json` (password hash, session secret, admin-set HA/sensor/DWD settings) is runtime state, same category as `DATA_DIR/alerts.json` — never committed either, and never seed it by hand.
 

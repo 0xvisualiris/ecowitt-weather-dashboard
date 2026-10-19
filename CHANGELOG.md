@@ -3,6 +3,26 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.6.0 – 2026-10-19
+
+### New
+- The dashboard can read an Ecowitt gateway (GW1100, GW2000, GW3000, WS3900, … with current firmware) directly over its local HTTP API, so Home Assistant is no longer required. It detects the paired sensors itself and keeps its own history in `DATA_DIR/ecowitt`, so charts, records and CSV export work as with Home Assistant. Choose the source on the admin page or in `config.yaml` (#53):
+  - `source`: `homeassistant` or `ecowitt`. If unset, Home Assistant is used when its URL and token are set, otherwise the gateway when `ecowitt.host` is set.
+  - `ecowitt.host` (or the `ECOWITT_HOST` environment variable): the gateway's IP or hostname.
+  - `ecowitt.poll_seconds` (default `30`), `ecowitt.rain_gauge` (`auto` | `piezo` | `tipping`, default `auto`), `ecowitt.pressure` (`relative` | `absolute`, default `relative`), `ecowitt.keep_raw_days` (default `10`).
+  - Without Home Assistant there is no time zone or location to take from it, so set `station.timezone` (or `TZ`) and `station.latitude`/`longitude`.
+
+### Fixed
+- The dashboard no longer hangs with stale or no data after the Home Assistant connection dies without closing, for example after HA's host reboots, while HA is still starting, or behind a proxy that never answers. It now notices within a minute and reconnects. (#52)
+
+### Improved
+- CLAUDE.md describes how to use the agent-skills plugin with this project. No change to the dashboard itself. (#54)
+
+### Upgrade
+No `config.yaml` changes required. Existing Home Assistant setups keep working unchanged. To switch to the gateway, see the new `source` and `ecowitt` options in `config/config.example.yaml`.
+
+    docker compose pull && docker compose up -d
+
 ## v1.5.3 – 2026-10-14
 
 ### Fixed

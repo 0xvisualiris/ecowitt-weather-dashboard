@@ -5,7 +5,7 @@
 <h1 align="center">Ecowitt Weather Dashboard</h1>
 
 <p align="center">
-  A public web dashboard for a personal weather station whose data lives in <strong>Home Assistant</strong>.
+  A public web dashboard for a personal weather station whose data lives in <strong>Home Assistant</strong>, or comes straight from an <strong>Ecowitt gateway</strong>.
 </p>
 
 > [!NOTE]
@@ -21,7 +21,7 @@
 
 A single Docker container serves the web interface plus a small, read-only API. Your Home Assistant URL and access token stay on the server; visitors' browsers only ever see finished measurements, never the token, your coordinates or your entity IDs.
 
-Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic wind, piezo rain, solar/UV), an **Ecowitt WH57** (lightning) and an Ecowitt gateway (pressure) via the Home Assistant Ecowitt integration. Other sensors work as well, as long as they are in Home Assistant.
+Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic wind, piezo rain, solar/UV), an **Ecowitt WH57** (lightning) and an Ecowitt gateway (pressure) via the Home Assistant Ecowitt integration. Other sensors work as well, as long as they are in Home Assistant. Without Home Assistant, the dashboard can also read an Ecowitt gateway directly (see [Ecowitt gateway without Home Assistant](#ecowitt-gateway-without-home-assistant)).
 
 **Screens** (German and English, switchable per visitor in Einstellungen/Settings):
 
@@ -56,7 +56,7 @@ Every screen of both designs, on a desktop and on a phone, is on the wiki: **[Sc
 ## Requirements
 
 - Docker with Docker Compose
-- Home Assistant with:
+- **Either** an Ecowitt gateway on the same network (see [Ecowitt gateway without Home Assistant](#ecowitt-gateway-without-home-assistant)), **or** Home Assistant with:
   - the **Recorder** enabled. It provides the 24-hour history; week, month, year and records come from the long-term statistics, which need sensors with a `state_class` (the Ecowitt integration provides that).
   - a **long-lived access token**. Ideally create a separate non-admin user in Home Assistant just for this dashboard and create the token for that user (*Profile → Security → Long-lived access tokens*).
 
@@ -135,12 +135,36 @@ Everything lives in `config/config.yaml`. The most important sections:
 
 | Section           | What it's for                                                                  |
 |-------------------|--------------------------------------------------------------------------------|
+| `source`          | `homeassistant` or `ecowitt` — where readings come from; or set via the admin page |
+| `ecowitt`         | Gateway address and options for reading an Ecowitt gateway directly — the address can also be set via the admin page |
 | `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities — or set via the admin page |
 | `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment) — or set via the admin page |
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages — or set via the admin page           |
 | `ui`              | Refresh interval, "stale" timeout, default units for new visitors, which of the two designs is shown (`design`) — the design can also be set via the admin page |
+
+### Ecowitt gateway without Home Assistant
+
+The dashboard can read an Ecowitt gateway (GW1100, GW2000, GW3000, WS3900 and others with current firmware) directly over its local HTTP API, the same one the gateway's own web interface uses. Home Assistant is not needed:
+
+```yaml
+source: ecowitt
+ecowitt:
+  host: 192.168.1.50        # the gateway's IP address or hostname
+station:
+  timezone: Europe/Berlin   # there is no Home Assistant to ask
+  latitude: 50.1            # for sunrise/sunset, server-side only
+  longitude: 8.7
+```
+
+Or choose *Ecowitt gateway* under Datenquelle/Data source on the admin page and enter the address there.
+
+- The sensors are detected automatically when the container starts, and so is the device list with battery and signal (unless you set `station.devices` yourself). The `sensors:` section isn't needed.
+- The gateway keeps no history, so the dashboard records it itself in `DATA_DIR/ecowitt`: every reading for the last `keep_raw_days` days (default 10, a few MB) and hourly values forever (about 10 MB per year). Charts, records and statistics start filling from the first day. History from Home Assistant is not imported.
+- The gateway is read every `poll_seconds` (default 30). If it is unreachable, the dashboard shows "stale" and simply picks up again with the next successful read.
+- Optional: `rain_gauge` (`auto`, `piezo` or `tipping`; `auto` prefers the piezo gauge) and `pressure` (`relative` or `absolute`, default relative).
+- The container must be able to reach the gateway on your network. Nothing is sent to the gateway except read requests.
 
 ### Forecast
 
@@ -271,10 +295,11 @@ of the admin page, this reset has nothing else to undo.
 |---------------|----------------------------------------------------------|-----------------------|
 | `HA_TOKEN`    | Home Assistant long-lived access token                   | –                     |
 | `HA_URL`      | Overrides `homeassistant.url`                            | –                     |
+| `ECOWITT_HOST`| Overrides `ecowitt.host`                                 | –                     |
 | `TZ`          | Time zone (otherwise `station.timezone` or the one from HA) | –                  |
 | `PORT`        | Port inside the container                                | `47813`               |
 | `CONFIG_PATH` | Path to the config file                                  | `/config/config.yaml` |
-| `DATA_DIR`    | Where the alert history is stored                        | `/data`               |
+| `DATA_DIR`    | Where the alert history, admin settings and (with `source: ecowitt`) the recorded readings are stored | `/data` |
 | `DEMO`        | `1` forces demo mode                                     | –                     |
 
 ## Updating

@@ -96,11 +96,14 @@ export interface AlertRule {
 }
 export interface AdminSettings {
   locked: {
+    source: boolean; ecowittHost: boolean; ecowittHostEnv: boolean;
     haUrl: boolean; haUrlEnv: boolean; haToken: boolean; haTokenEnv: boolean; sensors: Record<string, boolean>; forecastEntity: boolean; dwdStationId: boolean;
     alerts: boolean; stationName: boolean; stationSubtitle: boolean; stationAltitude: boolean; stationSince: boolean; stationPublicLocation: boolean; stationDevices: boolean;
     design: boolean;
   };
+  source: DataSource;
   homeassistant: { url: string; tokenSet: boolean };
+  ecowitt: { host: string };
   sensors: Record<string, string>;
   forecast: { entity: string; dwdStationId: string; biasHours: number; label: string };
   alerts: AlertRule[];
@@ -111,6 +114,8 @@ export interface AdminSettings {
   demo: boolean;
   totpEnabled: boolean;
 }
+// Where the server gets its readings: Home Assistant, or an Ecowitt gateway directly.
+export type DataSource = 'homeassistant' | 'ecowitt';
 // Which frontend the server serves at "/": this one, or web/public/himmel.
 export type Design = 'classic' | 'himmel';
 

@@ -222,6 +222,20 @@ export class HomeAssistantSource extends EventEmitter {
     return out;
   }
 
+  // Every sensor Home Assistant has, for the admin page's entity picker:
+  // [{ id, name, unit, deviceClass, state }]. Asked fresh each time; the admin
+  // page loads it once per visit.
+  async sensorEntities() {
+    const states = await this._send({ type: 'get_states' }, { timeout: 15000 });
+    return (states || []).filter(s => s.entity_id.startsWith('sensor.')).map(s => ({
+      id: s.entity_id,
+      name: s.attributes?.friendly_name ?? s.entity_id,
+      unit: s.attributes?.unit_of_measurement ?? null,
+      deviceClass: s.attributes?.device_class ?? null,
+      state: s.state,
+    }));
+  }
+
   location() {
     return this.haConfig ? { latitude: this.haConfig.latitude, longitude: this.haConfig.longitude, time_zone: this.haConfig.time_zone } : null;
   }

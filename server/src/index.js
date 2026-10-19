@@ -11,6 +11,7 @@ import { RadarSource } from './radar.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
 import { AdminStore } from './admin.js';
+import { suggestSensors } from './entities.js';
 
 let cfg;
 try { cfg = loadConfig(); } catch (e) { console.error(e.message); process.exit(1); }
@@ -283,6 +284,21 @@ async function handleAdmin(req, res, url) {
       requireSession(req, true);
       const timezone = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
       return send(req, res, 200, admin.getPublicSettings(locked, cfg, timezone), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+
+    // Home Assistant's sensors for the entity picker, with the ones that fit each
+    // reading ranked first. Empty (available: false) for the Ecowitt source, or
+    // while Home Assistant is not connected – the fields then stay free text.
+    if (url.pathname === '/api/admin/entities' && req.method === 'GET') {
+      requireSession(req, true);
+      let entities = null;
+      if (typeof source.sensorEntities === 'function' && source.connected) {
+        try { entities = await source.sensorEntities(); } catch (e) { console.warn(`[admin] could not list sensors: ${e.message}`); }
+      }
+      const body = entities
+        ? { available: true, entities, suggestions: suggestSensors(entities, Object.values(cfg.configuredSensors ?? cfg.sensors)) }
+        : { available: false, entities: [], suggestions: {} };
+      return send(req, res, 200, body, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
     }
 
     if (url.pathname === '/api/admin/settings' && req.method === 'POST') {

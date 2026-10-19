@@ -411,8 +411,28 @@ const server = http.createServer(async (req, res) => {
   if (!fs.existsSync(file)) return send(req, res, 404, 'Frontend not built', 'text/plain');
   const ext = path.extname(file);
   const cache = file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache';
-  send(req, res, 200, fs.readFileSync(file), MIME[ext] || 'application/octet-stream', { 'Cache-Control': cache });
+  send(req, res, 200, withStationName(file, fs.readFileSync(file)), MIME[ext] || 'application/octet-stream', { 'Cache-Control': cache });
 });
+
+// The pages and manifests ship with "Wetterstation" as a placeholder; put the
+// configured station name in, so the browser tab, the himmel header before its
+// script runs, and the name of an app added to a home screen all show it.
+const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+function withStationName(file, buf) {
+  const name = cfg.station.name;
+  const base = path.basename(file);
+  if (base === 'index.html') {
+    const n = escapeHtml(name);
+    return Buffer.from(buf.toString('utf8')
+      .replace(/<title>[^<]*<\/title>/, `<title>${n}</title>`)
+      .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*/, `$1${n}`)
+      .replace(/(id="stationName">)[^<]*/, `$1${n}`));
+  }
+  if (base === 'manifest.webmanifest') {
+    try { return Buffer.from(JSON.stringify({ ...JSON.parse(buf.toString('utf8')), name, short_name: name })); } catch { return buf; }
+  }
+  return buf;
+}
 
 server.listen(cfg.server.port, () => console.log(`[server] listening on :${cfg.server.port}`));
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { server.close(); process.exit(0); });

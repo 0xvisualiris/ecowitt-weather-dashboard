@@ -137,7 +137,7 @@ Everything lives in `config/config.yaml`. The most important sections:
 |-------------------|--------------------------------------------------------------------------------|
 | `source`          | `homeassistant` or `ecowitt` — where readings come from; or set via the admin page |
 | `ecowitt`         | Gateway address and options for reading an Ecowitt gateway directly — the address can also be set via the admin page |
-| `station`         | Name, altitude, commissioning date (start of records), devices with battery/signal entities — or set via the admin page |
+| `station`         | Name (shown in the header, the browser tab and as the app name on a home screen), altitude, commissioning date (start of records), devices with battery/signal entities — or set via the admin page. A field set here is locked on the admin page |
 | `homeassistant`   | URL and token (use `${HA_TOKEN}` to read it from the environment) — or set via the admin page |
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |

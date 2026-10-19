@@ -3,6 +3,31 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.0.0 – 2026-10-19
+
+### Breaking changes
+- Himmel is now the only design. The classic card dashboard and the `ui.design` option are removed. A `ui.design` left in `config.yaml` is ignored with a log line, a design saved on the admin page is ignored, and `/himmel/` redirects to `/`. (#61)
+- In the API (`/api/config`, `/api/current`, `/api/alerts`), alert texts (label, description, banner, message, log title and text) can now be `{ en, de }` objects instead of strings. (#61)
+- When no station name is set, the default is "Weather Station" instead of "Wetterstation". (#61)
+
+### New
+- The dashboard speaks English and German. Each visitor picks a language under Settings; without a choice, the browser's language decides. All views, the admin page, map labels and CSV files follow it. (#61)
+- The built-in alert rules come in both languages, and their messages are filled in per language. Rules you write yourself are shown as written, or can be given once per language, for example `label: { en: Frost, de: Frost }`. (#61)
+- Page addresses are English: `#/history`, `#/forecast`, `#/radar`, `#/alerts`, `#/settings`, `#/admin`. The German addresses and the classic `#/details/<metric>` still work, so bookmarks and home-screen apps keep working. (#61)
+
+### Improved
+- `ui.default_units` (starting units for new visitors) and `ui.stale_after_seconds` (the status turns amber when the station stops reporting) now work in Himmel; before, only the classic design used them. (#61)
+- The example `config.yaml` is in English and no longer sets alert rules, so a copied example uses the bilingual built-in rules and keeps them editable on the admin page. (#61)
+- The Docker image no longer has a frontend build step; the frontend is plain HTML, CSS and JavaScript. New screenshots in the README. (#61)
+
+### Fixed
+- The example `config.yaml` no longer sets the station's subtitle, altitude and commissioning date, so copying it no longer locks those fields on the admin page. (#60)
+
+### Upgrade
+Remove `ui.design` from your `config.yaml` if it is set; it is ignored otherwise. If you copied the alert rules from the old example `config.yaml`, they are German only and lock the alerts on the admin page: delete the `alerts:` block to use the built-in rules in both languages. Anything reading alert texts from the API must accept `{ en, de }` objects.
+
+    docker compose pull && docker compose up -d
+
 ## v1.6.1 – 2026-10-19
 
 ### Fixed

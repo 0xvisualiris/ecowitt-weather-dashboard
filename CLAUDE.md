@@ -387,7 +387,7 @@ Plain HTML, CSS and ES modules, loaded by the browser as they are: no build step
 
 ## Configuration & environment
 
-- Config file: `CONFIG_PATH` (default `/config/config.yaml`). If it's missing (or unreadable for the container user), the server starts in **demo mode**. It also falls back to demo mode (with a warning, not a crash) if, after merging in any admin-set settings, the data source still isn't configured anywhere.
+- Config file: `CONFIG_PATH` (default `/config/config.yaml`). It is optional: if it's missing, everything comes from the admin page, and the server never creates one. Demo mode is then not forced; the server falls back to **demo mode** (with a warning, not a crash) only while, after merging in any admin-set settings, the data source still isn't configured anywhere – so a source saved on the admin page switches to real data after the restart. Only `server.demo: true` or `DEMO=1` force demo mode.
 - Environment overrides: `HA_URL`, `HA_TOKEN`, `ECOWITT_HOST`, `PORT`, `DEMO`, `DATA_DIR` (default `/data`), `PUBLIC_DIR` (default `/app/public` in the image, `web/` in a checkout), `TZ`.
 - `config/config.example.yaml` is the single source of truth for options. When adding an option, update it, `config.js` and the README together. A `ui.design` left in a config from before v2.0.0 is ignored with a warning.
 - `config/config.yaml` and `.env` are gitignored and must never be committed. `DATA_DIR/admin.json` (password hash, session secret, admin-set HA/sensor/DWD settings) is runtime state, same category as `DATA_DIR/alerts.json` — never committed either, and never seed it by hand.

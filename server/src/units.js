@@ -1,6 +1,7 @@
 // Everything is normalized to one canonical unit per dimension on the server.
 // The browser converts to the visitor's preferred units.
 //   temperature °C · speed km/h · pressure hPa · rain mm · rain rate mm/h · distance km
+import { COMPASS_POINTS, LOCALES } from './i18n.js';
 
 export const SENSOR_DIMENSION = {
   temperature: 'temperature', feels_like: 'temperature', dew_point: 'temperature',
@@ -53,10 +54,11 @@ export function normalize(key, value, unit) {
   return f(n);
 }
 
-export const COMPASS = ['N', 'NNO', 'NO', 'ONO', 'O', 'OSO', 'SO', 'SSO', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-export const compass = deg => (deg == null ? '—' : COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]);
+// A direction in degrees as a 16-point compass abbreviation, in the given language.
+export const compass = (deg, lang = 'en') => (deg == null ? '—' : COMPASS_POINTS[lang][Math.round((((deg % 360) + 360) % 360) / 22.5) % 16]);
 
-export function fmtDe(v, d = 1) {
+// A number with d decimals, written the way the given language writes it (1.5 or 1,5).
+export function fmtNumber(v, d = 1, lang = 'en') {
   if (v === null || v === undefined || Number.isNaN(v)) return '—';
-  return Number(v).toLocaleString('de-DE', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return Number(v).toLocaleString(LOCALES[lang], { minimumFractionDigits: d, maximumFractionDigits: d });
 }

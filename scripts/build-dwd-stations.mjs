@@ -1,4 +1,4 @@
-// Builds web/public/dwd-stations.json: every DWD MOSMIX station the admin
+// Builds web/dwd-stations.json: every DWD MOSMIX station the admin
 // page's forecast-station picker can offer.
 //
 // A station is included if
@@ -23,9 +23,9 @@ import { fileURLToPath } from 'node:url';
 
 const CATALOGUE = 'https://www.dwd.de/DE/leistungen/met_verfahren_mosmix/mosmix_stationskatalog.cfg?view=nasPublication&nn=16102';
 const FORECASTS = 'https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/';
-const outFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'public', 'dwd-stations.json');
+const outFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'web', 'dwd-stations.json');
 
-// ---- projection: must match web/src/radolanProjection.ts ----
+// ---- projection: must match toGridPos() in web/map.js ----
 const R = 6370.040, PHI0 = (60 * Math.PI) / 180, LAM0 = (10 * Math.PI) / 180, X0 = -523.4621, Y0 = -3758.645, GRID = 900;
 function onMap(lon, lat) {
   const phi = (lat * Math.PI) / 180, lam = (lon * Math.PI) / 180;

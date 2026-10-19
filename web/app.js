@@ -1,12 +1,13 @@
-// Himmel über der Station: the last 24 hours as one landscape.
+// Now: the last 24 hours as one landscape.
 // The ridge is the temperature curve, the sky follows the sun's position at the chosen time,
 // and dragging across the scene moves through the day.
 
 import {
   DAY, $, reducedMotion, n0, n1, clock, weekday, weekdayShort, clamp, lerp, getJson, store,
   sunHeight as sunHeightFor, skyAt as skyFor, hex, mix, rgb, applyTheme, CONDITION, fromWord,
-  units, conv, show, degree, temp as tempText, scrub,
+  units, conv, show, degree, temp as tempText, scrub, atClock, hourLabel, useDefaultUnits,
 } from './lib.js';
+import { tr, words, loc, DECIMAL } from './i18n.js';
 
 // ---------- Data ----------
 
@@ -23,11 +24,13 @@ async function loadCurrent() {
     state.now = Date.now();
     store.cur = state.cur;
     window.dispatchEvent(new Event('station'));
-    $('status').classList.remove('stale');
-    $('statusText').textContent = `Live, ${clock.format(state.cur.updated)} Uhr`;
+    // A station that stopped reporting still answers, with old readings (ui.stale_after_seconds).
+    const stale = Date.now() - state.cur.updated > (state.cfg?.ui?.stale_after_seconds ?? 120) * 1000;
+    $('status').classList.toggle('stale', stale);
+    $('statusText').textContent = tr(stale ? 'status.stale' : 'status.live', { time: atClock(state.cur.updated) });
   } catch {
     $('status').classList.add('stale');
-    $('statusText').textContent = 'Keine Verbindung zur Station';
+    $('statusText').textContent = tr('status.offline');
   }
   renderStatic();
   renderReadout();
@@ -238,9 +241,11 @@ $('backToNow').addEventListener('click', () => {
 
 // ---------- Readout (DOM) ----------
 
-const BEAUFORT = [[2, 'Windstill'], [12, 'Leichte Brise'], [29, 'Mäßiger Wind'], [50, 'Frischer Wind'], [75, 'Stürmischer Wind'], [Infinity, 'Sturm']];
-const windWord = (kmh) => BEAUFORT.find(([max]) => kmh < max)[1];
-const UV_WORD = (uv) => (uv < 3 ? 'niedrig' : uv < 6 ? 'mittel' : uv < 8 ? 'hoch' : uv < 11 ? 'sehr hoch' : 'extrem');
+// Wind in words, by the upper limit of each band in km/h; UV index in words, by the WHO bands.
+const WIND_LIMITS = [2, 12, 29, 50, 75, Infinity], WIND_WORDS = words('wind.words');
+const windWord = (kmh) => WIND_WORDS[WIND_LIMITS.findIndex((max) => kmh < max)];
+const UV_LIMITS = [3, 6, 8, 11, Infinity], UV_WORDS = words('uv.words');
+const UV_WORD = (uv) => UV_WORDS[UV_LIMITS.findIndex((max) => uv < max)];
 
 function setInst(id, value, sub, unit) {
   const el = $(id);
@@ -251,9 +256,9 @@ function setInst(id, value, sub, unit) {
 
 function ago(ms) {
   const min = Math.round(ms / 60000);
-  if (min < 60) return `vor ${min} Min.`;
+  if (min < 60) return tr('time.agoMin', { m: min });
   const h = Math.floor(min / 60), m = min % 60;
-  return m ? `vor ${h} Std. ${m} Min.` : `vor ${h} Std.`;
+  return m ? tr('time.agoHourMin', { h, m }) : tr('time.agoHour', { h });
 }
 
 let lastReadoutKey = '';
@@ -276,11 +281,11 @@ function renderReadout() {
 
   // When
   if (live) {
-    $('whenMain').textContent = 'Jetzt';
-    $('whenSub').textContent = `${clock.format(state.now)} Uhr`;
+    $('whenMain').textContent = tr('nav.now');
+    $('whenSub').textContent = atClock(state.now);
   } else {
     const sameDay = new Date(t).getDate() === new Date(state.now).getDate();
-    $('whenMain').textContent = `${sameDay ? 'Heute' : 'Gestern'}, ${clock.format(t)} Uhr`;
+    $('whenMain').textContent = tr('time.dayAt', { day: tr(sameDay ? 'time.today' : 'time.yesterday'), time: atClock(t) });
     $('whenSub').textContent = ago(state.now - t);
   }
   $('backToNow').hidden = live;
@@ -289,57 +294,58 @@ function renderReadout() {
   // Temperature
   if (temp == null) { $('tempInt').textContent = '–'; $('tempFrac').textContent = ''; }
   else {
-    const [int, frac] = show('temp', temp).split(',');
+    const [int, frac] = show('temp', temp).split(DECIMAL);
     document.querySelector('.temp-unit').textContent = degree();
     $('tempInt').textContent = int;
-    $('tempFrac').textContent = `,${frac}`;
+    $('tempFrac').textContent = `${DECIMAL}${frac}`;
   }
 
   // One sentence for the moment
   const dry = live ? v.rain_rate <= 0 : (bucket('rain', t)?.v ?? 0) <= 0;
   const parts = [];
-  if (wind != null) parts.push(live && v.wind_direction != null ? `${windWord(wind)} aus ${fromWord(v.wind_direction)}` : windWord(wind));
-  parts.push(dry ? 'trocken' : 'Regen');
+  if (wind != null) parts.push(live && v.wind_direction != null ? tr('wind.from', { wind: windWord(wind), dir: fromWord(v.wind_direction) }) : windWord(wind));
+  parts.push(tr(dry ? 'now.dry' : 'now.rain'));
   $('sentence').textContent = live
-    ? `Fühlt sich an wie ${tempText(v.feels_like)}. ${parts.join(', ')}.`
-    : `${parts.join(', ')}, ${n0.format(hum ?? 0)} % Luftfeuchte.`;
+    ? tr('now.feelsLike', { temp: tempText(v.feels_like), parts: parts.join(', ') })
+    : tr('now.pastSentence', { parts: parts.join(', '), hum: n0.format(hum ?? 0) });
 
   // Instruments
   const gust = live ? v.wind_gust : bucket('wind', t)?.hi;
   const windUnit = conv('wind').unit, rainUnit = conv('rain').unit, pressUnit = conv('press').unit;
   setInst('inst-wind', show('wind', wind),
-    live ? `Böen bis ${show('wind', gust, 0)} ${windUnit}, aus ${fromWord(v.wind_direction)}` : `Böen bis ${show('wind', gust ?? wind, 0)} ${windUnit}`);
+    live ? tr('now.gustsFrom', { gust: show('wind', gust, 0), unit: windUnit, dir: fromWord(v.wind_direction) }) : tr('now.gusts', { gust: show('wind', gust ?? wind, 0), unit: windUnit }));
   $('inst-wind').querySelector('.unit').textContent = windUnit;
   $('inst-rain').querySelector('.unit').textContent = rainUnit;
   $('inst-press').querySelector('.unit').textContent = pressUnit;
   if (v.wind_direction != null) $('needle').style.transform = `rotate(${(v.wind_direction + 180) % 360}deg)`;
 
-  if (live) setInst('inst-rain', show('rain', cur.rain.day), `heute. Diese Woche ${show('rain', cur.rain.week)} ${rainUnit}, im Monat ${show('rain', cur.rain.month)} ${rainUnit}`);
-  else setInst('inst-rain', show('rain', bucket('rain', t)?.v ?? 0), 'in dieser halben Stunde');
+  if (live) setInst('inst-rain', show('rain', cur.rain.day), tr('now.rainToday', { week: show('rain', cur.rain.week), month: show('rain', cur.rain.month), unit: rainUnit }));
+  else setInst('inst-rain', show('rain', bucket('rain', t)?.v ?? 0), tr('now.rainHalfHour'));
 
   const before = at('press', t - 3 * 3600 * 1000);
   const trend = live ? cur.pressureTrend : (press != null && before != null ? press - before : 0);
-  const trendWord = Math.abs(trend) < 0.3 ? 'gleichbleibend' : trend > 0 ? `steigt, +${show('press', trend)} ${pressUnit} in 3 Std.` : `fällt, ${show('press', trend)} ${pressUnit} in 3 Std.`;
+  const trendWord = Math.abs(trend) < 0.3 ? tr('now.pressSteady')
+    : tr(trend > 0 ? 'now.pressRising' : 'now.pressFalling', { v: show('press', trend), unit: pressUnit });
   setInst('inst-press', show('press', press), trendWord);
 
   setInst('inst-hum', hum == null ? '–' : n0.format(hum),
-    live ? `Taupunkt ${tempText(v.dew_point)}` : `heute zwischen ${n0.format(cur.today.hum.min)} und ${n0.format(cur.today.hum.max)} %`);
+    live ? tr('now.dewPoint', { t: tempText(v.dew_point) }) : tr('now.humRange', { min: n0.format(cur.today.hum.min), max: n0.format(cur.today.hum.max) }));
 
   setInst('inst-sun', solar == null ? '–' : n0.format(solar),
-    live ? `UV ${n0.format(v.uv_index)}, ${UV_WORD(v.uv_index)}. Untergang ${clock.format(cur.astro.sunset)} Uhr`
-      : `Aufgang ${clock.format(cur.astro.sunrise)}, Untergang ${clock.format(cur.astro.sunset)} Uhr`);
+    live ? tr('now.sunLive', { uv: n0.format(v.uv_index), word: UV_WORD(v.uv_index), time: atClock(cur.astro.sunset) })
+      : tr('now.sunPast', { rise: atClock(cur.astro.sunrise), set: atClock(cur.astro.sunset) }));
 
   if (live) {
     const recent = v.lightning_time && state.now - v.lightning_time < 3600 * 1000 * 3;
     setInst('inst-light', recent ? n0.format(v.lightning_distance) : n0.format(v.lightning_count),
-      recent ? `entfernt, zuletzt ${clock.format(v.lightning_time)} Uhr. ${n0.format(v.lightning_count)} Einschläge heute` : 'Einschläge heute',
+      recent ? tr('now.lightRecent', { time: atClock(v.lightning_time), count: n0.format(v.lightning_count) }) : tr('now.lightToday'),
       recent ? 'km' : '');
   } else {
-    setInst('inst-light', n0.format(bucket('light', t)?.v ?? 0), 'Einschläge in dieser Stunde', '');
+    setInst('inst-light', n0.format(bucket('light', t)?.v ?? 0), tr('now.lightHour'), '');
   }
 
   canvas.setAttribute('aria-valuenow', String(Math.round((cursor.x - geo.x0) / (geo.xNow - geo.x0) * 144)));
-  canvas.setAttribute('aria-valuetext', live ? `Jetzt, ${n1.format(temp ?? 0)} Grad` : `${clock.format(t)} Uhr, ${n1.format(temp ?? 0)} Grad`);
+  canvas.setAttribute('aria-valuetext', live ? tr('now.ariaNow', { t: n1.format(temp ?? 0) }) : tr('now.ariaAt', { time: atClock(t), t: n1.format(temp ?? 0) }));
 }
 
 // Parts of the page that only change when new data arrives.
@@ -351,8 +357,8 @@ function renderStatic() {
   const alert = cur.alerts?.[0];
   $('alert').hidden = !alert;
   if (alert) {
-    $('alertTitle').textContent = alert.banner || alert.label;
-    $('alertText').textContent = alert.message || '';
+    $('alertTitle').textContent = loc(alert.banner) || loc(alert.label);
+    $('alertText').textContent = loc(alert.message);
   }
 
   const days = cur.forecast?.days ?? [];
@@ -362,10 +368,10 @@ function renderStatic() {
     $('dayList').replaceChildren(...days.map((d, i) => {
       const li = document.createElement('li');
       li.className = 'day';
-      const rain = d.pop >= 30 ? `, ${n0.format(d.pop)} % Regenrisiko` : '';
+      const rain = d.pop >= 30 ? tr('now.chanceOfRain', { pop: n0.format(d.pop) }) : '';
       li.innerHTML = `
         <span class="day-bar" aria-hidden="true"><i style="bottom:${pct(d.lo)}%;top:${100 - pct(d.hi)}%"></i></span>
-        <span class="day-name">${i === 0 ? 'Heute' : weekday.format(d.date)}</span>
+        <span class="day-name">${i === 0 ? tr('time.today') : weekday.format(d.date)}</span>
         <span class="day-cond">${CONDITION[d.conditionCode] ?? ''}${rain}</span>
         <span class="day-range">${tempText(d.hi, 0)} <small>${tempText(d.lo, 0)}</small></span>`;
       return li;
@@ -540,7 +546,7 @@ function draw(sky, t, dt) {
   // How much each shower brought, written on the land below it
   if (intro === 1) {
     ctx.fillStyle = 'rgba(243,246,242,0.78)'; ctx.font = font(13); ctx.textAlign = 'center';
-    for (const s of showers) { const x = clamp((s.x0 + s.x1) / 2, 56, W - 56); ctx.fillText(`${show('rain', s.sum)} ${conv('rain').unit} Regen`, x, Math.max(ridgeY(x - 40), ridgeY(x), ridgeY(x + 40)) + 24); }
+    for (const s of showers) { const x = clamp((s.x0 + s.x1) / 2, 56, W - 56); ctx.fillText(tr('now.rainAmount', { v: show('rain', s.sum), unit: conv('rain').unit }), x, Math.max(ridgeY(x - 40), ridgeY(x), ridgeY(x + 40)) + 24); }
   }
 
   // Coldest and warmest point of the day, written on the land
@@ -550,7 +556,7 @@ function draw(sky, t, dt) {
       const x = xAtTime(pt.t);
       if (Math.abs(x - cursor.x) < 70) continue;
       ctx.textAlign = x < 70 ? 'left' : x > xNow - 70 ? 'right' : 'center';
-      ctx.fillText(`${tempText(pt.v)} um ${clock.format(pt.t)}`, x, ridgeY(x) + (above ? -14 : 24));
+      ctx.fillText(tr('now.extreme', { temp: tempText(pt.v), time: clock.format(pt.t) }), x, ridgeY(x) + (above ? -14 : 24));
     }
   }
 
@@ -562,7 +568,7 @@ function draw(sky, t, dt) {
     if (hour % (W < 640 ? 6 : 3) !== 0) continue;
     const x = xAtTime(h);
     if (x < 26 || x > xNow - 34 || x > limit) continue;
-    ctx.fillText(hour === 0 ? weekdayShort.format(d).replace('.', '') + ', 0 Uhr' : `${hour} Uhr`, x, H - 16);
+    ctx.fillText(hour === 0 ? tr('time.midnight', { day: weekdayShort.format(d).replace('.', '') }) : hourLabel(hour), x, H - 16);
   }
 
   // The cursor
@@ -580,7 +586,7 @@ function draw(sky, t, dt) {
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, y, 5, 0, 6.283); ctx.fill();
     ctx.font = font(12, 600); ctx.fillStyle = 'rgba(243,246,242,0.95)';
     ctx.textAlign = cx > W - 40 ? 'right' : 'center';
-    ctx.fillText(cursor.live && !cursor.dragging ? 'Jetzt' : clock.format(t), cx, H - 16);
+    ctx.fillText(cursor.live && !cursor.dragging ? tr('nav.now') : clock.format(t), cx, H - 16);
   }
 }
 
@@ -603,6 +609,7 @@ resize();
 
 (async () => {
   try { state.cfg = store.cfg = await getJson('/api/config'); } catch { /* the page still works without the station name */ }
+  useDefaultUnits(state.cfg?.ui?.default_units);
   await Promise.all([loadCurrent(), loadHistory()]);
   const every = (state.cfg?.ui?.refresh_seconds ?? 15) * 1000;
   setInterval(loadCurrent, every);

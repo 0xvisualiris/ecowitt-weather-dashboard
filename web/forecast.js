@@ -1,9 +1,10 @@
-// Vorhersage: the coming hours as a line chart, and each day in detail.
+// Forecast: the coming hours as a line chart, and each day in detail.
 
 import {
   $, el, getJson, store, stationReady, CONDITION, num, weekday, dayMonth, show, conv, metricConv, temp as tempText,
-  clamp, lerp, fitCanvas, canvasFont, drawCondition, scrub, HOUR,
+  clamp, lerp, fitCanvas, canvasFont, drawCondition, scrub, HOUR, hourLabel,
 } from './lib.js';
+import { tr, words } from './i18n.js';
 
 const state = { hours: [], source: '', synthetic: false, cursor: 0, built: false, loadedAt: 0 };
 const canvas = $('fcChart');
@@ -11,39 +12,37 @@ let view = null;
 
 const shown = () => state.hours.slice(0, canvas.getBoundingClientRect().width < 700 ? 36 : 72);
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
-const dayWord = (t) => (sameDay(t, Date.now()) ? 'Heute' : sameDay(t, Date.now() + 24 * HOUR) ? 'Morgen' : weekday.format(t));
+const dayWord = (t) => (sameDay(t, Date.now()) ? tr('time.today') : sameDay(t, Date.now() + 24 * HOUR) ? tr('time.tomorrow') : weekday.format(t));
 
 async function load() {
   try {
     const data = await getJson('/api/forecast/hourly');
     Object.assign(state, { hours: data.hours ?? [], source: data.source, synthetic: data.synthetic, loadedAt: Date.now() });
     state.cursor = clamp(state.cursor, 0, Math.max(state.hours.length - 1, 0));
-    $('fcSource').textContent = data.synthetic
-      ? `Quelle: ${data.source}. Die Stundenwerte sind aus der Tagesvorhersage abgeleitet, weil keine DWD-Station eingestellt ist.`
-      : `Quelle: ${data.source}.`;
+    $('fcSource').textContent = tr(data.synthetic ? 'forecast.sourceDerived' : 'forecast.source', { source: data.source });
   } catch (e) {
     state.hours = [];
-    $('fcSource').textContent = `Die Vorhersage konnte nicht geladen werden (${e.message}).`;
+    $('fcSource').textContent = tr('forecast.loadError', { error: e.message });
   }
   draw(); renderReadout(); renderDays();
 }
 
 function renderReadout() {
   const h = shown()[state.cursor];
-  if (!h) { $('fcVal').textContent = '–'; $('fcWhen').textContent = 'Keine Vorhersage verfügbar.'; $('fcSentence').textContent = ''; return; }
-  $('fcWhen').textContent = `${dayWord(h.t)}, ${new Date(h.t).getHours()} Uhr`;
+  if (!h) { $('fcVal').textContent = '–'; $('fcWhen').textContent = tr('forecast.none'); $('fcSentence').textContent = ''; return; }
+  $('fcWhen').textContent = tr('time.dayAt', { day: dayWord(h.t), time: hourLabel(new Date(h.t).getHours()) });
   $('fcVal').textContent = tempText(h.temp);
-  const parts = [CONDITION[h.conditionCode] ?? 'Wechselhaft'];
-  if (h.pop != null) parts.push(`${num(h.pop, 0)} % Regenrisiko`);
-  if (h.rain > 0) parts.push(`${show('rain', h.rain)} ${conv('rain').unit} Regen`);
+  const parts = [CONDITION[h.conditionCode] ?? tr('cond.unknown')];
+  if (h.pop != null) parts.push(tr('forecast.chanceOfRain', { pop: num(h.pop, 0) }));
+  if (h.rain > 0) parts.push(tr('now.rainAmount', { v: show('rain', h.rain), unit: conv('rain').unit }));
   const second = [];
-  if (h.wind != null) second.push(`Wind ${show('wind', h.wind, 0)} ${conv('wind').unit}${h.gust != null ? `, Böen bis ${show('wind', h.gust, 0)}` : ''}`);
-  if (h.sunMin > 0) second.push(`${num(h.sunMin, 0)} Min. Sonne`);
-  else if (h.cloud != null) second.push(`${num(h.cloud, 0)} % bewölkt`);
+  if (h.wind != null) second.push(tr(h.gust != null ? 'forecast.windGusts' : 'forecast.wind', { v: show('wind', h.wind, 0), unit: conv('wind').unit, g: show('wind', h.gust, 0) }));
+  if (h.sunMin > 0) second.push(tr('forecast.sunMinutes', { n: num(h.sunMin, 0) }));
+  else if (h.cloud != null) second.push(tr('forecast.cloud', { n: num(h.cloud, 0) }));
   $('fcSentence').textContent = `${parts.join(', ')}. ${second.join('. ')}${second.length ? '.' : ''}`;
   canvas.setAttribute('aria-valuemax', String(Math.max(shown().length - 1, 0)));
   canvas.setAttribute('aria-valuenow', String(state.cursor));
-  canvas.setAttribute('aria-valuetext', `${$('fcWhen').textContent}: ${num(h.temp, 1)} Grad, ${parts.join(', ')}`);
+  canvas.setAttribute('aria-valuetext', tr('forecast.aria', { when: $('fcWhen').textContent, t: num(h.temp, 1), parts: parts.join(', ') }));
 }
 
 // Round axis steps: 1, 2 or 5 times a power of ten.
@@ -52,7 +51,7 @@ function niceStep(span, target) {
   return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * pow;
 }
 
-// A line chart like the one under Verlauf: temperature on a value scale, the sky every few hours
+// A line chart like the one under History: temperature on a value scale, the sky every few hours
 // above it and the chance of rain as bars in a strip of its own below.
 function draw() {
   if (canvas.offsetParent === null) return;
@@ -87,7 +86,7 @@ function draw() {
     ctx.strokeStyle = 'rgba(243,246,242,0.13)'; ctx.beginPath(); ctx.moveTo(padL, Math.round(y) + 0.5); ctx.lineTo(W - padR, Math.round(y) + 0.5); ctx.stroke();
   }
   ctx.fillStyle = 'rgba(243,246,242,0.62)';
-  ctx.fillText('100 %', padL - 10, rainTop); ctx.fillText('Regen', padL - 10, (rainTop + rainBase) / 2);
+  ctx.fillText('100 %', padL - 10, rainTop); ctx.fillText(tr('forecast.rainStrip'), padL - 10, (rainTop + rainBase) / 2);
   ctx.textBaseline = 'alphabetic';
 
   // Days: a faint line at each midnight and the name of the day
@@ -126,7 +125,7 @@ function draw() {
   ctx.fillStyle = 'rgba(243,246,242,0.62)'; ctx.font = canvasFont(12, 400); ctx.textAlign = 'center';
   hours.forEach((h) => {
     const hour = new Date(h.t).getHours(), x = X(h.t);
-    if (hour % (W < 700 ? 6 : hours.length > 48 ? 6 : 3) === 0 && x > padL + 16 && x < W - padR - 16) ctx.fillText(`${hour} Uhr`, x, H - 10);
+    if (hour % (W < 700 ? 6 : hours.length > 48 ? 6 : 3) === 0 && x > padL + 16 && x < W - padR - 16) ctx.fillText(hourLabel(hour), x, H - 10);
   });
 
   // Cursor
@@ -172,7 +171,7 @@ function daysToShow() {
 
 function renderDays() {
   const days = daysToShow();
-  if (!days.length) { $('fcDays').replaceChildren(el('li.empty', {}, 'Für diese Station ist keine Vorhersage eingerichtet. Unter „Station verwalten“ lässt sich eine DWD-Station wählen.')); return; }
+  if (!days.length) { $('fcDays').replaceChildren(el('li.empty', {}, tr('forecast.notSetUp'))); return; }
   const lo = Math.min(...days.map((d) => d.lo)), hi = Math.max(...days.map((d) => d.hi)), span = Math.max(hi - lo, 1);
   const cell = (label, value) => el('span.fc-cell', {}, el('small', {}, label), value);
 
@@ -183,30 +182,30 @@ function renderDays() {
     const gust = Math.max(...hrs.map((h) => h.gust ?? 0));
     const sun = hrs.reduce((s, h) => s + (h.sunMin ?? 0), 0) / 60;
     const summary = el('summary', {},
-      el('span.fc-name', {}, i === 0 ? 'Heute' : weekday.format(d.date), el('small', {}, dayMonth.format(d.date))),
+      el('span.fc-name', {}, i === 0 ? tr('time.today') : weekday.format(d.date), el('small', {}, dayMonth.format(d.date))),
       el('span.fc-cond', {}, CONDITION[d.conditionCode] ?? '–'),
       el('span.fc-range', {},
         el('span.fc-lo', {}, tempText(d.lo, 0)),
         el('span.fc-track', {}, el('i', { style: `left:${(d.lo - lo) / span * 100}%;right:${(hi - d.hi) / span * 100}%` })),
         el('span.fc-hi', {}, tempText(d.hi, 0))),
-      cell('Regenrisiko', d.pop == null ? '–' : `${num(d.pop, 0)} %`),
-      cell('Regen', hrs.length ? `${show('rain', rain)} ${conv('rain').unit}` : '–'),
-      cell('Böen bis', hrs.length ? `${show('wind', gust, 0)} ${conv('wind').unit}` : '–'),
-      cell('Sonne', complete ? `${num(sun, 1)} Std.` : '–'));
+      cell(tr('forecast.cellPop'), d.pop == null ? '–' : `${num(d.pop, 0)} %`),
+      cell(tr('forecast.cellRain'), hrs.length ? `${show('rain', rain)} ${conv('rain').unit}` : '–'),
+      cell(tr('forecast.cellGust'), hrs.length ? `${show('wind', gust, 0)} ${conv('wind').unit}` : '–'),
+      cell(tr('forecast.cellSun'), complete ? tr('forecast.sunHours', { n: num(sun, 1) }) : '–'));
 
     const slots = hrs.filter((h) => new Date(h.t).getHours() % 3 === 0);
     const body = slots.length
       ? el('div.table-scroll', {}, el('table.fc-hours', {},
-        el('thead', {}, el('tr', {}, ...['Uhrzeit', 'Temperatur', 'Wetter', 'Regenrisiko', 'Regen', 'Wind', 'Böen'].map((h) => el('th', { scope: 'col' }, h)))),
+        el('thead', {}, el('tr', {}, ...words('forecast.tableHeads').map((h) => el('th', { scope: 'col' }, h)))),
         el('tbody', {}, ...slots.map((h) => el('tr', {},
-          el('th', { scope: 'row' }, `${new Date(h.t).getHours()} Uhr`),
+          el('th', { scope: 'row' }, hourLabel(new Date(h.t).getHours())),
           el('td', {}, tempText(h.temp)),
           el('td', {}, CONDITION[h.conditionCode] ?? '–'),
           el('td', {}, h.pop == null ? '–' : `${num(h.pop, 0)} %`),
           el('td', {}, h.rain > 0 ? `${show('rain', h.rain)} ${conv('rain').unit}` : '–'),
           el('td', {}, h.wind == null ? '–' : `${show('wind', h.wind, 0)} ${conv('wind').unit}`),
           el('td', {}, h.gust == null ? '–' : `${show('wind', h.gust, 0)} ${conv('wind').unit}`))))))
-      : el('p.sub', {}, 'Für diesen Tag gibt es noch keine Stundenwerte.');
+      : el('p.sub', {}, tr('forecast.noHours'));
     return el('li', {}, el('details', { open: i === 0 }, summary, body));
   }));
 }

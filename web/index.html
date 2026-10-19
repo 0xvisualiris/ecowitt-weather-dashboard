@@ -1,29 +1,218 @@
 <!doctype html>
-<html lang="de">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0c0e13" />
-    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Weather Station</title>
+  <meta name="theme-color" content="#2a66ae">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Weather Station">
+  <link rel="preload" href="fonts/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-view="now">
+  <header class="top">
+    <a class="station" href="#/" id="stationName">Weather Station</a>
+    <nav class="nav" id="nav" aria-label="Views" data-t-aria-label="nav.label">
+      <a href="#/" data-nav="now" data-t="nav.now">Now</a>
+      <a href="#/history" data-nav="history" data-t="nav.history">History</a>
+      <a href="#/forecast" data-nav="forecast" data-t="nav.forecast">Forecast</a>
+      <a href="#/radar" data-nav="radar" data-t="nav.radar">Rain radar</a>
+      <a href="#/alerts" data-nav="alerts"><span data-t="nav.alerts">Alerts</span><span class="badge" id="alertBadge" hidden></span></a>
+      <span class="nav-mark" id="navMark" aria-hidden="true"></span>
+    </nav>
+    <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">Connecting</span></p>
+  </header>
 
-    <!-- "Add to Home Screen": apple-mobile-web-app-capable is what actually
-         gets iOS Safari to launch without any browser chrome at all (not
-         just a bookmark with minimal UI) — that in turn is what makes
-         env(safe-area-inset-*) report the real notch/status-bar height for
-         styles.css's .page padding to use, instead of 0. status-bar-style
-         "black-translucent" overlays the status bar on the page instead of
-         reserving an opaque bar, matching the glass/ambient-gradient look. -->
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Wetterstation" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <!-- Now -->
+  <div data-view="now">
+    <section class="sky" id="sky">
+      <canvas id="scene" tabindex="0" role="slider" aria-label="Time within the last 24 hours" data-t-aria-label="now.sceneLabel"
+              aria-valuemin="0" aria-valuemax="144" aria-valuenow="144" aria-valuetext="Now" data-t-aria-valuetext="nav.now"></canvas>
 
-    <title>Wetterstation</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+      <div class="hero">
+        <p class="when">
+          <span id="whenMain" data-t="nav.now">Now</span><span class="when-sub" id="whenSub"></span>
+          <button type="button" class="back" id="backToNow" data-t="now.back" hidden>Back to now</button>
+        </p>
+        <p class="temp" aria-live="off"><span id="tempInt">–</span><span class="temp-frac" id="tempFrac"></span><span class="temp-unit">°</span></p>
+        <p class="sentence" id="sentence">&nbsp;</p>
+        <p class="alert" id="alert" hidden><strong id="alertTitle"></strong><span id="alertText"></span></p>
+      </div>
+
+      <p class="hint" id="hint"><span class="hint-long" data-t="now.hintLong">Drag across the landscape to move through the last 24 hours.</span><span class="hint-short" data-t="now.hintShort">Drag across the landscape to look back.</span></p>
+    </section>
+
+    <main class="ground">
+      <div id="alertSlot"></div>
+      <section class="instruments" aria-label="Readings" data-t-aria-label="now.instruments">
+        <article class="inst" id="inst-wind">
+          <h2><a href="#/history?m=wind" data-t="metric.wind">Wind</a></h2>
+          <div class="inst-row">
+            <p class="val"><span data-v>–</span> <span class="unit">km/h</span></p>
+            <svg class="compass" viewBox="-30 -30 60 60" aria-hidden="true">
+              <circle r="26" class="ring"/>
+              <path d="M0-26v5M0 26v-5M-26 0h5M26 0h-5" class="ticks"/>
+              <g id="needle"><path d="M0-21 5 4H-5Z" class="needle"/><circle r="2.2" class="hub"/></g>
+            </svg>
+          </div>
+          <p class="sub" data-s>&nbsp;</p>
+        </article>
+        <article class="inst" id="inst-rain">
+          <h2><a href="#/history?m=rain" data-t="metric.rain">Rain</a></h2>
+          <p class="val"><span data-v>–</span> <span class="unit">mm</span></p>
+          <p class="sub" data-s>&nbsp;</p>
+        </article>
+        <article class="inst" id="inst-press">
+          <h2><a href="#/history?m=press" data-t="metric.press">Pressure</a></h2>
+          <p class="val"><span data-v>–</span> <span class="unit">hPa</span></p>
+          <p class="sub" data-s>&nbsp;</p>
+        </article>
+        <article class="inst" id="inst-hum">
+          <h2><a href="#/history?m=hum" data-t="metric.hum">Humidity</a></h2>
+          <p class="val"><span data-v>–</span> <span class="unit">%</span></p>
+          <p class="sub" data-s>&nbsp;</p>
+        </article>
+        <article class="inst" id="inst-sun">
+          <h2><a href="#/history?m=solar" data-t="metric.solar">Sun</a></h2>
+          <p class="val"><span data-v>–</span> <span class="unit">W/m²</span></p>
+          <p class="sub" data-s>&nbsp;</p>
+        </article>
+        <article class="inst" id="inst-light">
+          <h2><a href="#/history?m=light" data-t="metric.light">Lightning</a></h2>
+          <p class="val"><span data-v>–</span> <span class="unit" data-u></span></p>
+          <p class="sub" data-s>&nbsp;</p>
+        </article>
+      </section>
+
+      <section class="days" aria-labelledby="daysTitle">
+        <div class="section-head">
+          <h2 id="daysTitle" data-t="now.daysTitle">The next few days</h2>
+          <a class="more" href="#/forecast" data-t="now.hourByHour">See hour by hour</a>
+        </div>
+        <ol class="day-list" id="dayList"></ol>
+      </section>
+    </main>
+  </div>
+
+  <!-- History -->
+  <main class="page" data-view="history" hidden>
+    <div class="page-head">
+      <h1 data-t="history.title">History</h1>
+      <div class="tabs" id="histRange" role="group" aria-label="Period" data-t-aria-label="history.period"></div>
+    </div>
+    <div class="tabs metric-tabs" id="histMetric" role="group" aria-label="Reading" data-t-aria-label="history.reading"></div>
+
+    <div class="readout">
+      <div>
+        <p class="readout-when" id="histWhen">&nbsp;</p>
+        <p class="readout-val"><span id="histVal">–</span> <span class="unit" id="histUnit"></span></p>
+      </div>
+      <dl class="stats" id="histStats"></dl>
+    </div>
+    <canvas class="chart plain" id="histChart" tabindex="0" role="slider" aria-label="Time in the chart" data-t-aria-label="history.chartLabel" aria-valuemin="0" aria-valuemax="1" aria-valuenow="1"></canvas>
+    <p class="actions">
+      <button type="button" class="btn" id="histCsv" data-t="history.csv">Save as CSV</button>
+      <span class="sub" id="histNote"></span>
+    </p>
+
+    <section class="block detail">
+      <div>
+        <h2 id="detTitle">Today</h2>
+        <dl class="facts" id="detToday"></dl>
+      </div>
+      <div>
+        <h2 data-t="history.sensor">Sensor</h2>
+        <dl class="facts" id="detSensor"></dl>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="section-head"><h2 data-t="history.records">Records</h2><p class="sub" id="recSince"></p></div>
+      <div class="table-scroll"><table class="records" id="recTable"></table></div>
+    </section>
+  </main>
+
+  <!-- Forecast -->
+  <main class="page" data-view="forecast" hidden>
+    <div class="page-head">
+      <h1 data-t="forecast.title">Forecast</h1>
+      <p class="sub" id="fcSource">&nbsp;</p>
+    </div>
+    <div class="readout">
+      <div>
+        <p class="readout-when" id="fcWhen">&nbsp;</p>
+        <p class="readout-val"><span id="fcVal">–</span></p>
+      </div>
+      <p class="sentence fc-sentence" id="fcSentence">&nbsp;</p>
+    </div>
+    <canvas class="chart tall plain" id="fcChart" tabindex="0" role="slider" aria-label="Forecast hour" data-t-aria-label="forecast.chartLabel" aria-valuemin="0" aria-valuemax="71" aria-valuenow="0"></canvas>
+
+    <section class="block">
+      <div class="section-head"><h2 data-t="forecast.dayByDay">Day by day</h2><p class="sub" data-t="forecast.dayByDayNote">Open a day to see it in three-hour steps.</p></div>
+      <ol class="fc-days" id="fcDays"></ol>
+    </section>
+  </main>
+
+  <!-- Rain radar -->
+  <main class="page" data-view="radar" hidden>
+    <div class="page-head">
+      <h1 data-t="radar.title">Rain radar</h1>
+      <p class="sub" id="radarStatus">&nbsp;</p>
+    </div>
+    <div class="radar">
+      <div id="radarMap"></div>
+      <div class="radar-side">
+        <p class="readout-val" id="radarTime">–</p>
+        <div class="radar-play">
+          <button type="button" class="btn primary" id="radarPlay" aria-pressed="false" data-t="radar.play">Play</button>
+          <button type="button" class="btn" id="radarReset" data-t="radar.reset" hidden>Show whole map</button>
+        </div>
+        <label class="radar-scrub"><span class="field-label" data-t="radar.scrub">Time within the last two hours</span>
+          <input type="range" id="radarSlider" min="0" max="0" step="1" value="0"></label>
+        <div class="legend">
+          <span class="field-label" data-t="radar.legend">Rain in mm per hour</span>
+          <div class="legend-bar" id="radarLegend"></div>
+          <div class="legend-ticks" id="radarTicks"></div>
+        </div>
+        <p class="sentence radar-local" id="radarLocal"></p>
+        <p class="sub" data-t="radar.credit">Data: DWD RADOLAN, updated every five minutes. Drag with the mouse, zoom with Ctrl + scroll or the keys. On a phone, use two fingers.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Settings -->
+  <main class="page narrow" data-view="settings" hidden>
+    <div class="page-head"><h1 data-t="settings.title">Settings</h1><p class="sub" data-t="settings.note">Applies to this browser only and is stored only here.</p></div>
+    <div id="unitRows"></div>
+  </main>
+
+  <!-- Alerts -->
+  <main class="page" data-view="alerts" hidden>
+    <div class="page-head"><h1 data-t="alerts.title">Alerts</h1><p class="sub" id="alertSummary">&nbsp;</p></div>
+    <ul class="rule-list" id="alertRules"></ul>
+    <section class="block">
+      <div class="section-head"><h2 data-t="alerts.history">What has triggered so far</h2></div>
+      <ol class="log-list" id="alertLog"></ol>
+    </section>
+  </main>
+
+  <!-- Station management -->
+  <main class="page narrow" data-view="admin" hidden>
+    <div id="adminRoot"></div>
+  </main>
+
+  <footer class="foot">
+    <p><span data-t="foot.data">Weather data and radar: Deutscher Wetterdienst. Map: Natural Earth. </span><span data-t="foot.sourceBy">Source code by </span><a href="https://github.com/0xvisualiris" rel="noopener">0xvisualiris</a><span data-t="foot.under"> under the </span><a href="https://github.com/0xvisualiris/ecowitt-weather-dashboard/blob/main/LICENSE" rel="noopener" data-t="foot.licence">MIT licence</a><span data-t="foot.end">.</span></p>
+    <p class="foot-links"><a href="#/settings" data-t="foot.settings">Units and language</a><a href="#/admin" data-t="foot.admin">Manage station</a></p>
+  </footer>
+
+  <script src="app.js" type="module"></script>
+  <script src="main.js" type="module"></script>
+</body>
 </html>

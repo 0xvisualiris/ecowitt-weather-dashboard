@@ -1,9 +1,8 @@
 {
-  "name": "Wetterstation",
-  "short_name": "Wetter",
+  "name": "Weather Station",
+  "short_name": "Weather Station",
   "description": "Ecowitt Weather Dashboard",
-  "lang": "de",
-  "start_url": "./",
+    "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#12261f",

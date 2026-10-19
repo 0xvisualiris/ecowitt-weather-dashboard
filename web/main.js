@@ -1,5 +1,5 @@
 // Routing between the views, the sliding mark under the active nav item, and the page colours
-// while the "Jetzt" view (which normally sets them) is not on screen.
+// while the "Now" view (which normally sets them) is not on screen.
 
 import { $, store, skyAt, applyTheme, syncBarColour } from './lib.js';
 import * as history from './history.js';
@@ -9,10 +9,14 @@ import * as radar from './radar.js';
 import * as settings from './settings.js';
 import * as admin from './admin.js';
 
-const VIEWS = { '': 'now', verlauf: 'history', vorhersage: 'forecast', regenradar: 'radar', warnungen: 'alerts', einstellungen: 'settings', verwaltung: 'admin' };
+const VIEWS = { '': 'now', history: 'history', forecast: 'forecast', radar: 'radar', alerts: 'alerts', settings: 'settings', admin: 'admin' };
+// Addresses from before v2.0.0 (German ones, and the second design's) still lead to their view.
+const OLD_ADDRESSES = {
+  verlauf: 'history', details: 'history', vorhersage: 'forecast', regenradar: 'radar', warnungen: 'alerts', einstellungen: 'settings', verwaltung: 'admin',
+};
 const modules = { history, forecast, alerts, radar, settings, admin };
 
-// Kiosk mode (?kiosk=1) for a wall display: only the Jetzt view, no navigation.
+// Kiosk mode (?kiosk=1) for a wall display: only the Now view, no navigation.
 // Tapping the station name switches full screen on and off.
 const kiosk = new URLSearchParams(location.search).has('kiosk');
 if (kiosk) {
@@ -26,8 +30,10 @@ let current = null;
 
 function route() {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
-  const view = kiosk ? 'now' : VIEWS[path] ?? 'now';
+  const [first, second] = path.split('/');
+  const view = kiosk ? 'now' : VIEWS[first] ?? OLD_ADDRESSES[first] ?? 'now';
   const params = new URLSearchParams(query);
+  if (first === 'details' && second && !params.has('m')) params.set('m', second);   // #/details/<metric>
   if (view !== current) {
     modules[current]?.leave?.();
     current = view;
@@ -59,12 +65,12 @@ function themeFromNow() {
 }
 
 // A freshly started station with nothing configured opens on its setup page
-// instead of a demo dashboard, once, the same as the classic design does.
+// instead of a demo dashboard, once.
 let setupChecked = false;
 window.addEventListener('station', () => {
   if (setupChecked) return;
   setupChecked = true;
-  if (store.cfg?.needsSetup && !kiosk && current === 'now') location.hash = '#/verwaltung';
+  if (store.cfg?.needsSetup && !kiosk && current === 'now') location.hash = '#/admin';
 });
 
 window.addEventListener('hashchange', route);

@@ -3,7 +3,9 @@
 // with environment variables so secrets never have to live in the YAML file.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
+import { DEFAULT_ALERTS_DE } from './i18n.js';
 
 export const SENSOR_KEYS = [
   'temperature', 'feels_like', 'dew_point', 'humidity',
@@ -13,44 +15,53 @@ export const SENSOR_KEYS = [
   'lightning_distance', 'lightning_time', 'lightning_count',
 ];
 
+// The frontend's files: in the image they are copied to /app/public (PUBLIC_DIR); in a checkout
+// they are web/, next to server/, and served from there as they are.
+const CHECKOUT_WEB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../web');
+
 // Where readings come from: Home Assistant, or an Ecowitt gateway read directly.
 export const SOURCES = ['homeassistant', 'ecowitt'];
 
-// The frontends the server can serve, see ui.design below.
-export const DESIGNS = ['classic', 'himmel'];
-
-export const DEFAULT_ALERTS = [
+// The rules used when config.yaml and the admin page set none. Their texts come
+// in every language the dashboard speaks (German in i18n.js), so each visitor
+// reads them in their own; rules written by an admin are shown as written.
+const DEFAULT_ALERTS_EN = [
   {
-    id: 'lightning', label: 'Blitz in der Nähe', description: 'Einschlag näher als 15 km',
-    level: 'warning', banner: 'Gewitter in der Nähe',
+    id: 'lightning', label: 'Lightning nearby', description: 'Strike closer than 15 km',
+    level: 'warning', banner: 'Thunderstorm nearby',
     all: [{ sensor: 'lightning_distance', below: 15, recent: { sensor: 'lightning_time', minutes: 30 } }],
-    message: 'Letzter Blitz {lightning_distance} km entfernt um {lightning_time|time} Uhr · {lightning_count} Einschläge heute',
+    message: 'Last strike {lightning_distance} km away at {lightning_time|time} · {lightning_count} strikes today',
   },
   {
-    id: 'frost', label: 'Frost', description: 'Temperatur unter 0 °C oder Taupunkt unter 1 °C',
-    level: 'info', banner: 'Frostgefahr',
+    id: 'frost', label: 'Frost', description: 'Temperature below 0 °C or dew point below 1 °C',
+    level: 'info', banner: 'Risk of frost',
     any: [{ sensor: 'temperature', below: 0 }, { sensor: 'dew_point', below: 1 }],
-    message: 'Temperatur {temperature} °C · Taupunkt {dew_point} °C',
+    message: 'Temperature {temperature} °C · dew point {dew_point} °C',
   },
   {
-    id: 'gust', label: 'Sturmböen', description: 'Böe über 60 km/h',
-    level: 'warning', banner: 'Sturmböen',
+    id: 'gust', label: 'Gale-force gusts', description: 'Gust above 60 km/h',
+    level: 'warning', banner: 'Gale-force gusts',
     all: [{ sensor: 'wind_gust', above: 60 }],
-    message: 'Böe {wind_gust} km/h aus {wind_direction|compass}',
+    message: 'Gust {wind_gust} km/h from {wind_direction|compass}',
   },
   {
-    id: 'rain', label: 'Starkregen', description: 'Regenrate über 10 mm/h',
-    level: 'warning', banner: 'Starkregen',
+    id: 'rain', label: 'Heavy rain', description: 'Rain rate above 10 mm/h',
+    level: 'warning', banner: 'Heavy rain',
     all: [{ sensor: 'rain_rate', above: 10 }],
-    message: 'Regenrate {rain_rate} mm/h · {rain_daily} mm heute',
+    message: 'Rain rate {rain_rate} mm/h · {rain_daily} mm today',
   },
   {
-    id: 'uv', label: 'Hoher UV-Index', description: 'UV-Index ab 6',
-    level: 'warning', banner: 'Hoher UV-Index',
+    id: 'uv', label: 'High UV index', description: 'UV index 6 or higher',
+    level: 'warning', banner: 'High UV index',
     all: [{ sensor: 'uv_index', at_least: 6 }],
-    message: 'UV-Index {uv_index} · Sonnenschutz empfohlen',
+    message: 'UV index {uv_index} · sun protection advised',
   },
 ];
+const TEXT_FIELDS = ['label', 'description', 'banner', 'message'];
+export const DEFAULT_ALERTS = DEFAULT_ALERTS_EN.map(rule => ({
+  ...rule,
+  ...Object.fromEntries(TEXT_FIELDS.map(k => [k, { en: rule[k], de: DEFAULT_ALERTS_DE[rule.id][k] }])),
+}));
 
 // Shared validation/defaulting for an alert-rule array, used both for the
 // config.yaml path (loadConfig, below) and the admin-UI path (admin.js's
@@ -103,7 +114,7 @@ export function loadConfig() {
 
   const cfg = {
     station: {
-      name: station.name || 'Wetterstation',
+      name: station.name || 'Weather Station',
       subtitle: station.subtitle || '',
       altitude_m: station.altitude_m ?? null,
       since: station.since ? String(station.since) : null,
@@ -120,7 +131,7 @@ export function loadConfig() {
         : null,
       devices: (station.devices || []).map((d, i) => ({
         id: d.id || `device${i}`,
-        name: d.name || d.id || `Gerät ${i + 1}`,
+        name: d.name || d.id || `Device ${i + 1}`,
         role: d.role || '',
         short: d.short || d.name || d.id,
         battery: d.battery || null,
@@ -146,7 +157,7 @@ export function loadConfig() {
       port: Number(process.env.PORT || server.port || 47813),
       demo: bool(process.env.DEMO) || bool(server.demo),
       data_dir: process.env.DATA_DIR || server.data_dir || '/data',
-      public_dir: process.env.PUBLIC_DIR || server.public_dir || path.resolve('public'),
+      public_dir: process.env.PUBLIC_DIR || server.public_dir || (fs.existsSync(CHECKOUT_WEB) ? CHECKOUT_WEB : path.resolve('public')),
       cache: {
         live: Number(cache.live_seconds ?? 15) * 1000,
         history: Number(cache.history_seconds ?? 300) * 1000,
@@ -171,13 +182,12 @@ export function loadConfig() {
         wind: ui.default_units?.wind || 'km/h',
         press: ui.default_units?.pressure || 'hPa',
         rain: ui.default_units?.rain || 'mm',
-      },
-      // Which of the two frontends is served: 'classic' (web/src, the Liquid
-      // Glass dashboard) or 'himmel' (web/public/himmel). Left unset here, it
-      // can be chosen on the admin page instead.
-      design: DESIGNS.includes(ui.design) ? ui.design : 'classic',
+      }
     },
   };
+
+  // Until v2.0.0 there were two designs to choose from; Himmel is now the only one.
+  if (ui.design !== undefined) console.warn('[config] ui.design is no longer used (there is only one design) and is ignored');
 
   if (raw.source !== undefined && !SOURCES.includes(raw.source)) {
     console.warn(`[config] unknown source "${raw.source}" ignored (allowed: ${SOURCES.join(', ')})`);
@@ -195,7 +205,7 @@ export function loadConfig() {
 
   // Which fields config.yaml explicitly set, for index.js to compute its
   // `locked` map from – config.js already applies its own defaults above
-  // (DEFAULT_ALERTS, 'Wetterstation', …) before index.js ever sees `cfg`, so
+  // (DEFAULT_ALERTS, 'Weather Station', …) before index.js ever sees `cfg`, so
   // a plain truthiness check on cfg.station.name/cfg.alerts can't tell
   // "config.yaml set this" apart from "config.js's own default kicked in"
   // the way it can for e.g. homeassistant.url (null until something sets it).
@@ -206,7 +216,6 @@ export function loadConfig() {
     stationAltitude: station.altitude_m != null,
     stationSince: !!station.since,
     stationPublicLocation: station.public_lat != null && station.public_lon != null,
-    design: DESIGNS.includes(ui.design),
     // homeassistant.url/token are the only two fields that can also be
     // locked by an environment variable (not just config.yaml) – HA_URL/
     // HA_TOKEN always win the `||` in cfg.homeassistant above when set, so

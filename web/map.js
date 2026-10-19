@@ -3,6 +3,7 @@
 // around in it: drag with the mouse, pinch with two fingers, Ctrl + wheel, the buttons, the keyboard.
 
 import { el, getJson, clamp, canvasFont, reducedMotion, store, skyAt, mix, rgb } from './lib.js';
+import { LANG, tr } from './i18n.js';
 
 export const GRID = 900;
 
@@ -23,23 +24,24 @@ export function toLonLat(col, row) {
 }
 
 // Places for orientation, in three tiers: the first shows always, the others as you zoom in.
+// [German name, longitude, latitude, tier, English name where it differs]
 const CITIES = [
-  ['Berlin', 13.405, 52.52, 1], ['Hamburg', 9.993, 53.551, 1], ['München', 11.582, 48.135, 1], ['Köln', 6.96, 50.938, 1], ['Frankfurt', 8.682, 50.111, 1],
-  ['Stuttgart', 9.183, 48.776, 1], ['Leipzig', 12.373, 51.34, 1], ['Hannover', 9.732, 52.376, 1], ['Nürnberg', 11.077, 49.452, 1],
+  ['Berlin', 13.405, 52.52, 1], ['Hamburg', 9.993, 53.551, 1], ['München', 11.582, 48.135, 1, 'Munich'], ['Köln', 6.96, 50.938, 1, 'Cologne'], ['Frankfurt', 8.682, 50.111, 1],
+  ['Stuttgart', 9.183, 48.776, 1], ['Leipzig', 12.373, 51.34, 1], ['Hannover', 9.732, 52.376, 1, 'Hanover'], ['Nürnberg', 11.077, 49.452, 1, 'Nuremberg'],
   ['Bremen', 8.807, 53.079, 2], ['Dresden', 13.737, 51.05, 2], ['Dortmund', 7.466, 51.514, 2], ['Kiel', 10.123, 54.323, 2], ['Rostock', 12.099, 54.092, 2],
   ['Erfurt', 11.029, 50.985, 2], ['Kassel', 9.48, 51.313, 2], ['Saarbrücken', 6.997, 49.24, 2], ['Freiburg', 7.842, 47.999, 2], ['Münster', 7.626, 51.96, 2],
   ['Magdeburg', 11.628, 52.121, 2], ['Würzburg', 9.953, 49.791, 2], ['Regensburg', 12.102, 49.013, 2], ['Karlsruhe', 8.404, 49.007, 2],
-  ['Amsterdam', 4.9, 52.372, 2], ['Brüssel', 4.352, 50.847, 2], ['Zürich', 8.541, 47.377, 2], ['Prag', 14.438, 50.076, 2], ['Straßburg', 7.752, 48.573, 2], ['Stettin', 14.553, 53.428, 2],
+  ['Amsterdam', 4.9, 52.372, 2], ['Brüssel', 4.352, 50.847, 2, 'Brussels'], ['Zürich', 8.541, 47.377, 2, 'Zurich'], ['Prag', 14.438, 50.076, 2, 'Prague'], ['Straßburg', 7.752, 48.573, 2, 'Strasbourg'], ['Stettin', 14.553, 53.428, 2, 'Szczecin'],
   ['Düsseldorf', 6.773, 51.228, 3], ['Essen', 7.012, 51.455, 3], ['Bielefeld', 8.532, 52.021, 3], ['Osnabrück', 8.047, 52.28, 3], ['Oldenburg', 8.214, 53.144, 3],
   ['Lübeck', 10.687, 53.866, 3], ['Flensburg', 9.437, 54.794, 3], ['Schwerin', 11.415, 53.629, 3], ['Potsdam', 13.064, 52.39, 3], ['Cottbus', 14.334, 51.757, 3],
   ['Chemnitz', 12.921, 50.833, 3], ['Halle', 11.97, 51.483, 3], ['Göttingen', 9.935, 51.533, 3], ['Braunschweig', 10.522, 52.269, 3], ['Bonn', 7.099, 50.735, 3],
   ['Aachen', 6.084, 50.776, 3], ['Koblenz', 7.594, 50.357, 3], ['Trier', 6.641, 49.757, 3], ['Mainz', 8.247, 50.0, 3], ['Mannheim', 8.466, 49.488, 3],
   ['Heilbronn', 9.218, 49.142, 3], ['Ulm', 9.993, 48.401, 3], ['Augsburg', 10.898, 48.371, 3], ['Ingolstadt', 11.426, 48.766, 3], ['Passau', 13.432, 48.567, 3],
   ['Bayreuth', 11.578, 49.946, 3], ['Konstanz', 9.175, 47.678, 3], ['Kempten', 10.317, 47.726, 3], ['Rosenheim', 12.128, 47.856, 3], ['Fulda', 9.675, 50.555, 3],
-  ['Siegen', 8.024, 50.875, 3], ['Paderborn', 8.754, 51.719, 3], ['Bremerhaven', 8.577, 53.55, 3], ['Stralsund', 13.09, 54.309, 3], ['Luxemburg', 6.13, 49.611, 3],
-  ['Basel', 7.588, 47.56, 3], ['Salzburg', 13.045, 47.811, 3], ['Innsbruck', 11.394, 47.269, 3], ['Lüttich', 5.571, 50.633, 3],
+  ['Siegen', 8.024, 50.875, 3], ['Paderborn', 8.754, 51.719, 3], ['Bremerhaven', 8.577, 53.55, 3], ['Stralsund', 13.09, 54.309, 3], ['Luxemburg', 6.13, 49.611, 3, 'Luxembourg'],
+  ['Basel', 7.588, 47.56, 3], ['Salzburg', 13.045, 47.811, 3], ['Innsbruck', 11.394, 47.269, 3], ['Lüttich', 5.571, 50.633, 3, 'Liège'],
 ];
-export const PLACES = CITIES.map(([name, lon, lat, tier]) => ({ name, tier, px: toGridPos(lon, lat) }))
+export const PLACES = CITIES.map(([name, lon, lat, tier, en]) => ({ name: LANG === 'en' && en ? en : name, tier, px: toGridPos(lon, lat) }))
   .filter((p) => p.px[0] > 8 && p.px[0] < GRID - 8 && p.px[1] > 8 && p.px[1] < GRID - 8);
 
 export function nearestPlace(gx, gy) {
@@ -58,12 +60,12 @@ const baseMap = () => (basePromise ??= getJson('/radar-map.json').then((j) => Ob
 // over(ctx, map) draws in screen pixels on top · onPick(gx, gy) · onHover([gx, gy] | null)
 
 export function createMap(container, options = {}) {
-  const canvas = el('canvas', { tabIndex: 0, role: 'application', 'aria-label': options.label ?? 'Karte von Deutschland. Pfeiltasten verschieben, Plus und Minus zoomen.' });
+  const canvas = el('canvas', { tabIndex: 0, role: 'application', 'aria-label': options.label ?? tr('map.label') });
   const hint = el('p.map-hint', { 'aria-hidden': 'true' });
   const frame = el('div.map-frame', {}, canvas, hint,
     el('div.map-zoom', {},
-      el('button', { type: 'button', 'aria-label': 'Hineinzoomen', onclick: () => zoomBy(0.6) }, '+'),
-      el('button', { type: 'button', 'aria-label': 'Herauszoomen', onclick: () => zoomBy(1 / 0.6) }, '−')));
+      el('button', { type: 'button', 'aria-label': tr('map.zoomIn'), onclick: () => zoomBy(0.6) }, '+'),
+      el('button', { type: 'button', 'aria-label': tr('map.zoomOut'), onclick: () => zoomBy(1 / 0.6) }, '−')));
   container.append(frame);
 
   let home = options.home ?? { x: 0, y: 0, w: GRID };
@@ -241,12 +243,12 @@ export function createMap(container, options = {}) {
 
   // A plain wheel scrolls the page, so the map never traps it; with Ctrl or ⌘ it zooms.
   canvas.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey && !e.metaKey) { say(`${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Strg'} + Scrollen zoomt die Karte`); return; }
+    if (!e.ctrlKey && !e.metaKey) { say(tr('map.scrollHint', { key: /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : tr('map.ctrlKey') })); return; }
     e.preventDefault();
     const r = canvas.getBoundingClientRect();
     zoomAt(Math.exp(e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
   }, { passive: false });
-  canvas.addEventListener('touchmove', (e) => { if (e.touches.length === 1) say('Mit zwei Fingern verschieben und zoomen'); }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => { if (e.touches.length === 1) say(tr('map.twoFingers')); }, { passive: true });
 
   canvas.addEventListener('keydown', (e) => {
     const step = view.w * 0.15;
@@ -258,7 +260,7 @@ export function createMap(container, options = {}) {
   });
 
   new ResizeObserver(resize).observe(canvas);
-  baseMap().then((b) => { base = b; map.draw(); }).catch(() => say('Die Karte konnte nicht geladen werden'));
+  baseMap().then((b) => { base = b; map.draw(); }).catch(() => say(tr('map.loadError')));
   document.fonts?.ready.then(() => map.draw());
   window.addEventListener('station', () => map.draw());   // the sky may have moved on
   resize();

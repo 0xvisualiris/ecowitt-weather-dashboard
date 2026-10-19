@@ -31,7 +31,7 @@
 
 html { -webkit-text-size-adjust: 100%; }
 /* Safari 26 tints the strip behind the status bar with the background colour of html or body, so on
-   Jetzt both are the sky; the ground is painted on top of body's colour from the bottom of the sky down. */
+   Now both are the sky; the ground is painted on top of body's colour from the bottom of the sky down. */
 html:has(body[data-view="now"]) { background: var(--zenith); }
 body[data-view="now"] {
   background: linear-gradient(var(--ground), var(--ground)) 0 var(--sky-h) / 100% 100% no-repeat var(--zenith);
@@ -371,7 +371,7 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
   .hero { text-shadow: 0 0 2px #000, 0 1px 12px rgba(0, 0, 0, 0.7); }
 }
 
-/* ---------- Pages below the "Jetzt" view ---------- */
+/* ---------- Pages below the "Now" view ---------- */
 
 [hidden] { display: none !important; }
 
@@ -514,7 +514,7 @@ td small { display: block; font-size: 0.85rem; color: var(--ink-soft); }
 .log-title { font-weight: 600; }
 .log-title small { margin-left: 0.75rem; font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
-/* Forms (Verwaltung) */
+/* Forms (station management) */
 .auth { max-width: 26rem; display: grid; gap: 1.1rem; }
 .auth h1 { font-size: clamp(2.4rem, 5vw, 3.5rem); }
 .form-section { margin-top: 2.75rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); }
@@ -644,7 +644,7 @@ input[type="range"] { width: 100%; accent-color: var(--sun); height: 1.5rem; }
 .setting-label { font-size: 1.15rem; font-weight: 600; }
 .foot-links { display: flex; gap: 1.5rem; }
 
-/* ---------- Kiosk mode: only the Jetzt view ---------- */
+/* ---------- Kiosk mode: only the Now view ---------- */
 
 .kiosk .nav, .kiosk .foot-links, .kiosk .more { display: none; }
 .kiosk .station { cursor: pointer; }

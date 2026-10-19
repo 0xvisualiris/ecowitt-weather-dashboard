@@ -1,49 +1,48 @@
 # =====================================================================
-#  Wetterstation – Konfiguration
-#  Diese Datei als config/config.yaml ablegen (wird nach /config gemountet).
-#  Werte wie ${HA_TOKEN} werden aus Umgebungsvariablen gefüllt,
-#  ${NAME:-standard} setzt einen Standardwert.
-#  Änderungen werden nach einem Neustart des Containers aktiv.
+#  Weather station – configuration
+#  Save this file as config/config.yaml (it is mounted at /config).
+#  Values like ${HA_TOKEN} are filled in from environment variables;
+#  ${NAME:-default} sets a default value.
+#  Changes take effect after the container restarts.
 # =====================================================================
 
 # ---------------------------------------------------------------------
-# Station – wird öffentlich angezeigt (Kopfzeile, Einstellungen, Fußzeile)
+# Station – shown publicly (header, browser tab, history page)
 #
-# Name, Unterzeile, Höhe, Inbetriebnahmedatum und die Geräteliste können
-# alternativ auch über die Admin-Seite gesetzt werden, wenn sie hier
-# weggelassen werden (devices: als Ganzes – nicht Gerät für Gerät).
+# Name, subtitle, altitude, commissioning date and the device list can also
+# be set on the admin page when they are left out here (devices: as a whole,
+# not device by device).
 # ---------------------------------------------------------------------
 station:
-  # Name, Unterzeile, Höhe und Inbetriebnahme sind hier auskommentiert, damit
-  # sie auf der Admin-Seite änderbar bleiben. Ein hier gesetzter Wert ist dort
-  # gesperrt.
-  # name: Wetterstation Garten               # Browser-Tab, Kopfzeile, Name der App auf dem Home-Bildschirm; ohne Angabe „Wetterstation“
-  # subtitle: WH90 + WH57 via Home Assistant # kleine Zeile im Kopf; ohne Angabe keine
-  # altitude_m: 312                          # Höhe über dem Meer; ohne Angabe nicht angezeigt
-  # since: 2024-04-01                        # Inbetriebnahme, Startpunkt für Rekorde; ohne Angabe die letzten 10 Jahre
-  # timezone: Europe/Berlin                  # optional, sonst die Zeitzone aus Home Assistant
+  # Name, subtitle, altitude and commissioning date are commented out so they
+  # stay editable on the admin page. A value set here is locked there.
+  # name: My Weather Station                 # browser tab, header, name of the app on a home screen; default "Weather Station"
+  # subtitle: WH90 + WH57 via Home Assistant # small line in the header; none by default
+  # altitude_m: 312                          # height above sea level; not shown by default
+  # since: 2024-04-01                        # commissioning date, start of the records; default: the last 10 years
+  # timezone: Europe/Berlin                  # optional, otherwise the time zone from Home Assistant
 
-  # Nur serverseitig für Sonnenauf-/untergang und Mond. Wird NIE an den Browser
-  # gesendet. Ohne Angabe werden die Koordinaten aus Home Assistant verwendet.
+  # Server-side only, for sunrise/sunset and the moon. NEVER sent to the
+  # browser. If left out, the coordinates from Home Assistant are used.
   # latitude: 50.1
   # longitude: 8.7
 
-  # Geräte: für Sensor-Infos (Details-Seite) und die Fußzeile.
-  # metrics: welche Messwerte von diesem Gerät kommen
+  # Devices: for the sensor details on the history page.
+  # metrics: which readings come from this device
   #   temp, hum, wind, rain, press, solar, uv, light
-  # battery / signal: beliebige HA-Entitäten (optional)
+  # battery / signal: any HA entities (optional)
   devices:
     - id: wh90
       name: Ecowitt WH90
       short: WH90
-      role: Außensensor
+      role: Outdoor sensor
       battery: sensor.wh90_battery
       signal: sensor.wh90_signal_strength
       metrics: [temp, hum, wind, rain, solar, uv]
     - id: wh57
       name: Ecowitt WH57
       short: WH57
-      role: Blitzsensor
+      role: Lightning sensor
       battery: sensor.wh57_battery
       signal: sensor.wh57_signal_strength
       metrics: [light]
@@ -54,48 +53,48 @@ station:
       metrics: [press]
 
 # ---------------------------------------------------------------------
-# Datenquelle: Home Assistant (Standard) oder das Ecowitt-Gateway direkt
+# Data source: Home Assistant (default) or the Ecowitt gateway directly
 #
-# Ohne Angabe wird Home Assistant verwendet, wenn URL und Token gesetzt sind,
-# sonst das Ecowitt-Gateway, wenn ecowitt.host gesetzt ist. Kann auch über
-# die Admin-Seite gewählt werden.
+# If not set, Home Assistant is used when its URL and token are set,
+# otherwise the Ecowitt gateway when ecowitt.host is set. Can also be chosen
+# on the admin page.
 # ---------------------------------------------------------------------
 # source: ecowitt           # homeassistant | ecowitt
 
-# Ecowitt-Gateway direkt (GW1100, GW2000, GW3000, WS3900, … mit aktueller
-# Firmware), ohne Home Assistant. Die Station fragt die lokale HTTP-API des
-# Gateways ab (/get_livedata_info), erkennt die Sensoren selbst und speichert
-# den Verlauf in DATA_DIR/ecowitt (Rohwerte für keep_raw_days Tage,
-# Stundenwerte für immer). `sensors:` unten wird dann nicht gebraucht; wenn
-# vorhanden, schränkt es nur ein, welche Messwerte gezeigt werden.
-# Ohne Home Assistant gibt es keine Zeitzone und keine Koordinaten von dort:
-# station.timezone (oder TZ) und station.latitude/longitude setzen.
+# Ecowitt gateway directly (GW1100, GW2000, GW3000, WS3900, … with current
+# firmware), without Home Assistant. The station reads the gateway's local
+# HTTP API (/get_livedata_info), detects the sensors itself and keeps the
+# history in DATA_DIR/ecowitt (raw readings for keep_raw_days days, hourly
+# values forever). `sensors:` below is not needed then; if present, it only
+# limits which readings are shown.
+# Without Home Assistant there is no time zone or location to take from it:
+# set station.timezone (or TZ) and station.latitude/longitude.
 # ecowitt:
-#   host: ${ECOWITT_HOST:-192.168.1.50}   # IP oder Hostname des Gateways
-#   poll_seconds: 30        # Abfrageintervall
-#   rain_gauge: auto        # auto | piezo | tipping (auto: Piezo, wenn vorhanden)
+#   host: ${ECOWITT_HOST:-192.168.1.50}   # IP address or host name of the gateway
+#   poll_seconds: 30        # how often the gateway is read
+#   rain_gauge: auto        # auto | piezo | tipping (auto: piezo if there is one)
 #   pressure: relative      # relative | absolute
-#   keep_raw_days: 10       # wie lange die Rohwerte (Tagesverlauf) bleiben
+#   keep_raw_days: 10       # how long the raw readings (day charts) are kept
 
 # ---------------------------------------------------------------------
-# Home Assistant – bleibt auf dem Server, nie im Browser
+# Home Assistant – stays on the server, never reaches the browser
 #
-# Alternative zu dieser Datei: URL, Token, Sensor-Entitäten und die
-# DWD-Stations-ID können auch über die Admin-Seite (/#/admin/login,
-# Standard admin/admin, Passwortänderung beim ersten Login Pflicht) gesetzt
-# werden. Was hier in config.yaml steht, hat immer Vorrang – die Admin-Seite
-# kann nur Felder setzen, die hier leer/weggelassen sind.
+# Instead of this file, the URL, token, sensor entities and the DWD station
+# ID can also be set on the admin page (/#/admin, default admin/admin, the
+# password has to be changed at the first sign-in). What is set here in
+# config.yaml always wins: the admin page can only set fields that are empty
+# or left out here.
 # ---------------------------------------------------------------------
 homeassistant:
   url: ${HA_URL:-http://homeassistant.local:8123}
-  token: ${HA_TOKEN}     # Long-Lived Access Token (Profil → Sicherheit)
+  token: ${HA_TOKEN}     # long-lived access token (Profile → Security)
 
 # ---------------------------------------------------------------------
-# Sensoren – Entity-IDs aus Home Assistant
-# (Entwicklerwerkzeuge → Zustände). Nicht vorhandene Sensoren einfach
-# weglassen oder auskommentieren – die zugehörigen Karten verschwinden dann,
-# oder stattdessen über die Admin-Seite setzen (siehe oben).
-# Einheiten werden automatisch umgerechnet (°F, mph, inHg, in … sind ok).
+# Sensors – entity IDs from Home Assistant
+# (Developer tools → States). Leave out or comment out sensors you don't
+# have, and their readings disappear from the dashboard; or set them on the
+# admin page instead (see above).
+# Units are converted automatically (°F, mph, inHg, in … are fine).
 # ---------------------------------------------------------------------
 sensors:
   temperature: sensor.wh90_outdoor_temperature
@@ -105,12 +104,12 @@ sensors:
 
   wind_speed: sensor.wh90_wind_speed
   wind_gust: sensor.wh90_wind_gust
-  wind_direction: sensor.wh90_wind_direction     # Grad 0–360
+  wind_direction: sensor.wh90_wind_direction     # degrees 0–360
 
   rain_rate: sensor.wh90_rain_rate_piezo         # mm/h
   rain_event: sensor.wh90_event_rain_piezo
-  rain_daily: sensor.wh90_daily_rain_piezo       # Tageszähler, Pflicht für Regen-Diagramme
-  # Optional – ohne diese Sensoren werden Woche/Monat/Jahr aus der Statistik berechnet:
+  rain_daily: sensor.wh90_daily_rain_piezo       # daily counter, needed for the rain charts
+  # Optional – without these, week/month/year are calculated from the statistics:
   rain_weekly: sensor.wh90_weekly_rain_piezo
   rain_monthly: sensor.wh90_monthly_rain_piezo
   rain_yearly: sensor.wh90_yearly_rain_piezo
@@ -120,118 +119,83 @@ sensors:
   uv_index: sensor.wh90_uv_index
 
   lightning_distance: sensor.wh57_lightning_distance
-  lightning_time: sensor.wh57_lightning_time     # Zeitstempel letzter Einschlag
-  lightning_count: sensor.wh57_lightning_strikes # Tageszähler Einschläge
+  lightning_time: sensor.wh57_lightning_time     # time of the last strike
+  lightning_count: sensor.wh57_lightning_strikes # daily strike counter
 
 # ---------------------------------------------------------------------
-# Vorhersage (täglich)
+# Forecast
 #
-# Primär: DWD MOSMIX (ICON-Modell + statistische Aufbereitung) für eine
-# DWD-Station, die du hier festlegst. Die nächsten ~6 Stunden werden mit dem
-# aktuellen Live-Messwert abgeglichen (bias_hours), die weiteren Tage bleiben
-# unverändertes MOSMIX. "entity" bleibt als Rückfallebene erhalten, falls
-# dwd_station_id nicht gesetzt ist oder DWD gerade nicht erreichbar ist.
+# First choice: DWD MOSMIX (ICON model plus statistical post-processing) for
+# a DWD station you set here. The next ~6 hours are matched to the current
+# live reading (bias_hours); the days after stay unchanged MOSMIX. "entity"
+# remains as a fallback if dwd_station_id is not set or DWD is unreachable.
 # ---------------------------------------------------------------------
 forecast:
-  dwd_station_id: "10384"   # DWD-Stations-ID, z. B. "10384" oder "L771". Am einfachsten über die Karte auf der Admin-Seite auswählen.
-  # bias_hours: 6            # wie viele Stunden der Live-Messwert die Vorhersage korrigiert
-  entity: weather.forecast_home   # Rückfallebene, falls dwd_station_id leer/nicht erreichbar ist
-  # label: DWD MOSMIX        # Quellenangabe in der Karte; sonst aus "attribution" bzw. Standardtext
+  dwd_station_id: "10384"   # DWD station ID, e.g. "10384" or "L771". Easiest to pick on the map on the admin page.
+  # bias_hours: 6            # for how many hours the live reading corrects the forecast
+  entity: weather.forecast_home   # fallback if dwd_station_id is empty or unreachable
+  # label: DWD MOSMIX        # source credit shown with the forecast; otherwise from "attribution" or a default text
   days: 5
 
 # ---------------------------------------------------------------------
-# Warnungen – nur lesend im Browser, hier definiert.
-# Jede Regel: all: (alle Bedingungen) oder any: (mindestens eine).
-# Bedingung: sensor: <Schlüssel aus "sensors"> ODER entity: <HA-Entität>
-#   Vergleich: above / below / at_least / at_most / equals
-#   recent: { sensor: lightning_time, minutes: 30 }  → nur wenn frisch
-# Werte in Standard-Einheiten: °C, km/h, hPa, mm, mm/h, km.
-# message: Platzhalter {sensor_schlüssel}, {…|time}, {…|compass}
-# level: warning (bernsteinfarben) oder info (blau)
-# Den ganzen Block weglassen = Standardregeln; "alerts: []" = keine Warnungen.
-# Weglassen erlaubt außerdem, die Regeln stattdessen über die Admin-Seite zu
-# verwalten – wird "alerts:" hier gesetzt (auch leer), hat das immer Vorrang.
+# Alerts – read-only in the browser, defined here or on the admin page.
+#
+# Leave "alerts:" out to use the built-in rules (lightning nearby, frost,
+# gale-force gusts, heavy rain, high UV index), which every visitor reads in
+# their own language, and to manage the rules on the admin page. Setting
+# "alerts:" here (even empty) always wins; "alerts: []" turns alerts off.
+#
+# Each rule: all: (every condition) or any: (at least one).
+# Condition: sensor: <key from "sensors"> OR entity: <HA entity>
+#   comparison: above / below / at_least / at_most / equals
+#   recent: { sensor: lightning_time, minutes: 30 }  → only while fresh
+# Values in standard units: °C, km/h, hPa, mm, mm/h, km.
+# message: placeholders {sensor_key}, {…|time}, {…|compass}
+# level: warning (amber) or info (blue)
+# label, description, banner and message are shown as written, or can be
+# given once per language: label: { en: Frost, de: Frost }
 # ---------------------------------------------------------------------
 alert_settings:
-  clear_after_minutes: 10   # so lange muss eine Regel "aus" sein, bevor die Warnung endet
+  clear_after_minutes: 10   # how long a rule must be off before its alert ends
 
-alerts:
-  - id: lightning
-    label: Blitz in der Nähe
-    description: Einschlag näher als 15 km (WH57)
-    banner: Gewitter in der Nähe
-    level: warning
-    all:
-      - sensor: lightning_distance
-        below: 15
-        recent: { sensor: lightning_time, minutes: 30 }
-    message: "Letzter Blitz {lightning_distance} km entfernt um {lightning_time|time} Uhr · {lightning_count} Einschläge heute"
-
-  - id: frost
-    label: Frost
-    description: Temperatur unter 0 °C oder Taupunkt unter 1 °C
-    banner: Frostgefahr
-    level: info
-    any:
-      - { sensor: temperature, below: 0 }
-      - { sensor: dew_point, below: 1 }
-    message: "Temperatur {temperature} °C · Taupunkt {dew_point} °C"
-
-  - id: gust
-    label: Sturmböen
-    description: Böe über 60 km/h
-    banner: Sturmböen
-    level: warning
-    all:
-      - { sensor: wind_gust, above: 60 }
-    message: "Böe {wind_gust} km/h aus {wind_direction|compass}"
-
-  - id: rain
-    label: Starkregen
-    description: Regenrate über 10 mm/h
-    banner: Starkregen
-    level: warning
-    all:
-      - { sensor: rain_rate, above: 10 }
-    message: "Regenrate {rain_rate} mm/h · {rain_daily} mm heute"
-
-  - id: uv
-    label: Hoher UV-Index
-    description: UV-Index ab 6
-    banner: Hoher UV-Index
-    level: warning
-    all:
-      - { sensor: uv_index, at_least: 6 }
-    message: "UV-Index {uv_index} · Sonnenschutz empfohlen"
-
-  # Beispiel mit beliebiger HA-Entität:
-  # - id: wh90_battery
-  #   label: Batterie WH90
-  #   description: Superkondensator unter 2,4 V
-  #   level: info
-  #   all:
-  #     - { entity: sensor.wh90_battery, below: 2.4 }
-  #   message: "Spannung {sensor.wh90_battery} V"
+# alerts:
+#   - id: frost
+#     label: Frost
+#     description: Temperature below 0 °C or dew point below 1 °C
+#     banner: Risk of frost
+#     level: info
+#     any:
+#       - { sensor: temperature, below: 0 }
+#       - { sensor: dew_point, below: 1 }
+#     message: "Temperature {temperature} °C · dew point {dew_point} °C"
+#
+#   # Example with any HA entity:
+#   - id: wh90_battery
+#     label: WH90 battery
+#     description: Supercapacitor below 2.4 V
+#     level: info
+#     all:
+#       - { entity: sensor.wh90_battery, below: 2.4 }
+#     message: "Voltage {sensor.wh90_battery} V"
 
 # ---------------------------------------------------------------------
-# Oberfläche
+# Interface
 # ---------------------------------------------------------------------
 ui:
-  refresh_seconds: 15        # wie oft der Browser neue Werte holt
-  stale_after_seconds: 120   # danach wird der Live-Punkt grau ("Veraltet")
-  default_units:             # Vorgabe für neue Besucher; jeder kann selbst umstellen
+  refresh_seconds: 15        # how often the browser fetches new readings
+  stale_after_seconds: 120   # after this the live dot turns amber ("stale")
+  default_units:             # default for new visitors; everyone can change their own
     temperature: °C          # °C | °F
     wind: km/h               # km/h | m/s | mph | Bft
     pressure: hPa            # hPa | mmHg | inHg
     rain: mm                 # mm | l/m² | in
-  # design: classic          # classic | himmel. Welche der beiden Oberflächen Besucher sehen; ohne Angabe auf der Admin-Seite wählbar
 
 # ---------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------
 server:
   port: 47813
-  demo: false                # true = synthetische Daten, Home Assistant wird nicht kontaktiert
+  demo: false                # true = synthetic data, Home Assistant is not contacted
   cache:
     live_seconds: 15
     history_seconds: 300

@@ -3,6 +3,16 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.0.2 – 2026-10-19
+
+### Fixed
+- Without a `config.yaml`, a data source set on the admin page (Ecowitt gateway or Home Assistant) never took effect and the dashboard kept showing demo data. `config.yaml` is optional again; demo mode is only used until a data source is configured. (#67)
+
+### Upgrade
+No `config.yaml` changes required. If you created an empty `config.yaml` only to work around this, you can remove it.
+
+    docker compose pull && docker compose up -d
+
 ## v2.0.1 – 2026-10-19
 
 ### Fixed

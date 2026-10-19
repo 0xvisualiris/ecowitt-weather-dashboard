@@ -3,6 +3,17 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v1.6.1 – 2026-10-19
+
+### Fixed
+- The browser tab, the Himmel header while the page loads, and the name of the app on a phone's home screen always said "Wetterstation". They now show the station name set in `config.yaml` or on the admin page. A phone that already has the app on its home screen keeps the old name until it is removed and added again. (#57)
+- The example `config.yaml` no longer sets a station name, so copying it no longer locks the name field on the admin page. (#57)
+
+### Upgrade
+No `config.yaml` changes required. To change the name on the admin page, remove `station.name` from your `config.yaml`, because a value set there locks the field.
+
+    docker compose pull && docker compose up -d
+
 ## v1.6.0 – 2026-10-19
 
 ### New

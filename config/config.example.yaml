@@ -14,7 +14,10 @@
 # weggelassen werden (devices: als Ganzes – nicht Gerät für Gerät).
 # ---------------------------------------------------------------------
 station:
-  name: Wetterstation Garten
+  # Name der Station: Browser-Tab, Kopfzeile und Name der App auf dem Home-Bildschirm.
+  # Ohne Angabe „Wetterstation“, änderbar auf der Admin-Seite. Hier gesetzt,
+  # ist er auf der Admin-Seite gesperrt.
+  # name: Wetterstation Garten
   subtitle: WH90 + WH57 via Home Assistant   # kleine Zeile im Kopf (optional)
   altitude_m: 312                            # optional
   since: 2024-04-01                          # Inbetriebnahme; Startpunkt für Rekorde

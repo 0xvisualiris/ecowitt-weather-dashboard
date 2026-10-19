@@ -85,6 +85,38 @@ docker compose pull && docker compose up -d   (plus any extra steps)
 - One line per change, no commit hashes, no internal refactors unless they affect users.
 - Mention new config options with their key and default, and say whether `config.yaml` needs changing.
 
+## Agent skills (addyosmani/agent-skills)
+
+This project uses the [agent-skills](https://github.com/addyosmani/agent-skills) plugin for its engineering workflow. Install it once per machine:
+
+```
+/plugin marketplace add https://github.com/addyosmani/agent-skills.git
+/plugin install agent-skills@addy-agent-skills
+```
+
+Claude Code picks skills from their descriptions, so there is no need to load `using-agent-skills` by hand. Use them at these points:
+
+| When | Skill or command |
+|---|---|
+| A request is vague or has several readings | `interview-me` before writing anything |
+| New feature, screen, metric, config option or alert capability | `spec-driven-development`, then `planning-and-task-breakdown` (`/spec`, `/plan`) |
+| Implementing | `incremental-implementation`; add `frontend-ui-engineering` for `web/src` or `web/public/himmel`, and `api-and-interface-design` for any `/api/*` change |
+| Code that uses DWD data, the HA WebSocket API or the Ecowitt gateway API | `source-driven-development`: check the real format or docs, never guess |
+| Something broke | `debugging-and-error-recovery` |
+| Before opening a PR into `dev` | `code-review-and-quality` (`/agent-skills:review`); add `security-and-hardening` when touching `admin.js`, `totp.js`, sessions, the CSP or anything under `/api/admin/*` |
+| Radar, charts or anything that renders per frame | `performance-optimization` |
+| Changing `README.md`, this file or `config.example.yaml` | `documentation-and-adrs` |
+
+### Where this project's rules win
+
+The skills are generic. Where one disagrees with this file, this file wins:
+
+- **Git and releases:** follow "Branching, versioning and releases" above, not `git-workflow-and-versioning`'s trunk-based model. Changes go `feature/*` / `fix/*` → `dev` (squash merge) → `main` (merge commit). `/ship` and `shipping-and-launch` don't replace that process. There are no feature flags or staged rollouts here: a release is a Docker image tag.
+- **Tests:** use `test-driven-development` for the server's pure logic, where `node:test` suites already exist (`util.js`, `units.js`, `alerts.js`, `totp.js`, `radolan.js`, `ecowitt.js`, `recorder.js`). Don't add a test framework or test React components or the himmel modules. Verify those in demo mode, as described under "Commands".
+- **Dependencies:** no skill justifies a new dependency. "Keep the dependency footprint small" under "Hard constraints" still applies, so discuss any addition first.
+- **Scope:** this is a hobby project kept deliberately simple. Keep specs and plans short. A small fix doesn't need a spec document.
+- **Hard constraints** (no secrets in the browser, the CSP, the read-only public API, a non-root container, `DemoSource` kept in sync, port 47813) override any skill's advice.
+
 ## What this is
 
 A public, read-only web dashboard for a personal weather station whose data lives in **Home Assistant** (HA), or is read straight from an **Ecowitt gateway** (`source: ecowitt`). One Docker container serves a static React frontend plus a small Node API. The backend holds the HA URL and token; the browser never sees them, nor coordinates or entity IDs.

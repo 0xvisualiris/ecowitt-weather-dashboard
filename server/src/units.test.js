@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toNumber, normalize, compass, fmtDe } from './units.js';
+import { toNumber, normalize, compass, fmtNumber } from './units.js';
 
 test('toNumber', () => {
   assert.equal(toNumber(null), null);
@@ -31,17 +31,20 @@ test('normalize returns null for a non-numeric state', () => {
   assert.equal(normalize('temperature', 'unavailable', '°C'), null);
 });
 
-test('compass', () => {
+test('compass, in English and German', () => {
   assert.equal(compass(null), '—');
   assert.equal(compass(0), 'N');
-  assert.equal(compass(90), 'O');
+  assert.equal(compass(90), 'E');
+  assert.equal(compass(90, 'de'), 'O');
+  assert.equal(compass(112.5, 'de'), 'OSO');
   assert.equal(compass(180), 'S');
   assert.equal(compass(359), 'N');
 });
 
-test('fmtDe formats with a German decimal comma', () => {
-  assert.equal(fmtDe(1.5, 1), '1,5');
-  assert.equal(fmtDe(3, 0), '3');
-  assert.equal(fmtDe(null), '—');
-  assert.equal(fmtDe(NaN), '—');
+test('fmtNumber writes decimals the way each language does', () => {
+  assert.equal(fmtNumber(1.5, 1), '1.5');
+  assert.equal(fmtNumber(1.5, 1, 'de'), '1,5');
+  assert.equal(fmtNumber(3, 0), '3');
+  assert.equal(fmtNumber(null), '—');
+  assert.equal(fmtNumber(NaN), '—');
 });

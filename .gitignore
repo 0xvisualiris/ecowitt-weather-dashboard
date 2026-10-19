@@ -1,5 +1,3 @@
 node_modules/
-web/dist/
 .env
 config/config.yaml
-*.tsbuildinfo

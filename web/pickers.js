@@ -1,6 +1,7 @@
 // The two map pickers on the admin page: the DWD forecast station, and the approximate public location.
 
 import { el, getJson, num, clamp } from './lib.js';
+import { tr } from './i18n.js';
 import { GRID, createMap, toGridPos, toLonLat, nearestPlace } from './map.js';
 
 // DWD spells umlauts out ("Gruendau"), so a search for "Gründau" has to as well.
@@ -16,8 +17,8 @@ export function disclosure(label, build) {
 
 // Every station DWD publishes a MOSMIX forecast for, as dots. Tap one, or search by name.
 export function stationPicker(body, getId, setId) {
-  const info = el('p.picker-info', { role: 'status' }, 'Lade die Stationen …');
-  const search = el('input', { type: 'text', placeholder: 'Ort oder Station suchen, z. B. Bamberg', autocomplete: 'off', spellcheck: false, 'aria-label': 'Station suchen' });
+  const info = el('p.picker-info', { role: 'status' }, tr('picker.loading'));
+  const search = el('input', { type: 'text', placeholder: tr('picker.search'), autocomplete: 'off', spellcheck: false, 'aria-label': tr('picker.searchLabel') });
   const results = el('div.picker-results');
   const mapBox = el('div');
   body.append(el('div.picker-head', {}, search, results), mapBox, info);
@@ -32,8 +33,8 @@ export function stationPicker(body, getId, setId) {
   };
   const say = () => {
     const s = selected();
-    info.textContent = hover && hover !== s ? `${describe(hover)}. Antippen, um sie zu wählen.`
-      : s ? `Gewählt: ${describe(s)}.` : stations.length ? `${stations.length} Stationen. Tippe auf einen Punkt oder suche oben nach einem Ort.` : info.textContent;
+    info.textContent = hover && hover !== s ? tr('picker.tapToChoose', { station: describe(hover) })
+      : s ? tr('picker.chosen', { station: describe(s) }) : stations.length ? tr('picker.count', { n: stations.length }) : info.textContent;
   };
   const choose = (s, fly) => {
     setId(s.id); hover = null; say(); map.draw();
@@ -41,7 +42,7 @@ export function stationPicker(body, getId, setId) {
   };
 
   const map = createMap(mapBox, {
-    label: 'Karte der DWD-Stationen. Pfeiltasten verschieben, Plus und Minus zoomen.',
+    label: tr('picker.mapLabel'),
     lines: (ctx, m) => {
       const zoom = GRID / m.view.w, r = clamp(1.3 + zoom * 0.45, 1.6, 4.2) / m.scale;
       ctx.fillStyle = 'rgba(243,246,242,0.78)';
@@ -65,7 +66,7 @@ export function stationPicker(body, getId, setId) {
     const q = plain(search.value.trim());
     const hits = q.length < 2 ? [] : stations.filter((s) => s.key.includes(q) || s.id.toLowerCase().startsWith(q)).slice(0, 8);
     results.replaceChildren(...hits.map((s) => el('button.btn', { type: 'button', onclick: () => { choose(s, true); results.replaceChildren(); search.value = s.name; } }, describe(s))),
-      q.length >= 2 && !hits.length ? el('span.field-note', {}, 'Keine Station mit diesem Namen.') : null);
+      q.length >= 2 && !hits.length ? el('span.field-note', {}, tr('picker.noMatch')) : null);
   });
 
   getJson('/dwd-stations.json').then((j) => {
@@ -74,13 +75,13 @@ export function stationPicker(body, getId, setId) {
     say(); map.draw();
     const s = selected();
     if (s) map.setHome({ x: s.px[0] - 120, y: s.px[1] - 120, w: 240 });
-  }).catch(() => { info.textContent = 'Die Stationsliste konnte nicht geladen werden. Die Kennung lässt sich oben auch von Hand eintragen.'; });
+  }).catch(() => { info.textContent = tr('picker.listError'); });
 }
 
 // The public location is only ever kept to 0.1 degree, so the map picks a cell of that size, not a point.
 export function locationPicker(body, get, set) {
   const info = el('p.picker-info', { role: 'status' });
-  const remove = el('button.btn.quiet', { type: 'button', onclick: () => { set(null); say(); map.draw(); } }, 'Standort entfernen');
+  const remove = el('button.btn.quiet', { type: 'button', onclick: () => { set(null); say(); map.draw(); } }, tr('picker.removeLocation'));
   const mapBox = el('div');
   body.append(mapBox, el('div.picker-foot', {}, info, remove));
   let hover = null;
@@ -94,12 +95,12 @@ export function locationPicker(body, get, set) {
     const p = get();
     remove.hidden = !p;
     info.textContent = p
-      ? `Gewählt: bei ${nearestPlace(...toGridPos(p.lon, p.lat)).place.name}, ${num(p.lat, 1)}° Nord, ${num(p.lon, 1)}° Ost. Gespeichert wird nur dieses Feld von etwa 10 km, nie der genaue Punkt.`
-      : 'Tippe auf die Karte, um das Feld zu wählen, in dem die Station ungefähr steht.';
+      ? tr('picker.locationChosen', { place: nearestPlace(...toGridPos(p.lon, p.lat)).place.name, lat: num(p.lat, 1), lon: num(p.lon, 1) })
+      : tr('picker.locationHint');
   };
 
   const map = createMap(mapBox, {
-    label: 'Karte zur Wahl des ungefähren Standorts. Pfeiltasten verschieben, Plus und Minus zoomen.',
+    label: tr('picker.locationMapLabel'),
     lines: (ctx, m) => {
       const px = 1 / m.scale, p = get();
       if (hover) { cellPath(ctx, hover.lat, hover.lon); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.2 * px; ctx.stroke(); }

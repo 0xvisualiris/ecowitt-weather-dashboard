@@ -1,20 +1,16 @@
-// Verlauf: one measurement over a day, week, month or year as a line chart, with today's
+// History: one measurement over a day, week, month or year as a line chart, with today's
 // figures, the sensor behind it and the station's records below.
 
 import {
   $, el, getJson, store, METRICS, metricConv, conv, show, units, num, clock, weekday, weekdayShort, dateShort, dateLong, dayMonth, monthName,
-  clamp, lerp, fitCanvas, canvasFont, scrub, DAY, HOUR,
+  clamp, lerp, fitCanvas, canvasFont, scrub, DAY, HOUR, atClock, hourLabel,
 } from './lib.js';
+import { LANG, tr, words } from './i18n.js';
 
-const RANGES = { day: 'Tag', week: 'Woche', month: 'Monat', year: 'Jahr' };
+const RANGES = Object.fromEntries(['day', 'week', 'month', 'year'].map((r) => [r, tr(`range.${r}`)]));
 const COLOUR = { temp: '#ffcf5c', hum: '#7fc4ff', wind: '#9be8d8', rain: '#7fc4ff', press: '#e6ebe7', solar: '#ffcf5c', uv: '#ffa46b', light: '#ffd84d' };
-const STAT_LABEL = {
-  min: 'Tiefstwert', max: 'Höchstwert', mean: 'Mittel', minShort: 'Tiefstwert', maxShort: 'Höchstwert', meanShort: 'Mittel',
-  sum: 'Summe', sumToday: 'Heute', maxDay: 'Nassester Tag', rainDays: 'Regentage', rainHours: 'Stunden mit Regen', strongest30min: 'Stärkste halbe Stunde',
-  rainRate: 'Regenrate jetzt', yesterday: 'Gestern', yesterdayMean: 'Mittel gestern',
-  strikes: 'Einschläge', strikesToday: 'Einschläge heute', nearest: 'Nächster', nearestToday: 'Nächster heute', lastStrike: 'Letzter Einschlag',
-  lightningHours: 'Stunden mit Blitzen', thunderDays: 'Gewittertage', strongestGust: 'Stärkste Böe',
-};
+// The server names each statistic with a stable key (min, rainDays, …); this is its label.
+const statLabel = (k) => { const label = tr(`stat.${k}`); return label === `stat.${k}` ? k : label; };
 
 const state = { metric: 'temp', range: 'day', data: null, cursor: null, built: false, unitsKey: '' };
 const canvas = $('histChart');
@@ -34,14 +30,14 @@ function statValue(s, metric) {
     case 'rate': return `${show('rain', s.v)} ${rain.unit}/h`;
     case 'count': case 'strikes': return num(s.v, 0);
     case 'km': return s.v == null ? '–' : `${num(s.v, 0)} km`;
-    case 'time': return s.v == null && !s.t ? '–' : `${clock.format(s.t ?? s.v)} Uhr`;
+    case 'time': return s.v == null && !s.t ? '–' : atClock(s.t ?? s.v);
     default: return s.v == null ? '–' : withUnit(num(c.f(s.v), c.digits), c.unit);
   }
 }
 
 function pointLabel(t) {
-  if (state.range === 'day') return `${weekday.format(t)}, ${clock.format(t)} Uhr`;
-  if (state.range === 'week') return `${weekday.format(t)}, ${dayMonth.format(t)}, ${clock.format(t)} Uhr`;
+  if (state.range === 'day') return tr('time.dayAt', { day: weekday.format(t), time: atClock(t) });
+  if (state.range === 'week') return tr('time.dayAt', { day: `${weekday.format(t)}, ${dayMonth.format(t)}`, time: atClock(t) });
   return dateLong.format(t);
 }
 
@@ -56,7 +52,7 @@ async function load() {
     state.cursor = null;
   } catch (e) {
     state.data = { points: [], stats: [] };
-    $('histNote').textContent = `Der Verlauf konnte nicht geladen werden (${e.message}).`;
+    $('histNote').textContent = tr('history.loadError', { error: e.message });
   }
   renderStats();
   draw();
@@ -66,7 +62,7 @@ async function load() {
 function renderStats() {
   const stats = state.data?.stats ?? [];
   $('histStats').replaceChildren(...stats.map((s) => el('div', {},
-    el('dt', {}, STAT_LABEL[s.k] ?? s.k),
+    el('dt', {}, statLabel(s.k)),
     el('dd', {}, statValue(s, state.metric), s.t ? el('small', {}, ` ${state.range === 'day' ? clock.format(s.t) : dayMonth.format(s.t)}`) : null))));
 }
 
@@ -76,9 +72,9 @@ function renderReadout() {
   const p = pts[i];
   const glued = c.unit === '°' || c.unit === '°F';
   $('histUnit').textContent = glued ? '' : c.unit;
-  if (!p) { $('histVal').textContent = '–'; $('histWhen').textContent = 'Noch keine Daten für diesen Zeitraum.'; return; }
+  if (!p) { $('histVal').textContent = '–'; $('histWhen').textContent = tr('history.noData'); return; }
   $('histVal').textContent = num(c.f(p.v), c.digits) + (glued ? c.unit : '');
-  const span = p.lo != null && p.hi != null && state.range !== 'day' ? `, zwischen ${num(c.f(p.lo), c.digits)} und ${num(c.f(p.hi), c.digits)}` : '';
+  const span = p.lo != null && p.hi != null && state.range !== 'day' ? tr('history.between', { lo: num(c.f(p.lo), c.digits), hi: num(c.f(p.hi), c.digits) }) : '';
   $('histWhen').textContent = pointLabel(p.t) + span;
   canvas.setAttribute('aria-valuemax', String(Math.max(pts.length - 1, 0)));
   canvas.setAttribute('aria-valuenow', String(i));
@@ -152,7 +148,7 @@ function draw() {
   ctx.fillStyle = 'rgba(243,246,242,0.62)'; ctx.font = canvasFont(12, 400); ctx.textAlign = 'center';
   const ticks = [];
   const d = new Date(t0), narrow = W < 640;
-  if (state.range === 'day') { d.setMinutes(0, 0, 0); for (let t = d.getTime(); t <= t1; t += HOUR) if (new Date(t).getHours() % (narrow ? 6 : 3) === 0) ticks.push([t, `${new Date(t).getHours()} Uhr`]); }
+  if (state.range === 'day') { d.setMinutes(0, 0, 0); for (let t = d.getTime(); t <= t1; t += HOUR) if (new Date(t).getHours() % (narrow ? 6 : 3) === 0) ticks.push([t, hourLabel(new Date(t).getHours())]); }
   else if (state.range === 'week') { d.setHours(0, 0, 0, 0); for (let t = d.getTime(); t <= t1; t += DAY) ticks.push([t + DAY / 2, weekdayShort.format(t).replace('.', '')]); }
   else if (state.range === 'month') { d.setHours(0, 0, 0, 0); for (let t = d.getTime(); t <= t1; t += DAY) if (new Date(t).getDate() % (narrow ? 7 : 4) === 1) ticks.push([t, dayMonth.format(t)]); }
   else { d.setDate(1); d.setHours(0, 0, 0, 0); for (let i = 0; i < 14; i++) { const t = new Date(d.getFullYear(), d.getMonth() + i, 1).getTime(); if (t > t1) break; if (!narrow || i % 2 === 0) ticks.push([t + 15 * DAY, monthName.format(t).replace('.', '')]); } }
@@ -180,18 +176,25 @@ function pick(clientX) {
   if (best !== state.cursor) { state.cursor = best; draw(); renderReadout(); }
 }
 
+// The file opens in a spreadsheet in the visitor's language: German ones expect a semicolon
+// between fields and a decimal comma, English ones a comma and a decimal point.
 function exportCsv() {
   const pts = state.data?.points ?? [], M = METRICS[state.metric], c = metricConv(state.metric);
   if (!pts.length) return;
-  const cell = (v) => (v == null ? '' : String(Math.round(c.f(v) * 1000) / 1000).replace('.', ','));
-  const stamp = (t) => { const d = new Date(t), p = (n) => String(n).padStart(2, '0'); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const german = LANG === 'de', sep = german ? ';' : ',';
+  const cell = (v) => (v == null ? '' : String(Math.round(c.f(v) * 1000) / 1000).replace('.', german ? ',' : '.'));
+  const stamp = (t) => {
+    const d = new Date(t), p = (n) => String(n).padStart(2, '0'), time = `${p(d.getHours())}:${p(d.getMinutes())}`;
+    return german ? `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${time}` : `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${time}`;
+  };
   const unit = c.unit === '°' ? '°C' : c.unit;
-  const rows = [['Zeit', `${M.label}${unit ? ` (${unit})` : ''}`, 'Minimum', 'Maximum'].join(';'), ...pts.map((p) => [stamp(p.t), cell(p.v), cell(p.lo), cell(p.hi)].join(';'))];
+  const head = [tr('history.csvTime'), `${M.label}${unit ? ` (${unit})` : ''}`, tr('history.csvMin'), tr('history.csvMax')];
+  const rows = [head.join(sep), ...pts.map((p) => [stamp(p.t), cell(p.v), cell(p.lo), cell(p.hi)].join(sep))];
   const blob = new Blob(['﻿' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const a = el('a', { href: URL.createObjectURL(blob), download: `wetter-${state.metric}-${state.range}.csv` });
+  const a = el('a', { href: URL.createObjectURL(blob), download: `weather-${state.metric}-${state.range}.csv` });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  $('histNote').textContent = `${pts.length} Zeilen gespeichert, mit Semikolon getrennt.`;
+  $('histNote').textContent = tr('history.csvSaved', { n: pts.length });
 }
 
 // Today in figures and the sensor that measures it.
@@ -201,16 +204,16 @@ async function loadDetail() {
     const d = await getJson(`/api/detail?metric=${metric}`);
     if (metric !== state.metric) return;
     $('detToday').replaceChildren(...d.today.map((s) => el('div', {},
-      el('dt', {}, STAT_LABEL[s.k] ?? s.k),
+      el('dt', {}, statLabel(s.k)),
       el('dd', {}, statValue(s, metric), s.t && s.kind !== 'time' ? el('small', {}, ` ${clock.format(s.t)}`) : null))));
     const dev = d.device;
     const reading = (r) => (r ? `${typeof r.value === 'number' ? num(r.value, Number.isInteger(r.value) ? 0 : 2) : r.value}${r.unit ? ` ${r.unit}` : ''}` : '–');
     $('detSensor').replaceChildren(...(dev ? [
-      el('div', {}, el('dt', {}, 'Gerät'), el('dd', {}, dev.name)),
-      el('div', {}, el('dt', {}, 'Aufgabe'), el('dd', {}, dev.role || '–')),
-      el('div', {}, el('dt', {}, 'Batterie'), el('dd', {}, reading(dev.battery))),
-      el('div', {}, el('dt', {}, 'Signal'), el('dd', {}, dev.signal ? `${reading(dev.signal)} von 4` : '–')),
-    ] : [el('div', {}, el('dt', {}, 'Gerät'), el('dd', {}, 'Keinem Gerät zugeordnet'))]));
+      el('div', {}, el('dt', {}, tr('history.device')), el('dd', {}, dev.name)),
+      el('div', {}, el('dt', {}, tr('history.role')), el('dd', {}, dev.role || '–')),
+      el('div', {}, el('dt', {}, tr('history.battery')), el('dd', {}, reading(dev.battery))),
+      el('div', {}, el('dt', {}, tr('history.signal')), el('dd', {}, dev.signal ? tr('history.signalOf', { v: reading(dev.signal) }) : '–')),
+    ] : [el('div', {}, el('dt', {}, tr('history.device')), el('dd', {}, tr('history.noDevice')))]));
   } catch {
     $('detToday').replaceChildren(); $('detSensor').replaceChildren();
   }
@@ -219,24 +222,24 @@ async function loadDetail() {
 async function loadRecords() {
   try {
     const { since, records } = await getJson('/api/records');
-    $('recSince').textContent = since ? `Seit Inbetriebnahme am ${dateLong.format(new Date(since))}.` : '';
+    $('recSince').textContent = since ? tr('history.since', { date: dateLong.format(new Date(since)) }) : '';
     const value = (v, kind, metric) => (v == null ? '–' : statValue({ v, kind }, metric));
     const when = (t) => (t ? dateShort.format(t) : '');
     const rows = Object.values(records).filter((r) => METRICS[r.metric]).map((r) => {
       const c = metricConv(r.metric);
       return el('tr', {},
-        el('th', { scope: 'row' }, el('a', { href: `#/verlauf?m=${r.metric}&r=year` }, METRICS[r.metric].label + (r.maxLabel === 'gust' ? ' (Böe)' : ''))),
+        el('th', { scope: 'row' }, el('a', { href: `#/history?m=${r.metric}&r=year` }, METRICS[r.metric].label + (r.maxLabel === 'gust' ? tr('history.gust') : ''))),
         el('td', {}, value(r.max, r.maxKind, r.metric), el('small', {}, when(r.maxT))),
         el('td', {}, value(r.min, r.minKind, r.metric), el('small', {}, when(r.minT))),
         el('td', {}, r.month?.sum != null ? value(r.month.sum, r.metric === 'rain' ? 'rain' : 'count', r.metric)
-          : r.month?.min != null && r.month?.max != null ? `${num(c.f(r.month.min), c.digits)} bis ${value(r.month.max, 'metric', r.metric)}`
-            : r.month?.max != null ? `bis ${value(r.month.max, r.maxKind, r.metric)}` : '–'));
+          : r.month?.min != null && r.month?.max != null ? tr('history.fromTo', { lo: num(c.f(r.month.min), c.digits), hi: value(r.month.max, 'metric', r.metric) })
+            : r.month?.max != null ? tr('history.upTo', { hi: value(r.month.max, r.maxKind, r.metric) }) : '–'));
     });
     $('recTable').replaceChildren(
-      el('thead', {}, el('tr', {}, ...['Messwert', 'Höchstwert', 'Tiefstwert', 'Diesen Monat'].map((h) => el('th', { scope: 'col' }, h)))),
+      el('thead', {}, el('tr', {}, ...words('history.recordHeads').map((h) => el('th', { scope: 'col' }, h)))),
       el('tbody', {}, ...rows));
   } catch (e) {
-    $('recSince').textContent = `Die Rekorde konnten nicht geladen werden (${e.message}).`;
+    $('recSince').textContent = tr('history.recordsError', { error: e.message });
   }
 }
 
@@ -259,7 +262,7 @@ function build() {
   document.fonts?.ready.then(draw);
 }
 
-const go = (metric, range) => { location.hash = `#/verlauf?m=${metric}&r=${range}`; };
+const go = (metric, range) => { location.hash = `#/history?m=${metric}&r=${range}`; };
 
 export function enter(params) {
   if (!state.built) build();
@@ -272,7 +275,7 @@ export function enter(params) {
   const available = store.cfg?.metrics ?? Object.keys(METRICS);
   tabs($('histMetric'), Object.fromEntries(Object.entries(METRICS).filter(([k]) => available.includes(k)).map(([k, m]) => [k, m.label])), metric, (m) => go(m, state.range));
   tabs($('histRange'), RANGES, range, (r) => go(state.metric, r));
-  $('detTitle').textContent = `${METRICS[metric].label} heute`;
+  $('detTitle').textContent = tr('history.today', { metric: METRICS[metric].label });
   if (changed) load(); else { renderStats(); draw(); renderReadout(); }
   if (metricChanged || unitsChanged) loadDetail();
   if (!$('recTable').children.length || unitsChanged) loadRecords();

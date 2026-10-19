@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/favicon.svg" width="96" height="96" alt="Weather station icon">
+  <img src="web/favicon.svg" width="96" height="96" alt="Weather station icon">
 </p>
 
 <h1 align="center">Ecowitt Weather Dashboard</h1>
@@ -15,7 +15,7 @@
 
 ---
 
-![Screenshot of the overview screen, showing current conditions, a 5-day forecast and sensor cards](docs/screenshot.png)
+![The Now screen in the evening: a large temperature reading over a landscape whose ridge is the temperature of the last 24 hours, with rain showers, lightning marks, a thunderstorm alert and a row of current readings below](docs/screenshot.png)
 
 ## What it does
 
@@ -23,35 +23,34 @@ A single Docker container serves the web interface plus a small, read-only API. 
 
 Built and tested with an **Ecowitt WH90** (temperature, humidity, ultrasonic wind, piezo rain, solar/UV), an **Ecowitt WH57** (lightning) and an Ecowitt gateway (pressure) via the Home Assistant Ecowitt integration. Other sensors work as well, as long as they are in Home Assistant. Without Home Assistant, the dashboard can also read an Ecowitt gateway directly (see [Ecowitt gateway without Home Assistant](#ecowitt-gateway-without-home-assistant)).
 
-**Screens** (German and English, switchable per visitor in Einstellungen/Settings):
+The last 24 hours are drawn as a landscape: its ridge is the temperature, the sky above it follows the sun, and rain and lightning appear where and when they happened. Drag across it to move through the day.
 
-- **Übersicht/Overview:** temperature, 5-day forecast, wind compass, rain, lightning, pressure trend, humidity, sun & UV, sun & moon
-- **Verlauf/History:** charts for day / week / month / year, plus all-time records and CSV export
-- **Details:** one measurement in depth, with today's values, records and sensor/battery info
-- **Regenradar/Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours as a loop; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), auto-centered on an optional approximate home location
-- **Warnungen/Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
-- **Einstellungen/Settings:** visitors can choose their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/in) and interface language
+**Screens** (in English and German; each visitor picks their language under Settings, and the browser's language is the default):
 
-Alert rules themselves (their label, description and message text, whether default or configured by you) are shown exactly as written, in whichever language you wrote them — they aren't machine-translated.
+- **Now:** the landscape, current temperature and a sentence about the weather, wind with compass, rain, pressure trend, humidity, sun and UV, lightning, and the next five days
+- **History:** charts for day / week / month / year, today's figures and the sensor behind them, all-time records and CSV export
+- **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), and each day in three-hour steps
+- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours as a loop; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
+- **Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
+- **Settings:** visitors choose their language and their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/l/m²/in)
+
+The built-in alert rules are shown in each visitor's language. Rules you write yourself are shown exactly as written; to have them in both languages, give each text once per language (see the comments in `config.example.yaml`).
 
 Units from Home Assistant are converted automatically, so it doesn't matter whether your HA runs metric or imperial.
 
-## Two designs
-
-The dashboard comes with two interfaces for the same data. You choose which one visitors see on the admin page, under Erscheinungsbild/Appearance (or with `ui.design` in `config.yaml`):
-
-- **Klassisch/Classic** (the default): the card dashboard shown above, in German and English.
-- **Himmel:** draws the last 24 hours as a landscape whose ridge is the temperature, under a sky that follows the sun; drag across it to move through the day. It adds an hour-by-hour forecast for the next three days. German only.
-
-Both have the same screens, the same admin page and the same kiosk mode. While Classic is active, Himmel can be previewed at `/himmel/`.
-
 ## Screenshots
 
-The classic design is shown at the top of this page. This is Himmel, in the evening:
+All screenshots are from demo mode.
 
-![Himmel design at night: a large temperature reading over a dark ridge line of the last 24 hours, with lightning marks, a lightning alert and a row of current measurements below](docs/screenshot-himmel.png)
+| History | Forecast |
+|---|---|
+| ![History: a week of temperature as a line chart with the lowest, average and highest value](docs/screenshot-history.png) | ![Forecast: the next three days hour by hour as a temperature line with weather symbols and the chance of rain as bars](docs/screenshot-forecast.png) |
+| **Rain radar** | **The Now screen in German** |
+| ![Rain radar: a map around Frankfurt with distance rings, a play button, the time slider and the colour scale](docs/screenshot-radar.png) | ![The Now screen with German text: Jetzt, Fühlt sich an wie 15,6°, Gewitter in der Nähe](docs/screenshot-de.png) |
 
-Every screen of both designs, on a desktop and on a phone, is on the wiki: **[Screenshots](https://github.com/0xvisualiris/ecowitt-weather-dashboard/wiki/Screenshots)**.
+On a phone:
+
+<img src="docs/screenshot-phone.png" width="300" alt="The Now screen on a phone: the temperature over the landscape, with the thunderstorm alert below it">
 
 ## Requirements
 
@@ -142,7 +141,7 @@ Everything lives in `config/config.yaml`. The most important sections:
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages — or set via the admin page           |
-| `ui`              | Refresh interval, "stale" timeout, default units for new visitors, which of the two designs is shown (`design`) — the design can also be set via the admin page |
+| `ui`              | Refresh interval, "stale" timeout, default units for new visitors |
 
 ### Ecowitt gateway without Home Assistant
 
@@ -158,7 +157,7 @@ station:
   longitude: 8.7
 ```
 
-Or choose *Ecowitt gateway* under Datenquelle/Data source on the admin page and enter the address there.
+Or choose *Ecowitt gateway (direct)* under *Data source* on the admin page and enter the address there.
 
 - The sensors are detected automatically when the container starts, and so is the device list with battery and signal (unless you set `station.devices` yourself). The `sensors:` section isn't needed.
 - The gateway keeps no history, so the dashboard records it itself in `DATA_DIR/ecowitt`: every reading for the last `keep_raw_days` days (default 10, a few MB) and hourly values forever (about 10 MB per year). Charts, records and statistics start filling from the first day. History from Home Assistant is not imported.
@@ -181,12 +180,12 @@ the dashboard falls back to a Home Assistant `weather.*` entity
 
 ### Rain radar
 
-The "Regenradar" screen shows [DWD](https://www.dwd.de)'s RADOLAN RY rain
+The "Rain radar" screen shows [DWD](https://www.dwd.de)'s RADOLAN RY rain
 radar composite for Germany, updated every 5 minutes. Drag to pan, scroll
 or pinch to zoom; a button resets the view.
 
 To have it open already zoomed in on your area, set an approximate home
-location on the admin page ("Ungefährer Standort" in the Station section).
+location on the admin page ("Approximate location" in the Station section).
 This is deliberately a **separate, coarse** location (rounded to about 10
 km), not your station's real coordinates — those stay server-side only and
 are never sent to the browser, same as always. Leaving it unset just opens
@@ -200,15 +199,15 @@ much larger data source).
 
 As an alternative to editing `config.yaml`, the Home Assistant URL/token,
 sensor entity IDs, DWD station ID, alert rules and station/device info can
-all be set from the dashboard itself at `/#/admin/login` (an "Admin" link
-sits in the header navigation). Default login is **admin / admin**, and
+all be set from the dashboard itself at `/#/admin` (the "Manage station"
+link in the footer). Default login is **admin / admin**, and
 you're required to change the password before doing anything else. Saving
 settings there restarts the container (same as editing `config.yaml` would)
 to apply them.
 
-The DWD station field has a **"Auf Karte auswählen" (pick on map)** button:
-a pannable, zoomable map of ~370 DWD weather stations (Germany plus nearby
-Austria/Switzerland/border regions) to click, or search by name, instead of looking up and
+The DWD station field has a **"Pick station on the map"** button:
+a pannable, zoomable map of about 2,800 DWD forecast stations (Germany plus
+the border regions) to click, or search by name, instead of looking up and
 typing a station ID by hand.
 
 Anything already set in `config.yaml` (or an `HA_URL`/`HA_TOKEN` environment
@@ -363,11 +362,8 @@ Please be patient with response times. This runs in my spare time.
 ### Local development
 
 ```bash
-# Server in demo mode (port 47813)
+# Server in demo mode, serving the frontend from web/ (http://localhost:47813)
 cd server && npm install && DEMO=1 npm run dev
-
-# Frontend with hot reload, forwards /api to :47813
-cd web && npm install && npm run dev
 
 # Backend test suite
 cd server && npm test
@@ -376,12 +372,11 @@ cd server && npm test
 **Project structure:**
 
 - `server/`: Node 22 without a framework; only `yaml` and `suncalc` as dependencies. Talks to Home Assistant via its WebSocket API.
-- `web/`: Vite, React and TypeScript. Charts are plain SVG, no chart library.
-- `scripts/build-dwd-stations.mjs`: regenerates the list of DWD forecast stations the admin page offers (`web/public/dwd-stations.json`) from DWD's own catalogue. Run by hand; not part of the build.
-- `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/public/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
-- `web/public/himmel/`: the second design, "Himmel". Plain HTML, CSS and JavaScript modules without a build step; Vite copies it into the build as it is.
+- `web/`: the frontend. Plain HTML, CSS and JavaScript modules with no build step and no dependencies; charts and maps are drawn on canvas. All visible text, in English and German, is in `web/i18n.js`. Edit a file and reload the page.
+- `scripts/build-dwd-stations.mjs`: regenerates the list of DWD forecast stations the admin page offers (`web/dwd-stations.json`) from DWD's own catalogue. Run by hand; not part of the build.
+- `scripts/build-radar-map.mjs`: regenerates the rain radar's base map (`web/radar-map.json`) from Natural Earth, which is public domain. Run by hand; not part of the build.
 - `.github/workflows/docker-publish.yml`: builds the Docker image (amd64 + arm64) and publishes it to GHCR on every push to `main`.
 
 ## License
 
-The code is released under the [MIT License](LICENSE), copyright [0xvisualiris](https://github.com/0xvisualiris). The typeface of the Himmel design, the base map and the weather data have their own terms, listed in [NOTICE](NOTICE).
+The code is released under the [MIT License](LICENSE), copyright [0xvisualiris](https://github.com/0xvisualiris). The typeface, the base map and the weather data have their own terms, listed in [NOTICE](NOTICE).

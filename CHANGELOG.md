@@ -3,6 +3,16 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.0.1 – 2026-10-19
+
+### Fixed
+- In demo mode without a configured subtitle, the station subtitle was German ("Demo-Daten"). It is now "Demo data". (#64)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v2.0.0 – 2026-10-19
 
 ### Breaking changes

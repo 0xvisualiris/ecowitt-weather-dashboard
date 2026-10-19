@@ -88,7 +88,7 @@ if (cfg.server.demo) {
   if (!Object.keys(cfg.sensors).length) cfg.sensors = { ...DEMO_SENSORS };
   if (!cfg.station.devices.length) cfg.station.devices = DEMO_DEVICES;
   if (!cfg.station.since) cfg.station.since = '2024-04-01';
-  if (!cfg.station.subtitle) cfg.station.subtitle = 'Demo-Daten';
+  if (!cfg.station.subtitle) cfg.station.subtitle = 'Demo data';
   if (cfg.station.name === 'Weather Station') cfg.station.name = 'Weather Station Demo';
   cfg.forecast.label ??= 'Demo';
   source = new DemoSource(cfg.sensors);

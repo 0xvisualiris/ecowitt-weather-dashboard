@@ -64,8 +64,8 @@ const locked = {
 // otherwise whichever one is configured (Home Assistant first, so existing
 // setups never change behaviour). Nothing configured anywhere – force demo
 // mode instead of crashing, so the admin login page is still reachable to set
-// it up. This also covers config.yaml being entirely absent, which config.js
-// already defaults to demo mode for on its own. `needsSetup` (exposed via
+// it up. This also covers config.yaml being entirely absent: config.js then
+// leaves demo mode off, so this is the only fallback. `needsSetup` (exposed via
 // /api/config) is true exactly when demo mode is active *because* nothing is
 // configured – not when `server.demo: true` was deliberately set in
 // config.yaml alongside a real source – so the frontend can land first-time

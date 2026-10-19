@@ -99,9 +99,11 @@ export function loadConfig() {
   if (fs.existsSync(file)) {
     raw = YAML.parse(fs.readFileSync(file, 'utf8')) || {};
     console.log(`[config] loaded ${file}`);
-  } else if (!bool(process.env.DEMO)) {
-    console.warn(`[config] ${file} not found – starting in demo mode. Copy config.example.yaml to ${file} to connect Home Assistant.`);
-    raw = { server: { demo: true } };
+  } else {
+    // Not an error: everything can be set on the admin page instead. Demo mode
+    // is not forced here – index.js falls back to it only while no data source
+    // is configured, so saving one on the admin page switches to real data.
+    console.log(`[config] ${file} not found – using the admin page settings (demo mode until a data source is set up)`);
   }
   raw = substituteEnv(raw);
 

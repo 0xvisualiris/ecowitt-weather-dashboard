@@ -130,7 +130,7 @@ A public, read-only web dashboard for a personal weather station whose data live
 ## Repository layout
 
 ```
-Dockerfile                  two stages (server deps → runtime), node:22-alpine; web/ is copied in as it is
+Dockerfile                  two stages (server deps → runtime), node:22.23.4-alpine (pinned to a patched release); web/ is copied in as it is
 docker-compose.yml          local build + run
 .github/workflows/docker-publish.yml   builds amd64+arm64 image, pushes to GHCR on push to main / v* tags
 config/config.example.yaml  fully commented example config (the reference for all options)

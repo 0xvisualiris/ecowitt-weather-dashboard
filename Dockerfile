@@ -1,12 +1,12 @@
 # ---------- 1) Server dependencies ----------
-FROM node:22-alpine AS deps
+FROM node:22.23.4-alpine AS deps
 WORKDIR /app
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
 
 # ---------- 2) Runtime image ----------
 # The frontend (web/) has no build step: its files are copied as they are.
-FROM node:22-alpine
+FROM node:22.23.4-alpine
 RUN apk add --no-cache tzdata bzip2
 ENV NODE_ENV=production \
     PORT=47813 \

@@ -3,7 +3,7 @@
 
 import { $, el, getJson, postJson, METRICS } from './lib.js';
 import { disclosure, stationPicker, locationPicker } from './pickers.js';
-import { DECIMAL, tr, loc, serverError } from './i18n.js';
+import { DECIMAL, LOCALE, tr, loc, serverError } from './i18n.js';
 
 const SENSOR_KEYS = ['temperature', 'feels_like', 'dew_point', 'humidity', 'wind_speed', 'wind_gust', 'wind_direction', 'rain_rate', 'rain_event', 'rain_daily',
   'pressure', 'solar_radiation', 'uv_index', 'lightning_distance', 'lightning_time', 'lightning_count'];
@@ -20,7 +20,7 @@ const field = (label, control, note) => el('label.field', {}, el('span.field-lab
 
 function input(obj, key, opts = {}) {
   return el('input', {
-    type: opts.type ?? 'text', value: obj[key] ?? '', placeholder: opts.placeholder, disabled: opts.disabled, maxLength: opts.max,
+    type: opts.type ?? 'text', value: obj[key] ?? '', placeholder: opts.placeholder, disabled: opts.disabled, maxLength: opts.max, list: opts.list,
     inputMode: opts.inputMode, autocomplete: opts.autocomplete ?? 'off', spellcheck: false, step: opts.step,
     oninput: (e) => { obj[key] = e.target.value; opts.changed?.(); },
   });
@@ -142,6 +142,58 @@ function buildPatch() {
   return patch;
 }
 
+// ---------- Entity picker ----------
+
+// Home Assistant's sensors, loaded once the form is shown: { available, entities, suggestions (best
+// fit first, per reading), byId }. The list arrives after the form is drawn, so every field that
+// uses it registers in `pickers` how to fill itself in.
+let catalog, pickers;
+const ALL_ENTITIES = 'entities-all';
+
+const reading = (ent) => {
+  const state = String(ent.state ?? '');
+  const value = state !== '' && Number.isFinite(Number(state)) ? state.replace('.', DECIMAL)
+    : /^\d{4}-\d\d-\d\dT/.test(state) && !Number.isNaN(Date.parse(state)) ? new Date(state).toLocaleString(LOCALE, { dateStyle: 'medium', timeStyle: 'short' })
+      : state;
+  return ent.unit ? `${value} ${ent.unit}` : value;
+};
+const options = (ids) => ids.map((id) => catalog.byId.get(id)).filter(Boolean)
+  .map((ent) => el('option', { value: ent.id, label: `${ent.name} · ${reading(ent)}` }));
+
+async function loadCatalog(status, allList) {
+  const mine = pickers;
+  let c;
+  try { c = await getJson('/api/admin/entities'); } catch { c = { available: false } }
+  if (mine !== pickers) return; // the form was drawn again meanwhile
+  catalog = { ...c, byId: new Map((c.entities ?? []).map((ent) => [ent.id, ent])) };
+  status.textContent = tr(catalog.available ? 'pick.ready' : 'pick.unavailable');
+  allList.replaceChildren(...options([...catalog.byId.values()].sort((a, b) => a.name.localeCompare(b.name)).map((ent) => ent.id)));
+  for (const fill of pickers) fill();
+}
+
+// A sensor field: its suggestions, and a note that says what the reading expects, or which sensor
+// is chosen, with its current value, and whether it fits.
+function sensorField(key, label, locked) {
+  const list = el('datalist', { id: `entities-${key}` });
+  const note = el('span.field-note');
+  const redraw = () => {
+    if (locked) return message(note, LOCKED);
+    const id = draft.sensors[key].trim();
+    if (!catalog?.available) return message(note, tr(`expect.${key}`));
+    const fits = catalog.suggestions[key] ?? [];
+    if (!id) return message(note, `${tr(`expect.${key}`)} ${tr('pick.matches', { n: fits.length })}`);
+    const ent = catalog.byId.get(id);
+    if (!ent) return message(note, tr('pick.unknown'), true);
+    const chosen = `${ent.name} · ${reading(ent)}`;
+    if (!fits.includes(id)) return message(note, `${chosen}. ${tr('pick.misfit', { unit: ent.unit || tr('pick.noUnit') })}`, true);
+    message(note, chosen);
+  };
+  pickers.push(() => { list.replaceChildren(...options(catalog.suggestions[key] ?? [])); redraw(); });
+  redraw();
+  return el('label.field', {}, el('span.field-label', {}, label),
+    input(draft.sensors, key, { placeholder: 'sensor.…', disabled: locked, list: list.id, changed: redraw }), note, list);
+}
+
 function devicesEditor() {
   const box = el('div.list');
   const locked = settings.locked.stationDevices;
@@ -153,8 +205,8 @@ function devicesEditor() {
         field(tr('dev.name'), input(dev, 'name', { max: LIMITS.deviceName, changed: touch })),
         field(tr('dev.short'), input(dev, 'short', { max: LIMITS.deviceShort, changed: touch })),
         field(tr('dev.role'), input(dev, 'role', { max: LIMITS.deviceRole, placeholder: tr('dev.rolePlaceholder'), changed: touch })),
-        field(tr('dev.battery'), input(dev, 'battery', { placeholder: 'sensor.…', changed: touch })),
-        field(tr('dev.signal'), input(dev, 'signal', { placeholder: 'sensor.…', changed: touch }))),
+        field(tr('dev.battery'), input(dev, 'battery', { placeholder: 'sensor.…', list: ALL_ENTITIES, changed: touch })),
+        field(tr('dev.signal'), input(dev, 'signal', { placeholder: 'sensor.…', list: ALL_ENTITIES, changed: touch }))),
       el('div.checks', {}, el('span.field-label', {}, tr('dev.measures')),
         ...Object.entries(METRICS).map(([k, m]) => el('label.check', {},
           el('input', { type: 'checkbox', checked: (dev.metrics ?? []).includes(k), onchange: (e) => { dev.metrics = e.target.checked ? [...(dev.metrics ?? []), k] : (dev.metrics ?? []).filter((x) => x !== k); touch(); } }), m.label))),
@@ -249,6 +301,8 @@ function twoFactor() {
 
 function renderSettings() {
   makeDraft();
+  catalog = null;
+  pickers = [];
   const L = settings.locked;
   const saveNote = el('p.form-msg', { role: 'status' });
   const lockNote = (flag, extra) => (flag ? LOCKED : extra);
@@ -260,9 +314,10 @@ function renderSettings() {
   const ecowittFields = el('div.grid', {},
     field(tr('source.gateway'), input(draft.ecowitt, 'host', { placeholder: '192.168.1.50', disabled: L.ecowittHost }),
       L.ecowittHost ? (L.ecowittHostEnv ? tr('admin.lockedEnv') : LOCKED) : tr('source.gatewayNote')));
-  const sensorsSection = section(tr('sensors.title'), tr('sensors.intro'),
-    el('div.grid', {}, ...Object.entries(SENSORS).map(([k, label]) =>
-      field(label, input(draft.sensors, k, { placeholder: 'sensor.…', disabled: L.sensors?.[k] }), lockNote(L.sensors?.[k])))));
+  const pickStatus = el('p.field-note.pick-status', { role: 'status' }, tr('pick.loading'));
+  const allEntities = el('datalist', { id: ALL_ENTITIES });
+  const sensorsSection = section(tr('sensors.title'), tr('sensors.intro'), pickStatus,
+    el('div.grid', {}, ...Object.entries(SENSORS).map(([k, label]) => sensorField(k, label, L.sensors?.[k]))));
   const showSource = () => {
     const ecowitt = draft.source === 'ecowitt';
     haFields.hidden = ecowitt;
@@ -299,7 +354,8 @@ function renderSettings() {
     } catch (e) { message(saveNote, say(e), true); }
   };
 
-  root.replaceChildren(
+  // Unlike el(), replaceChildren() would write a null child as the text "null".
+  root.replaceChildren(...[
     el('div.page-head', {},
       el('h1', {}, tr('admin.title')),
       el('p.actions', {},
@@ -337,7 +393,10 @@ function renderSettings() {
     el('div.save-bar', {}, el('button.btn.primary', { type: 'button', onclick: save }, tr('admin.save')), saveNote),
 
     section(tr('tfa.title'), null, twoFactor()),
-    el('p.sub', {}, tr('admin.timezone', { tz: settings.timezone })));
+    el('p.sub', {}, tr('admin.timezone', { tz: settings.timezone })),
+    allEntities,
+  ].filter(Boolean));
+  loadCatalog(pickStatus, allEntities);
 }
 
 async function refresh() {

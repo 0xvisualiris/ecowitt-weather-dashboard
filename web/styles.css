@@ -523,6 +523,8 @@ td small { display: block; font-size: 0.85rem; color: var(--ink-soft); }
 .field { display: grid; gap: 0.35rem; align-content: start; min-width: 0; }
 .field-label { font-size: 0.9rem; font-weight: 500; color: var(--ink-soft); }
 .field-note { font-size: 0.85rem; line-height: 1.35; color: var(--ink-faint); }
+.field-note.bad { color: #ffb4a8; }
+.pick-status { margin: -0.5rem 0 1.25rem; max-width: 44rem; }
 input[type="text"], input[type="password"], select {
   font: inherit;
   width: 100%;

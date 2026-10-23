@@ -205,6 +205,12 @@ you're required to change the password before doing anything else. Saving
 settings there restarts the container (same as editing `config.yaml` would)
 to apply them.
 
+The sensor fields suggest entities from Home Assistant as you type, the best
+fit for each reading first (by unit, device class and name), and show the
+chosen sensor's current value under the field, with a warning if its unit
+doesn't fit the reading. Suggestions need a working Home Assistant
+connection, so save its address and token first.
+
 The DWD station field has a **"Pick station on the map"** button:
 a pannable, zoomable map of about 2,800 DWD forecast stations (Germany plus
 the border regions) to click, or search by name, instead of looking up and

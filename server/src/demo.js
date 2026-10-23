@@ -154,6 +154,22 @@ export class DemoSource extends EventEmitter {
     for (const [id, [s, u]] of Object.entries(extra)) this.states[id] = { state: s, attributes: { unit_of_measurement: u }, lu: now, lc: now };
   }
 
+  // Same shape as HomeAssistantSource.sensorEntities(), so the admin page's
+  // entity picker can be tried in demo mode. A few look-alikes (indoor, soil,
+  // weekly rain, absolute pressure) show how the suggestions are ranked.
+  async sensorEntities() {
+    const label = (id) => id.replace(/^sensor\.demo_/, 'Demo ').replace(/_/g, ' ');
+    const own = Object.entries(this.states).map(([id, s]) => ({
+      id, name: label(id), unit: s.attributes.unit_of_measurement || null, deviceClass: null, state: s.state,
+    }));
+    const lookalikes = [
+      ['sensor.demo_indoor_temperature', '21.4', '°C'], ['sensor.demo_soil_temperature', '12.8', '°C'],
+      ['sensor.demo_indoor_humidity', '48', '%'], ['sensor.demo_weekly_rain_piezo', '6.2', 'mm'],
+      ['sensor.demo_absolute_pressure', '1001.3', 'hPa'],
+    ].map(([id, state, unit]) => ({ id, name: label(id), unit, deviceClass: null, state }));
+    return [...own, ...lookalikes];
+  }
+
   _makeForecast() {
     const conds = ['lightning-rainy', 'rainy', 'cloudy', 'partlycloudy', 'sunny', 'sunny', 'partlycloudy'];
     const base = midnight(Date.now());

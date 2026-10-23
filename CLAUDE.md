@@ -112,7 +112,7 @@ Claude Code picks skills from their descriptions, so there is no need to load `u
 The skills are generic. Where one disagrees with this file, this file wins:
 
 - **Git and releases:** follow "Branching, versioning and releases" above, not `git-workflow-and-versioning`'s trunk-based model. Changes go `feature/*` / `fix/*` → `dev` (squash merge) → `main` (merge commit). `/ship` and `shipping-and-launch` don't replace that process. There are no feature flags or staged rollouts here: a release is a Docker image tag.
-- **Tests:** use `test-driven-development` for the server's pure logic, where `node:test` suites already exist (`util.js`, `units.js`, `alerts.js`, `totp.js`, `radolan.js`, `ecowitt.js`, `recorder.js`, `admin.js`). Don't add a test framework or tests for the frontend modules. Verify those in demo mode, as described under "Commands".
+- **Tests:** use `test-driven-development` for the server's pure logic, where `node:test` suites already exist (`util.js`, `units.js`, `alerts.js`, `totp.js`, `radolan.js`, `ecowitt.js`, `recorder.js`, `admin.js`, `config.js`, `entities.js`). Don't add a test framework or tests for the frontend modules. Verify those in demo mode, as described under "Commands".
 - **Dependencies:** no skill justifies a new dependency. "Keep the dependency footprint small" under "Hard constraints" still applies, so discuss any addition first.
 - **Scope:** this is a hobby project kept deliberately simple. Keep specs and plans short. A small fix doesn't need a spec document.
 - **Hard constraints** (no secrets in the browser, the CSP, the read-only public API, a non-root container, `DemoSource` kept in sync, port 47813) override any skill's advice.
@@ -130,7 +130,7 @@ A public, read-only web dashboard for a personal weather station whose data live
 ## Repository layout
 
 ```
-Dockerfile                  two stages (server deps → runtime), node:22-alpine; web/ is copied in as it is
+Dockerfile                  two stages (server deps → runtime), node:22.23.4-alpine (pinned to a patched release); web/ is copied in as it is
 docker-compose.yml          local build + run
 .github/workflows/docker-publish.yml   builds amd64+arm64 image, pushes to GHCR on push to main / v* tags
 config/config.example.yaml  fully commented example config (the reference for all options)
@@ -150,6 +150,7 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/service.js            WeatherService: all data shaping (current, history, records, detail, hourly forecast) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, fills in messages per language, persists log to DATA_DIR/alerts.json
   src/admin.js              AdminStore: login/session/password hashing, optional TOTP 2FA, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
+  src/entities.js           suggestSensors(): ranks HA sensors per sensor key (unit, device class, name, id family) for the admin entity picker
   src/totp.js               RFC 6238 TOTP (base32, HOTP, verify) on node:crypto only, no new dependency
   src/units.js              unit normalisation to canonical units, compass(deg, lang), fmtNumber(v, d, lang)
   src/astro.js              sunrise/sunset/day length/sun position/moon via suncalc
@@ -186,7 +187,7 @@ cd server && npm install && DEMO=1 npm run dev
 # Backend against a real HA instance
 cd server && CONFIG_PATH=../config/config.yaml HA_TOKEN=... npm run dev
 
-# Run the backend test suite (util, units, alerts, totp, radolan, radar, ecowitt, recorder, admin)
+# Run the backend test suite (util, units, alerts, totp, radolan, radar, ecowitt, recorder, admin, config, entities)
 cd server && npm test
 
 # Syntax check of the frontend (there is no build and no type checker)
@@ -198,7 +199,7 @@ docker compose up -d --build
 
 In a checkout the server serves `web/` directly (`config.js` finds it next to `server/` when `PUBLIC_DIR` isn't set), so a frontend change needs only a page reload. `npm run dev` restarts the server on server changes.
 
-There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic, `totp.js` against RFC 6238's own test vectors, `radolan.js`'s header/grid decoding against synthetic fixtures, and the Ecowitt parsing, recorder and admin validation), not the HTTP layer or the frontend. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser, in both languages.
+There's **no linter config**, and only a small, deliberately-scoped test suite — `cd server && npm test` (Node's built-in `node:test`, zero dependencies) covers the pure-logic hot spots (`util.js`, `units.js`, `alerts.js`'s condition/message/evaluate logic, `totp.js` against RFC 6238's own test vectors, `radolan.js`'s header/grid decoding against synthetic fixtures, the Ecowitt parsing, recorder and admin validation, the missing-config default and the entity picker's ranking), not the HTTP layer or the frontend. Verify everything else by running in demo mode and checking `/api/*` with curl plus the UI in a browser, in both languages.
 
 **Every push to `main` publishes a new `latest` image to GHCR**, so merging to `main` is a production release. Follow the release process above.
 
@@ -222,8 +223,9 @@ rain radar: DWD RADOLAN RY composite (opendata.dwd.de, 5-min poll, bz2 → bunzi
 - `history(entityIds, start, end)` → `{ entity_id: [{ t: ms, s: state }] }`
 - `statistics(ids, start, end, period)` → `{ entity_id: [{ start: ms, mean, min, max, change, state }] }`, where `period` is `hour`, `day` or `month`
 - Events: `update`, `status`, `config` (HA `get_config`), `forecast`
+- Optional `sensorEntities()` → `[{ id, name, unit, deviceClass, state }]`, every `sensor.*` (HA `get_states`; `DemoSource` returns its own sensors plus a few look-alikes). Only for the admin page's entity picker; the Ecowitt source has none.
 
-HA calls used: `auth`, `get_config`, `subscribe_entities` (compressed diffs `a`/`c`/`r`), `weather/subscribe_forecast` (daily), `history/history_during_period` (`minimal_response`, `no_attributes`), `recorder/statistics_during_period`, `ping`.
+HA calls used: `auth`, `get_config`, `get_states` (admin entity picker only), `subscribe_entities` (compressed diffs `a`/`c`/`r`), `weather/subscribe_forecast` (daily), `history/history_during_period` (`minimal_response`, `no_attributes`), `recorder/statistics_during_period`, `ping`.
 
 **HA reconnect** (`ha.js`): every way a connection can end goes through `_drop(ws, reason)`, which ignores sockets that are no longer current (so a late `close` from an old socket can't kill its replacement), rejects pending requests and schedules a reconnect with exponential backoff (max 60 s). Besides the `close` event it is triggered by: a 20 s handshake timeout (Node's WebSocket has none – a proxy or half-started HA that accepts TCP but never answers would otherwise hang forever), a failed `_afterAuth` (HA still starting – used to leave the source "connected" with no subscription), a missed `pong` to the 30 s `ping` heartbeat (a connection that died without a close, e.g. HA's host rebooted), and no entity event at all for 15 min (re-subscribes from scratch). The backoff only resets after setup succeeds.
 
@@ -355,7 +357,7 @@ Everything under `/api/*` except `/api/admin/*` is GET-only (anything else retur
 Alert texts in `/api/config`, `/api/current` and `/api/alerts` (`label`, `description`, `banner`, `message`, a log entry's `title` and `text`) are a string or an `{ en, de }` object (see "Languages").
 
 `/api/admin/*` (see above) is the one authenticated, non-read-only surface:
-`POST /login`, `POST /logout`, `GET /session`, `POST /password`, `GET`/`POST /settings`, `POST /totp/setup`, `POST /totp/enable`, `POST /totp/disable`.
+`POST /login`, `POST /logout`, `GET /session`, `POST /password`, `GET`/`POST /settings`, `GET /entities` (HA's sensors with `suggestions` per sensor key, ranked by `entities.js`; `available: false` for the Ecowitt source or while HA is disconnected), `POST /totp/setup`, `POST /totp/enable`, `POST /totp/disable`.
 
 The frontend is the API's only client in this repo and reads the responses directly; there are no shared types. Any change to an API response shape must be checked against every `web/*.js` module that reads it.
 

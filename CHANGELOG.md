@@ -3,6 +3,22 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.1.0 – 2026-10-23
+
+### Security
+- The container now runs Node.js 22.23.4, which fixes CVE-2026-111497 ("Node2Shell"), an out-of-bounds write in Node's Brotli decoder that could crash the process, leak memory or allow remote code execution. v2.0.2 and earlier shipped a vulnerable runtime. (#71)
+
+### New
+- The sensor fields on the admin page suggest entities from Home Assistant as you type, the best fit for each reading first (by unit, device class and name). Under each field the page says what the reading expects, or shows the chosen sensor with its current value, and warns when its unit doesn't fit or the entity doesn't exist. The battery and signal fields of the devices suggest every sensor. Suggestions need a working Home Assistant connection. (#70)
+
+### Fixed
+- Outside demo mode, the admin page showed "null" under the "Manage station" heading. (#70)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v2.0.2 – 2026-10-19
 
 ### Fixed

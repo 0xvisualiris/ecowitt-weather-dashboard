@@ -9,7 +9,7 @@ const SENSOR_KEYS = ['temperature', 'feels_like', 'dew_point', 'humidity', 'wind
   'pressure', 'solar_radiation', 'uv_index', 'lightning_distance', 'lightning_time', 'lightning_count'];
 const SENSORS = Object.fromEntries(SENSOR_KEYS.map((k) => [k, tr(`sensor.${k}`)]));
 const OPS = Object.fromEntries(['above', 'below', 'at_least', 'at_most', 'equals'].map((op) => [op, tr(`op.${op}`)]));
-const LIMITS = { stationName: 60, stationSubtitle: 80, alertLabel: 60, alertDescription: 120, alertBanner: 120, alertMessage: 200, deviceName: 60, deviceShort: 12, deviceRole: 40 };
+const LIMITS = { stationName: 60, stationSubtitle: 80, alertLabel: 60, alertDescription: 120, alertBanner: 120, alertMessage: 200, deviceName: 60, deviceShort: 12, deviceRole: 40, legalImprint: 10000, legalPrivacy: 50000 };
 const LOCKED = tr('admin.locked');
 
 let root, settings, draft, dirty;
@@ -23,6 +23,13 @@ function input(obj, key, opts = {}) {
     type: opts.type ?? 'text', value: obj[key] ?? '', placeholder: opts.placeholder, disabled: opts.disabled, maxLength: opts.max, list: opts.list,
     inputMode: opts.inputMode, autocomplete: opts.autocomplete ?? 'off', spellcheck: false, step: opts.step,
     oninput: (e) => { obj[key] = e.target.value; opts.changed?.(); },
+  });
+}
+
+function textarea(obj, key, opts = {}) {
+  return el('textarea', {
+    value: obj[key] ?? '', disabled: opts.disabled, maxLength: opts.max, rows: opts.rows ?? 8, lang: opts.lang,
+    oninput: (e) => { obj[key] = e.target.value; },
   });
 }
 
@@ -95,6 +102,12 @@ function renderPassword(forced) {
 // The default rules carry their texts in every language; in the form a rule shows them in the
 // admin's, and a rule saved from here keeps what was written, as plain text.
 const TEXTS = ['label', 'description', 'banner', 'message'];
+// A legal text is one string for every language or one per language; the form always has one field per
+// language. A string fills both; two equal fields are saved as one string again.
+const LEGAL = { imprint: 'legalImprint', privacy: 'legalPrivacy' };
+const splitText = (t) => (typeof t === 'string' ? { en: t, de: t } : { en: t?.en ?? '', de: t?.de ?? '' });
+const joinText = ({ en, de }) => (en.trim() === de.trim() ? en.trim() : { en: en.trim(), de: de.trim() });
+
 const editable = (rule) => ({ ...structuredClone(rule), ...Object.fromEntries(TEXTS.map((k) => [k, loc(rule[k])])) });
 
 function makeDraft() {
@@ -109,6 +122,7 @@ function makeDraft() {
     station: { name: s.station.name ?? '', subtitle: s.station.subtitle ?? '', altitude: s.station.altitude_m == null ? '' : String(s.station.altitude_m), since: s.station.since ?? '', lat: loc ? String(loc.lat) : '', lon: loc ? String(loc.lon) : '' },
     devices: structuredClone(s.station.devices ?? []),
     alerts: (s.alerts ?? []).map(editable),
+    legal: Object.fromEntries(Object.keys(LEGAL).map((k) => [k, splitText(s.legal?.[k])])),
   };
 }
 
@@ -136,6 +150,11 @@ function buildPatch() {
   const lat = number(d.station.lat), lon = number(d.station.lon), old = s.station.publicLocation;
   if (lat !== (old?.lat ?? null) || lon !== (old?.lon ?? null)) put('station', 'publicLocation', lat != null && lon != null ? { lat, lon } : null);
   if (dirty.devices) put('station', 'devices', d.devices.map((dev, i) => ({ ...dev, id: dev.id || slug(dev.name) || `device-${i + 1}` })));
+
+  for (const k of Object.keys(LEGAL)) {
+    const text = joinText(d.legal[k]);
+    if (JSON.stringify(text) !== JSON.stringify(joinText(splitText(s.legal?.[k])))) put('legal', k, text);
+  }
 
   if (dirty.restoreAlerts) patch.alerts = null;
   else if (dirty.alerts) patch.alerts = d.alerts.map((a, i) => ({ ...a, id: a.id || slug(a.label ?? '') || `rule-${i + 1}` }));
@@ -389,6 +408,11 @@ function renderSettings() {
 
     section(tr('dev.title'), tr('dev.intro'), devicesEditor()),
     section(tr('rule.title'), tr('rule.intro'), alertsEditor()),
+    section(tr('lg.title'), tr('lg.intro'),
+      el('p.field-note.legal-format', {}, tr('lg.format')),
+      ...Object.entries(LEGAL).map(([page, lock]) => el('div.grid.legal-grid', {},
+        ...['en', 'de'].map((lang) => field(tr(`lg.${page}${lang === 'en' ? 'En' : 'De'}`),
+          textarea(draft.legal[page], lang, { lang, max: LIMITS[lock], rows: page === 'imprint' ? 8 : 14, disabled: L[lock] }), lockNote(L[lock])))))),
 
     el('div.save-bar', {}, el('button.btn.primary', { type: 'button', onclick: save }, tr('admin.save')), saveNote),
 

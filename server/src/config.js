@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import YAML from 'yaml';
-import { DEFAULT_ALERTS_DE } from './i18n.js';
+import { DEFAULT_ALERTS_DE, LANGS } from './i18n.js';
 
 export const SENSOR_KEYS = [
   'temperature', 'feels_like', 'dew_point', 'humidity',
@@ -76,6 +76,19 @@ export function normalizeAlerts(raw) {
     }
     return { level: 'warning', label: a.id, description: '', ...a };
   });
+}
+
+// The text of a legal page (imprint, privacy policy): one string for every
+// language, or one per language ({ en: '…', de: '…' }), like an alert text.
+// Anything else, and a text with nothing in it, becomes '' (no page).
+export function legalText(value) {
+  if (typeof value === 'string') return value.trim();
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const out = {};
+    for (const lang of LANGS) if (typeof value[lang] === 'string' && value[lang].trim()) out[lang] = value[lang].trim();
+    return Object.keys(out).length ? out : '';
+  }
+  return '';
 }
 
 function substituteEnv(value) {
@@ -174,6 +187,11 @@ export function loadConfig() {
       label: raw.forecast?.label || null,
       days: Number(raw.forecast?.days ?? 5),
     },
+    // Imprint and privacy policy, each shown as its own page linked from the footer when set.
+    legal: {
+      imprint: legalText(raw.legal?.imprint),
+      privacy: legalText(raw.legal?.privacy),
+    },
     alerts: raw.alerts === undefined ? DEFAULT_ALERTS : (raw.alerts || []),
     alert_clear_minutes: Number(raw.alert_settings?.clear_after_minutes ?? 10),
     ui: {
@@ -218,6 +236,8 @@ export function loadConfig() {
     stationAltitude: station.altitude_m != null,
     stationSince: !!station.since,
     stationPublicLocation: station.public_lat != null && station.public_lon != null,
+    legalImprint: !!cfg.legal.imprint,
+    legalPrivacy: !!cfg.legal.privacy,
     // homeassistant.url/token are the only two fields that can also be
     // locked by an environment variable (not just config.yaml) – HA_URL/
     // HA_TOKEN always win the `||` in cfg.homeassistant above when set, so

@@ -141,6 +141,7 @@ Everything lives in `config/config.yaml`. The most important sections:
 | `sensors`         | Entity IDs for temperature, wind, rain, pressure, lightning, … — or set via the admin page |
 | `forecast`        | DWD station for the daily forecast, bias-corrected from your own station's live reading (falls back to a `weather.*` entity) |
 | `alerts`          | Alert rules with thresholds and messages — or set via the admin page           |
+| `legal`           | Imprint and privacy policy, each shown as its own page linked in the footer — or written on the admin page |
 | `ui`              | Refresh interval, "stale" timeout, default units for new visitors |
 
 ### Ecowitt gateway without Home Assistant
@@ -198,8 +199,8 @@ much larger data source).
 ### Admin page
 
 As an alternative to editing `config.yaml`, the Home Assistant URL/token,
-sensor entity IDs, DWD station ID, alert rules and station/device info can
-all be set from the dashboard itself at `/#/admin` (the "Manage station"
+sensor entity IDs, DWD station ID, alert rules, station/device info and the
+imprint and privacy policy can all be set from the dashboard itself at `/#/admin` (the "Manage station"
 link in the footer). Default login is **admin / admin**, and
 you're required to change the password before doing anything else. Saving
 settings there restarts the container (same as editing `config.yaml` would)
@@ -339,6 +340,8 @@ Put the container behind a reverse proxy with HTTPS (e.g. Nginx Proxy Manager, T
 
 The API is strictly read-only. It never returns your token, coordinates or entity IDs, and it sends a strict Content Security Policy. Fonts are served from the container itself, so there are no requests to Google Fonts.
 
+A public site run from Germany usually needs an imprint (Impressum) and a privacy policy (Datenschutzerklärung). Write them under `legal:` in `config.yaml` or on the admin page; each becomes its own page, linked in the footer. The dashboard itself makes no requests to third parties, sets no cookies for visitors (only the admin's sign-in cookie) and keeps only the visitor's language and units in the browser's local storage, which is what the privacy policy has to describe, together with whatever your reverse proxy, tunnel or CDN does with visitors' requests.
+
 ## API
 
 All public endpoints are `GET` and read-only. Values are returned in °C, km/h, hPa, mm and km. (The separate, authenticated `/api/admin/*` surface behind the admin page is the one exception — see "Admin page" above.)
@@ -353,6 +356,7 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | `/api/radar`                           | Current rain radar frame: grid size and timestamp                              |
 | `/api/radar/grid`                      | Current rain radar frame: raw binary intensity grid (pairs with `/api/radar`)  |
 | `/api/alerts`                          | Alert rule status and history                                                  |
+| `/api/legal`                           | Imprint and privacy policy texts (`''` if not set)                             |
 | `/api/forecast/hourly`                 | The next 72 hours, hour by hour: temperature, condition, rain risk and amount, wind, gusts, sunshine, cloud cover. From DWD MOSMIX if a DWD station is set; otherwise derived from the daily forecast and marked `synthetic` |
 | `/healthz`                             | Health check                                                                   |
 

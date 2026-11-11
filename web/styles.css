@@ -129,7 +129,7 @@ p, h2, ol { margin: 0; }
 .pulse { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #8df0a8; }
 .status.stale .pulse { background: var(--sun); }
 
-a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible {
+a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 3px solid var(--sun);
   outline-offset: 2px;
 }
@@ -525,7 +525,7 @@ td small { display: block; font-size: 0.85rem; color: var(--ink-soft); }
 .field-note { font-size: 0.85rem; line-height: 1.35; color: var(--ink-faint); }
 .field-note.bad { color: #ffb4a8; }
 .pick-status { margin: -0.5rem 0 1.25rem; max-width: 44rem; }
-input[type="text"], input[type="password"], select {
+input[type="text"], input[type="password"], select, textarea {
   font: inherit;
   width: 100%;
   min-width: 0;
@@ -538,7 +538,11 @@ input[type="text"], input[type="password"], select {
 select { appearance: none; padding-right: 2rem; background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%); background-position: calc(100% - 1.05rem) 55%, calc(100% - 0.75rem) 55%; background-size: 0.3rem 0.3rem; background-repeat: no-repeat; }
 select option { color: #111; }
 input::placeholder { color: var(--ink-faint); }
-input:disabled, select:disabled, fieldset:disabled input { opacity: 0.55; cursor: not-allowed; }
+input:disabled, select:disabled, textarea:disabled, fieldset:disabled input { opacity: 0.55; cursor: not-allowed; }
+textarea { resize: vertical; line-height: 1.45; min-height: 8rem; }
+.legal-format { margin: -0.5rem 0 1.25rem; max-width: 44rem; }
+.legal-grid { grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }
+.legal-grid + .legal-grid { margin-top: 1.25rem; }
 .list { display: grid; gap: 1rem; justify-items: start; }
 .card { width: 100%; margin: 0; padding: 1.1rem 1.25rem 1.25rem; border: 1px solid var(--rule); border-radius: 1rem; display: grid; gap: 1rem; justify-items: start; min-width: 0; }
 .card > .grid, .card > .conds { width: 100%; }
@@ -644,7 +648,16 @@ input[type="range"] { width: 100%; accent-color: var(--sun); height: 1.5rem; }
 
 .setting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 2rem; padding: 1.1rem 0; border-top: 1px solid var(--rule); }
 .setting-label { font-size: 1.15rem; font-weight: 600; }
-.foot-links { display: flex; gap: 1.5rem; }
+.foot-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+
+/* ---------- Imprint and privacy policy ---------- */
+
+.legal-text { max-width: 44rem; line-height: 1.55; overflow-wrap: anywhere; }
+.legal-text h2 { margin: 2rem 0 0.5rem; }
+.legal-text h3 { margin: 1.5rem 0 0.4rem; font-size: 1.1rem; font-weight: 600; }
+.legal-text p, .legal-text ul { margin: 0 0 1rem; }
+.legal-text ul { padding-left: 1.25rem; }
+.legal-text a { color: inherit; text-underline-offset: 0.2em; }
 
 /* ---------- Kiosk mode: only the Now view ---------- */
 

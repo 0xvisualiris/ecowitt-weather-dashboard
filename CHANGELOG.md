@@ -3,6 +3,31 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.2.0 – 2026-11-11
+
+### New
+- Imprint and privacy policy pages. Write them under `legal:` in `config.yaml` (`legal.imprint`, `legal.privacy`) or on the admin page in the new section "Imprint and privacy policy". Each text becomes its own page (`#/imprint`, `#/privacy`, also `#/impressum` and `#/datenschutz`), linked in the footer of every page. One text for every language or one per language; without a text there is no page and no link. (#74)
+- A "Skip to content" link for keyboard users, as the first stop of the Tab key. (#77)
+- Shared links show a preview card with the station name (Open Graph tags), and the page has a description. (#78)
+
+### Improved
+- The time, temperature and sentence at the top of the Now view are easier to read on the bright day and sunset skies: a soft shade behind them keeps the contrast at WCAG's 4.5:1 or more. (#77)
+- The dashboard stops fetching readings while its tab is hidden and catches up as soon as it is shown again. (#78)
+- Unknown addresses show a "Page not found" page instead of the Now view, and missing files (such as `/robots.txt`) answer with 404 instead of the dashboard page. (#78)
+- A `Permissions-Policy` header turns off browser features the dashboard doesn't use (camera, microphone, location, sensors, payment, USB). (#78)
+- Without JavaScript the page says that it needs it, in English and German. (#78)
+- When the connection drops, the status keeps the time of the readings still on screen ("No connection, last reading 11:13"). Error messages say "no connection" in the visitor's language instead of the browser's "Failed to fetch". (#76)
+- On a slow connection the status no longer shows the English "Connecting" before the page switches to German. (#77)
+
+### Fixed
+- After a daylight-saving change, the dates along the History chart's month view (and the weekdays in the week view) were one day early, with one date shown twice. The month and year ranges also started an hour off midnight. (#76)
+- With a missing wind direction the Now view said the gusts came "from the north"; a missing UV index showed "UV 0", missing strike counts showed "0", and calm air was given a direction. They now show "–" or are left out. (#76)
+
+### Upgrade
+No `config.yaml` changes required. `legal:` is optional and off by default.
+
+    docker compose pull && docker compose up -d
+
 ## v2.1.0 – 2026-10-23
 
 ### Security

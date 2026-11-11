@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Weather Station</title>
+  <meta name="description" content="Weather Station: live readings, history, forecast and rain radar.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Weather Station">
+  <meta property="og:description" content="Weather Station: live readings, history, forecast and rain radar.">
+  <meta property="og:image" content="/icon-512.png">
   <meta name="theme-color" content="#2a66ae">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -13,9 +18,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Weather Station">
   <link rel="preload" href="fonts/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="i18n.js">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-view="now">
+  <a class="skip" href="#/" id="skipLink" data-t="skip">Skip to content</a>
   <header class="top">
     <a class="station" href="#/" id="stationName">Weather Station</a>
     <nav class="nav" id="nav" aria-label="Views" data-t-aria-label="nav.label">
@@ -26,8 +33,10 @@
       <a href="#/alerts" data-nav="alerts"><span data-t="nav.alerts">Alerts</span><span class="badge" id="alertBadge" hidden></span></a>
       <span class="nav-mark" id="navMark" aria-hidden="true"></span>
     </nav>
-    <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">Connecting</span></p>
+    <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">…</span></p>
   </header>
+
+  <noscript><p class="noscript">This weather station needs JavaScript. · Diese Wetterstation braucht JavaScript.</p></noscript>
 
   <!-- Now -->
   <div data-view="now">
@@ -207,11 +216,24 @@
     <div id="adminRoot"></div>
   </main>
 
+  <!-- An address that leads nowhere -->
+  <main class="page narrow" data-view="notfound" hidden>
+    <div class="page-head"><h1 data-t="notfound.title">Page not found</h1></div>
+    <p><a class="more" href="#/" data-t="notfound.back">Back to the current weather</a></p>
+  </main>
+
+  <!-- Imprint and privacy policy -->
+  <main class="page narrow" data-view="legal" hidden>
+    <div id="legalRoot"></div>
+  </main>
+
   <footer class="foot">
     <p><span data-t="foot.data">Weather data and radar: Deutscher Wetterdienst. Map: Natural Earth. </span><span data-t="foot.sourceBy">Source code by </span><a href="https://github.com/0xvisualiris" rel="noopener">0xvisualiris</a><span data-t="foot.under"> under the </span><a href="https://github.com/0xvisualiris/ecowitt-weather-dashboard/blob/main/LICENSE" rel="noopener" data-t="foot.licence">MIT licence</a><span data-t="foot.end">.</span></p>
-    <p class="foot-links"><a href="#/settings" data-t="foot.settings">Units and language</a><a href="#/admin" data-t="foot.admin">Manage station</a></p>
+    <p class="foot-links"><a href="#/settings" data-t="foot.settings">Units and language</a><a href="#/admin" data-t="foot.admin">Manage station</a><a href="#/imprint" id="foot-imprint" data-t="foot.imprint" hidden>Imprint</a><a href="#/privacy" id="foot-privacy" data-t="foot.privacy" hidden>Privacy policy</a></p>
   </footer>
 
+  <!-- First on its own, so the page switches to the visitor's language before the views have loaded. -->
+  <script src="i18n.js" type="module"></script>
   <script src="app.js" type="module"></script>
   <script src="main.js" type="module"></script>
 </body>

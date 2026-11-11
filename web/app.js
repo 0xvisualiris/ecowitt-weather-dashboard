@@ -3,11 +3,11 @@
 // and dragging across the scene moves through the day.
 
 import {
-  DAY, $, reducedMotion, n0, n1, clock, weekday, weekdayShort, clamp, lerp, getJson, store,
+  DAY, $, el, reducedMotion, n0, n1, num, clock, weekday, weekdayShort, clamp, lerp, getJson, store,
   sunHeight as sunHeightFor, skyAt as skyFor, hex, mix, rgb, applyTheme, CONDITION, fromWord,
   units, conv, show, degree, temp as tempText, scrub, atClock, hourLabel, useDefaultUnits,
 } from './lib.js';
-import { tr, words, loc, DECIMAL } from './i18n.js';
+import { tr, words, loc, DECIMAL, LOCALE } from './i18n.js';
 
 // ---------- Data ----------
 
@@ -30,13 +30,16 @@ async function loadCurrent() {
     $('statusText').textContent = tr(stale ? 'status.stale' : 'status.live', { time: atClock(state.cur.updated) });
   } catch {
     $('status').classList.add('stale');
-    $('statusText').textContent = tr('status.offline');
+    // The readings on screen stay; say how old they are.
+    $('statusText').textContent = state.cur?.updated ? tr('status.offlineSince', { time: atClock(state.cur.updated) }) : tr('status.offline');
   }
   renderStatic();
   renderReadout();
 }
 
+let historyAt = 0;
 async function loadHistory() {
+  historyAt = Date.now();
   const metrics = ['temp', 'hum', 'wind', 'rain', 'press', 'solar', 'light'];
   const results = await Promise.allSettled(metrics.map((m) => getJson(`/api/history?metric=${m}&range=day`)));
   results.forEach((r, i) => { if (r.status === 'fulfilled') state.hist[metrics[i]] = r.value.points; });
@@ -301,19 +304,23 @@ function renderReadout() {
   }
 
   // One sentence for the moment
+  // Without a rain sensor there is nothing to say about rain; calm air has no direction.
+  const rainKnown = !live || v.rain_rate != null;
   const dry = live ? v.rain_rate <= 0 : (bucket('rain', t)?.v ?? 0) <= 0;
   const parts = [];
-  if (wind != null) parts.push(live && v.wind_direction != null ? tr('wind.from', { wind: windWord(wind), dir: fromWord(v.wind_direction) }) : windWord(wind));
-  parts.push(tr(dry ? 'now.dry' : 'now.rain'));
+  const windDir = live && v.wind_direction != null && wind >= WIND_LIMITS[0];
+  if (wind != null) parts.push(windDir ? tr('wind.from', { wind: windWord(wind), dir: fromWord(v.wind_direction) }) : windWord(wind));
+  if (rainKnown) parts.push(tr(dry ? 'now.dry' : 'now.rain'));
+  const said = parts.join(', ').replace(/^./, (c) => c.toLocaleUpperCase(LOCALE));
   $('sentence').textContent = live
-    ? tr('now.feelsLike', { temp: tempText(v.feels_like), parts: parts.join(', ') })
-    : tr('now.pastSentence', { parts: parts.join(', '), hum: n0.format(hum ?? 0) });
+    ? (said ? tr('now.feelsLike', { temp: tempText(v.feels_like), parts: said }) : tr('now.feelsLikeOnly', { temp: tempText(v.feels_like) }))
+    : tr('now.pastSentence', { parts: said, hum: num(hum, 0) });
 
   // Instruments
   const gust = live ? v.wind_gust : bucket('wind', t)?.hi;
   const windUnit = conv('wind').unit, rainUnit = conv('rain').unit, pressUnit = conv('press').unit;
   setInst('inst-wind', show('wind', wind),
-    live ? tr('now.gustsFrom', { gust: show('wind', gust, 0), unit: windUnit, dir: fromWord(v.wind_direction) }) : tr('now.gusts', { gust: show('wind', gust ?? wind, 0), unit: windUnit }));
+    live && v.wind_direction != null && gust > 0 ? tr('now.gustsFrom', { gust: show('wind', gust, 0), unit: windUnit, dir: fromWord(v.wind_direction) }) : tr('now.gusts', { gust: show('wind', gust ?? wind, 0), unit: windUnit }));
   $('inst-wind').querySelector('.unit').textContent = windUnit;
   $('inst-rain').querySelector('.unit').textContent = rainUnit;
   $('inst-press').querySelector('.unit').textContent = pressUnit;
@@ -329,16 +336,16 @@ function renderReadout() {
   setInst('inst-press', show('press', press), trendWord);
 
   setInst('inst-hum', hum == null ? '–' : n0.format(hum),
-    live ? tr('now.dewPoint', { t: tempText(v.dew_point) }) : tr('now.humRange', { min: n0.format(cur.today.hum.min), max: n0.format(cur.today.hum.max) }));
+    live ? tr('now.dewPoint', { t: tempText(v.dew_point) }) : tr('now.humRange', { min: num(cur.today?.hum?.min, 0), max: num(cur.today?.hum?.max, 0) }));
 
   setInst('inst-sun', solar == null ? '–' : n0.format(solar),
-    live ? tr('now.sunLive', { uv: n0.format(v.uv_index), word: UV_WORD(v.uv_index), time: atClock(cur.astro.sunset) })
+    live ? (v.uv_index == null ? tr('now.sunset', { time: atClock(cur.astro.sunset) }) : tr('now.sunLive', { uv: n0.format(v.uv_index), word: UV_WORD(v.uv_index), time: atClock(cur.astro.sunset) }))
       : tr('now.sunPast', { rise: atClock(cur.astro.sunrise), set: atClock(cur.astro.sunset) }));
 
   if (live) {
     const recent = v.lightning_time && state.now - v.lightning_time < 3600 * 1000 * 3;
-    setInst('inst-light', recent ? n0.format(v.lightning_distance) : n0.format(v.lightning_count),
-      recent ? tr('now.lightRecent', { time: atClock(v.lightning_time), count: n0.format(v.lightning_count) }) : tr('now.lightToday'),
+    setInst('inst-light', recent ? num(v.lightning_distance, 0) : num(v.lightning_count, 0),
+      recent ? tr('now.lightRecent', { time: atClock(v.lightning_time), count: num(v.lightning_count, 0) }) : tr('now.lightToday'),
       recent ? 'km' : '');
   } else {
     setInst('inst-light', n0.format(bucket('light', t)?.v ?? 0), tr('now.lightHour'), '');
@@ -366,15 +373,12 @@ function renderStatic() {
     const lo = Math.min(...days.map((d) => d.lo)), hi = Math.max(...days.map((d) => d.hi));
     const pct = (v) => (v - lo) / Math.max(hi - lo, 1) * 100;
     $('dayList').replaceChildren(...days.map((d, i) => {
-      const li = document.createElement('li');
-      li.className = 'day';
       const rain = d.pop >= 30 ? tr('now.chanceOfRain', { pop: n0.format(d.pop) }) : '';
-      li.innerHTML = `
-        <span class="day-bar" aria-hidden="true"><i style="bottom:${pct(d.lo)}%;top:${100 - pct(d.hi)}%"></i></span>
-        <span class="day-name">${i === 0 ? tr('time.today') : weekday.format(d.date)}</span>
-        <span class="day-cond">${CONDITION[d.conditionCode] ?? ''}${rain}</span>
-        <span class="day-range">${tempText(d.hi, 0)} <small>${tempText(d.lo, 0)}</small></span>`;
-      return li;
+      return el('li.day', {},
+        el('span.day-bar', { 'aria-hidden': 'true' }, el('i', { style: `bottom:${pct(d.lo)}%;top:${100 - pct(d.hi)}%` })),
+        el('span.day-name', {}, i === 0 ? tr('time.today') : weekday.format(d.date)),
+        el('span.day-cond', {}, `${CONDITION[d.conditionCode] ?? ''}${rain}`),
+        el('span.day-range', {}, `${tempText(d.hi, 0)} `, el('small', {}, tempText(d.lo, 0))));
     }));
   }
 
@@ -609,11 +613,19 @@ resize();
 
 (async () => {
   try { state.cfg = store.cfg = await getJson('/api/config'); } catch { /* the page still works without the station name */ }
+  window.dispatchEvent(new Event('config'));
   useDefaultUnits(state.cfg?.ui?.default_units);
   await Promise.all([loadCurrent(), loadHistory()]);
   const every = (state.cfg?.ui?.refresh_seconds ?? 15) * 1000;
-  setInterval(loadCurrent, every);
-  setInterval(loadHistory, 5 * 60 * 1000);
+  // A hidden tab shows nothing: skip its polls, and catch up as soon as it is visible again.
+  const HISTORY_EVERY = 5 * 60 * 1000;
+  setInterval(() => { if (!document.hidden) loadCurrent(); }, every);
+  setInterval(() => { if (!document.hidden) loadHistory(); }, HISTORY_EVERY);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    loadCurrent();
+    if (Date.now() - historyAt > HISTORY_EVERY) loadHistory();
+  });
   setInterval(() => { if (cursor.live) { lastReadoutKey = ''; state.now = Date.now(); renderReadout(); } }, 20000);
 })();
 

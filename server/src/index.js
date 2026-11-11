@@ -41,6 +41,8 @@ const locked = {
   stationAltitude: cfg._locked.stationAltitude,
   stationSince: cfg._locked.stationSince,
   stationPublicLocation: cfg._locked.stationPublicLocation,
+  legalImprint: cfg._locked.legalImprint,
+  legalPrivacy: cfg._locked.legalPrivacy,
   stationDevices: !!cfg.station.devices.length,
 };
 {
@@ -59,6 +61,8 @@ const locked = {
   if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
   if (!locked.stationPublicLocation && s.station.publicLocation) cfg.station.publicLocation = s.station.publicLocation;
   if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
+  if (!locked.legalImprint && s.legal?.imprint) cfg.legal.imprint = s.legal.imprint;
+  if (!locked.legalPrivacy && s.legal?.privacy) cfg.legal.privacy = s.legal.privacy;
 }
 
 // Pick the data source: whatever config.yaml / the admin page chose,
@@ -162,6 +166,8 @@ const MIME = {
 };
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
+  // The page uses none of these; fullscreen stays allowed for the kiosk mode.
+  'Permissions-Policy': 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'SAMEORIGIN',
   'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'",
@@ -303,7 +309,7 @@ async function handleAdmin(req, res, url) {
 
     if (url.pathname === '/api/admin/settings' && req.method === 'POST') {
       requireSession(req, true);
-      const patch = await readJsonBody(req);
+      const patch = await readJsonBody(req, 300000);   // the legal texts can be long
       const result = admin.saveSettings(locked, patch);
       if (!result.ok) {
         const status = result.error.includes('DATA_DIR') ? 500 : 400;
@@ -343,6 +349,8 @@ function publicConfig() {
     hasForecast: !!(cfg.forecast.entity || cfg.forecast.dwdStationId || cfg.server.demo),
     alertRules: cfg.alerts.map(a => ({ id: a.id, label: a.label, description: a.description, level: a.level })),
     ui: cfg.ui,
+    // Only whether they exist, for the footer links; the texts come from /api/legal.
+    legal: { imprint: !!cfg.legal.imprint, privacy: !!cfg.legal.privacy },
   };
 }
 
@@ -353,6 +361,7 @@ const routes = {
   '/api/detail': async q => svc.detail(q.get('metric')),
   '/api/records': async () => svc.records(),
   '/api/alerts': async () => alerts.view(),
+  '/api/legal': async () => cfg.legal,
   '/api/forecast/hourly': async () => svc.forecastHourly(),
   '/api/radar': async () => {
     if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
@@ -408,7 +417,11 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(301, { Location: '/' + url.search });
     return res.end();
   }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(publicDir, 'index.html');
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    // A missing file (robots.txt, a .map, …) is a 404; only page addresses fall back to the app.
+    if (path.extname(url.pathname)) return send(req, res, 404, 'not found', 'text/plain; charset=utf-8');
+    file = path.join(publicDir, 'index.html');
+  }
   if (!fs.existsSync(file)) return send(req, res, 404, 'Frontend not built', 'text/plain');
   const ext = path.extname(file);
   const cache = file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache';
@@ -426,6 +439,8 @@ function withStationName(file, buf) {
     const n = escapeHtml(name);
     return Buffer.from(buf.toString('utf8')
       .replace(/<title>[^<]*<\/title>/, `<title>${n}</title>`)
+      .replace(/(<meta property="og:title" content=")[^"]*/, `$1${n}`)
+      .replace(/(<meta (?:name="description"|property="og:description") content=")Weather Station/g, `$1${n}`)
       .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*/, `$1${n}`)
       .replace(/(id="stationName">)[^<]*/, `$1${n}`));
   }

@@ -3,6 +3,16 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.2.1 – 2026-11-11
+
+### Fixed
+- On shorter windows, the coldest-point label on the Now landscape could be drawn on top of the "drag across the landscape" hint. While the hint shows, such labels now move to the other side of the curve. (#81)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v2.2.0 – 2026-11-11
 
 ### New

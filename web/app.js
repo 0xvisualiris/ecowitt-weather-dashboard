@@ -127,7 +127,30 @@ function resize() {
   cursor.x = cursor.target = wasLive ? geo.xNow : frac * geo.xNow;
   cursor.v = 0;
   terrainDirty = true;
+  hintBox = undefined;
   seedParticles();
+}
+
+// The drag hint sits over the bottom of the landscape until the first drag. Labels written on
+// the land move out of its way (or are left out) while it shows. Its box, in canvas pixels, is
+// measured once per size: the text can't change without a reload (a language change reloads).
+let hintBox;
+function hintRect() {
+  const hint = $('hint');
+  if (hint.classList.contains('gone')) return null;
+  if (hintBox === undefined) {
+    const h = hint.getBoundingClientRect(), c = canvas.getBoundingClientRect();
+    hintBox = h.width ? { x0: h.left - c.left - 8, y0: h.top - c.top - 6, x1: h.right - c.left + 8, y1: h.bottom - c.top + 6 } : null;
+  }
+  return hintBox;
+}
+
+// Writes text on the land at the first of the heights in `ys` where it stays clear of the hint.
+function landLabel(text, x, ys) {
+  const box = hintRect(), w = ctx.measureText(text).width;
+  const left = ctx.textAlign === 'left' ? x : ctx.textAlign === 'right' ? x - w : x - w / 2;
+  const y = box ? ys.find((y) => left > box.x1 || left + w < box.x0 || y + 4 < box.y0 || y - 14 > box.y1) : ys[0];
+  if (y !== undefined) ctx.fillText(text, x, y);
 }
 
 // ---------- The time cursor: drag 1:1, throw with momentum, spring to rest ----------
@@ -550,7 +573,7 @@ function draw(sky, t, dt) {
   // How much each shower brought, written on the land below it
   if (intro === 1) {
     ctx.fillStyle = 'rgba(243,246,242,0.78)'; ctx.font = font(13); ctx.textAlign = 'center';
-    for (const s of showers) { const x = clamp((s.x0 + s.x1) / 2, 56, W - 56); ctx.fillText(tr('now.rainAmount', { v: show('rain', s.sum), unit: conv('rain').unit }), x, Math.max(ridgeY(x - 40), ridgeY(x), ridgeY(x + 40)) + 24); }
+    for (const s of showers) { const x = clamp((s.x0 + s.x1) / 2, 56, W - 56); landLabel(tr('now.rainAmount', { v: show('rain', s.sum), unit: conv('rain').unit }), x, [Math.max(ridgeY(x - 40), ridgeY(x), ridgeY(x + 40)) + 24]); }
   }
 
   // Coldest and warmest point of the day, written on the land
@@ -560,7 +583,8 @@ function draw(sky, t, dt) {
       const x = xAtTime(pt.t);
       if (Math.abs(x - cursor.x) < 70) continue;
       ctx.textAlign = x < 70 ? 'left' : x > xNow - 70 ? 'right' : 'center';
-      ctx.fillText(tr('now.extreme', { temp: tempText(pt.v), time: clock.format(pt.t) }), x, ridgeY(x) + (above ? -14 : 24));
+      const below = ridgeY(x) + 24, over = ridgeY(x) - 14;
+      landLabel(tr('now.extreme', { temp: tempText(pt.v), time: clock.format(pt.t) }), x, above ? [over, below] : [below, over]);
     }
   }
 

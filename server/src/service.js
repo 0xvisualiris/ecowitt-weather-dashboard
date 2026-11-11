@@ -1,7 +1,7 @@
 import { normalize, toNumber, SENSOR_DIMENSION } from './units.js';
 import { astro } from './astro.js';
 import {
-  HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour,
+  HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour, addDays,
   makeCache, counterIncrements, bucketLine, bucketCounter, round, hourlyFromDays,
 } from './util.js';
 
@@ -263,7 +263,7 @@ export class WeatherService {
       } else {
         const period = range === 'week' ? 'hour' : 'day';
         const start = range === 'week' ? startOfHour(now) - 7 * DAY + HOUR
-          : range === 'month' ? startOfDay(now) - 29 * DAY : startOfDay(now) - 364 * DAY;
+          : addDays(startOfDay(now), range === 'month' ? -29 : -364);
         const stats = await this._stats(start, now, period);
         const rows = stats[M.sensor] || [];
         points = rows.map(r => M.agg === 'counter'

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour, counterIncrements, bucketLine, bucketCounter, round, makeCache, hourlyFromDays } from './util.js';
+import { HOUR, DAY, startOfDay, startOfWeek, startOfMonth, startOfYear, startOfHour, addDays, counterIncrements, bucketLine, bucketCounter, round, makeCache, hourlyFromDays } from './util.js';
 
 test('startOfDay zeroes the time of day', () => {
   const t = new Date(2026, 9, 15, 14, 32, 10).getTime();
@@ -135,4 +135,20 @@ test('hourlyFromDays keeps using the last day past the end of the forecast, and 
   for (const h of hours) assert.ok(h.temp >= -0.5 && h.temp <= 4.5);
   assert.deepEqual(hourlyFromDays([], day0, 6), []);
   assert.deepEqual(hourlyFromDays(null, day0, 6), []);
+});
+
+test('addDays steps calendar days across a daylight-saving change', () => {
+  const tz = process.env.TZ;
+  process.env.TZ = 'Europe/Berlin';
+  try {
+    const nov11 = new Date(2026, 10, 11).getTime();   // local midnight, after the change on 25 October
+    const back = new Date(addDays(nov11, -29));
+    assert.deepEqual([back.getDate(), back.getMonth(), back.getHours()], [13, 9, 0]);
+    // 29 × 24 h would land at 01:00 on 13 October, one hour into the day
+    assert.equal(new Date(nov11 - 29 * 864e5).getHours(), 1);
+    const spring = new Date(addDays(new Date(2027, 2, 27).getTime(), 1));
+    assert.deepEqual([spring.getDate(), spring.getHours()], [28, 0]);
+  } finally {
+    if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+  }
 });

@@ -9,6 +9,9 @@ export function startOfWeek(t = Date.now()) {
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // Monday
   return d.getTime();
 }
+// n calendar days later (or earlier), at the same local time: across a daylight-saving
+// change that is 23 or 25 hours per day, not n × 24 hours.
+export function addDays(t, n) { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); }
 export function startOfMonth(t = Date.now()) { const d = new Date(startOfDay(t)); d.setDate(1); return d.getTime(); }
 export function startOfYear(t = Date.now()) { const d = new Date(startOfDay(t)); d.setMonth(0, 1); return d.getTime(); }
 export function startOfHour(t = Date.now()) { const d = new Date(t); d.setMinutes(0, 0, 0); return d.getTime(); }

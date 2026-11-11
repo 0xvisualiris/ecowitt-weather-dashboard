@@ -67,6 +67,8 @@ const STRINGS = {
     'status.live': 'Live, {time}',
     'status.stale': 'Stale, last reading {time}',
     'status.offline': 'No connection to the station',
+    'status.offlineSince': 'No connection, last reading {time}',
+    'error.noConnection': 'no connection',
 
     // Times and dates
     'time.at': '{time}',
@@ -98,6 +100,8 @@ const STRINGS = {
     'now.hintShort': 'Drag across the landscape to look back.',
     'now.instruments': 'Readings',
     'now.feelsLike': 'Feels like {temp}. {parts}.',
+    'now.feelsLikeOnly': 'Feels like {temp}.',
+    'now.sunset': 'Sunset {time}',
     'now.pastSentence': '{parts}, {hum} % humidity.',
     'now.dry': 'dry', 'now.rain': 'rain',
     'now.gustsFrom': 'Gusts up to {gust} {unit}, from the {dir}',
@@ -345,6 +349,8 @@ const STRINGS = {
     'status.live': 'Live, {time}',
     'status.stale': 'Veraltet, letzter Wert {time}',
     'status.offline': 'Keine Verbindung zur Station',
+    'status.offlineSince': 'Keine Verbindung, letzter Wert {time}',
+    'error.noConnection': 'keine Verbindung',
 
     'time.at': '{time} Uhr',
     'time.hour': '{hour} Uhr',
@@ -373,6 +379,8 @@ const STRINGS = {
     'now.hintShort': 'Zum Zurückblicken über die Landschaft ziehen.',
     'now.instruments': 'Messwerte',
     'now.feelsLike': 'Fühlt sich an wie {temp}. {parts}.',
+    'now.feelsLikeOnly': 'Fühlt sich an wie {temp}.',
+    'now.sunset': 'Untergang {time}',
     'now.pastSentence': '{parts}, {hum} % Luftfeuchte.',
     'now.dry': 'trocken', 'now.rain': 'Regen',
     'now.gustsFrom': 'Böen bis {gust} {unit}, aus {dir}',

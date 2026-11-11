@@ -27,15 +27,19 @@ export const lerp = (a, b, t) => a + (b - a) * t;
 
 // ---------- API ----------
 
+// A failed request (offline, server down) rejects with the browser's own English text
+// ("Failed to fetch"); the views show this one instead, in the visitor's language.
+const noConnection = () => Object.assign(new Error(tr('error.noConnection')), { status: 0 });
+
 export async function getJson(url) {
-  const r = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
+  const r = await fetch(url, { cache: 'no-store', credentials: 'same-origin' }).catch(() => { throw noConnection(); });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error || `${r.status}`), { status: r.status });
   return j;
 }
 
 export async function postJson(url, body) {
-  const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const r = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => { throw noConnection(); });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error || `${r.status}`), { status: r.status, body: j });
   return j;

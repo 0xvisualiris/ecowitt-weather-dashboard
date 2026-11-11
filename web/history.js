@@ -149,8 +149,9 @@ function draw() {
   const ticks = [];
   const d = new Date(t0), narrow = W < 640;
   if (state.range === 'day') { d.setMinutes(0, 0, 0); for (let t = d.getTime(); t <= t1; t += HOUR) if (new Date(t).getHours() % (narrow ? 6 : 3) === 0) ticks.push([t, hourLabel(new Date(t).getHours())]); }
-  else if (state.range === 'week') { d.setHours(0, 0, 0, 0); for (let t = d.getTime(); t <= t1; t += DAY) ticks.push([t + DAY / 2, weekdayShort.format(t).replace('.', '')]); }
-  else if (state.range === 'month') { d.setHours(0, 0, 0, 0); for (let t = d.getTime(); t <= t1; t += DAY) if (new Date(t).getDate() % (narrow ? 7 : 4) === 1) ticks.push([t, dayMonth.format(t)]); }
+  // Days are stepped on the calendar, not in 24-hour steps, so a daylight-saving change doesn't shift every later tick by an hour (and its label by a day).
+  else if (state.range === 'week') { d.setHours(0, 0, 0, 0); for (; d.getTime() <= t1; d.setDate(d.getDate() + 1)) ticks.push([d.getTime() + DAY / 2, weekdayShort.format(d).replace('.', '')]); }
+  else if (state.range === 'month') { d.setHours(0, 0, 0, 0); for (; d.getTime() <= t1; d.setDate(d.getDate() + 1)) if (d.getDate() % (narrow ? 7 : 4) === 1) ticks.push([d.getTime(), dayMonth.format(d)]); }
   else { d.setDate(1); d.setHours(0, 0, 0, 0); for (let i = 0; i < 14; i++) { const t = new Date(d.getFullYear(), d.getMonth() + i, 1).getTime(); if (t > t1) break; if (!narrow || i % 2 === 0) ticks.push([t + 15 * DAY, monthName.format(t).replace('.', '')]); } }
   for (const [t, label] of ticks) { const x = X(t); if (x > padL + 16 && x < W - padR - 16) ctx.fillText(label, x, H - 10); }
 

@@ -247,7 +247,7 @@ Never convert units anywhere else. Exception: alert messages are formatted serve
 
 ### Time zone
 
-`process.env.TZ` is set at startup from `station.timezone`, otherwise from HA's `get_config.time_zone`, so plain `Date` methods in the server use station time. The frontend formats dates and times with the browser's own time zone.
+`process.env.TZ` is set at startup from `station.timezone`, otherwise from HA's `get_config.time_zone`, so plain `Date` methods in the server use station time. The frontend formats dates and times with the browser's own time zone. Step through days on the calendar (`addDays()` in `util.js`, `d.setDate(d.getDate() + 1)` in the browser), never in `24 × 3600 s` steps: across a daylight-saving change those land an hour off midnight and label the wrong day.
 
 ### Languages
 

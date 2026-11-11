@@ -179,6 +179,36 @@ alert_settings:
 #     message: "Voltage {sensor.wh90_battery} V"
 
 # ---------------------------------------------------------------------
+# Imprint and privacy policy
+#
+# A public site run from Germany usually needs an imprint (Impressum,
+# § 5 DDG) and a privacy policy (Datenschutzerklärung, Art. 13 GDPR). Each
+# text set here becomes its own page (#/imprint, #/privacy, also reachable
+# as #/impressum and #/datenschutz), linked in the footer of every page.
+# Without a text, there is no page and no link.
+#
+# A text is one string for every language, or one per language (en, de).
+# Plain text: a blank line starts a paragraph, a line starting with "# " or
+# "## " is a heading, "- " a list item; web and email addresses become links.
+# Both can also be written on the admin page when they are left out here.
+# ---------------------------------------------------------------------
+# legal:
+#   imprint: |
+#     # Angaben gemäß § 5 DDG
+#     Erika Mustermann
+#     Musterstraße 1
+#     12345 Musterstadt
+#
+#     E-Mail: wetter@example.org
+#   privacy:
+#     de: |
+#       # Verantwortlicher
+#       …
+#     en: |
+#       # Controller
+#       …
+
+# ---------------------------------------------------------------------
 # Interface
 # ---------------------------------------------------------------------
 ui:

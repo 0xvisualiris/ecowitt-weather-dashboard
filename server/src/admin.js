@@ -9,7 +9,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { SENSOR_KEYS, DEFAULT_ALERTS, SOURCES, normalizeAlerts } from './config.js';
+import { SENSOR_KEYS, DEFAULT_ALERTS, SOURCES, normalizeAlerts, legalText } from './config.js';
 import { generateSecret, verifyTotp, otpauthUrl } from './totp.js';
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 h
@@ -37,7 +37,9 @@ const emptySettings = () => ({
   forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '' },
   alerts: null, // null = not customized, defer to config.yaml-or-DEFAULT_ALERTS; otherwise a normalizeAlerts()-validated array
   station: { name: '', subtitle: '', altitude_m: null, since: '', publicLocation: null, devices: [] },
+  legal: { imprint: '', privacy: '' }, // each a legalText(): '' (no page), a string, or { en, de }
 });
+const LEGAL_PAGES = { imprint: 'legalImprint', privacy: 'legalPrivacy' }; // page → its `locked` flag
 
 // Maximum lengths for the free-text fields the admin page can set. These end
 // up in the public page's header, cards and alert banner, so they're bounded
@@ -47,6 +49,7 @@ export const TEXT_LIMITS = {
   stationName: 60, stationSubtitle: 80,
   alertLabel: 60, alertDescription: 120, alertBanner: 120, alertMessage: 200,
   deviceName: 60, deviceShort: 12, deviceRole: 40,
+  legalImprint: 10000, legalPrivacy: 50000, // per language
 };
 
 // Returns an error message for the first over-long field in a settings patch,
@@ -61,6 +64,14 @@ export function tooLongError(patch) {
     for (const d of Array.isArray(st.devices) ? st.devices : []) {
       const de = d && typeof d === 'object' && (check(d.name, TEXT_LIMITS.deviceName, 'device name') || check(d.short, TEXT_LIMITS.deviceShort, 'device short name') || check(d.role, TEXT_LIMITS.deviceRole, 'device role'));
       if (de) return de;
+    }
+  }
+  const legal = patch?.legal;
+  if (legal && typeof legal === 'object') {
+    for (const [key, what, max] of [['imprint', 'imprint', TEXT_LIMITS.legalImprint], ['privacy', 'privacy policy', TEXT_LIMITS.legalPrivacy]]) {
+      const v = legal[key];
+      const texts = typeof v === 'string' ? [v] : v && typeof v === 'object' ? Object.values(v) : [];
+      for (const t of texts) { const e = check(t, max, what); if (e) return e; }
     }
   }
   for (const a of Array.isArray(patch?.alerts) ? patch.alerts : []) {
@@ -333,6 +344,7 @@ export class AdminStore {
         name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m,
         since: cfg.station.since || '', publicLocation: cfg.station.publicLocation, devices: cfg.station.devices,
       },
+      legal: cfg.legal,
       timezone,
       demo: cfg.server.demo,
       totpEnabled: this.state.totp.enabled,
@@ -379,6 +391,13 @@ export class AdminStore {
           : null;
       }
       if (!locked.stationDevices && Array.isArray(patch.station.devices)) next.settings.station.devices = sanitizeDevices(patch.station.devices);
+    }
+
+    if (patch.legal && typeof patch.legal === 'object') {
+      next.settings.legal = { ...emptySettings().legal, ...next.settings.legal };
+      for (const [key, lock] of Object.entries(LEGAL_PAGES)) {
+        if (!locked[lock] && patch.legal[key] !== undefined) next.settings.legal[key] = legalText(patch.legal[key]);
+      }
     }
 
     if (patch.homeassistant && typeof patch.homeassistant === 'object') {

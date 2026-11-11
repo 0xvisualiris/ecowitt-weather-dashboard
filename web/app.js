@@ -609,6 +609,7 @@ resize();
 
 (async () => {
   try { state.cfg = store.cfg = await getJson('/api/config'); } catch { /* the page still works without the station name */ }
+  window.dispatchEvent(new Event('config'));
   useDefaultUnits(state.cfg?.ui?.default_units);
   await Promise.all([loadCurrent(), loadHistory()]);
   const every = (state.cfg?.ui?.refresh_seconds ?? 15) * 1000;

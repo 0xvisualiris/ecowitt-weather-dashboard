@@ -41,6 +41,8 @@ const locked = {
   stationAltitude: cfg._locked.stationAltitude,
   stationSince: cfg._locked.stationSince,
   stationPublicLocation: cfg._locked.stationPublicLocation,
+  legalImprint: cfg._locked.legalImprint,
+  legalPrivacy: cfg._locked.legalPrivacy,
   stationDevices: !!cfg.station.devices.length,
 };
 {
@@ -59,6 +61,8 @@ const locked = {
   if (!locked.stationSince && s.station.since) cfg.station.since = s.station.since;
   if (!locked.stationPublicLocation && s.station.publicLocation) cfg.station.publicLocation = s.station.publicLocation;
   if (!locked.stationDevices && s.station.devices.length) cfg.station.devices = s.station.devices;
+  if (!locked.legalImprint && s.legal?.imprint) cfg.legal.imprint = s.legal.imprint;
+  if (!locked.legalPrivacy && s.legal?.privacy) cfg.legal.privacy = s.legal.privacy;
 }
 
 // Pick the data source: whatever config.yaml / the admin page chose,
@@ -303,7 +307,7 @@ async function handleAdmin(req, res, url) {
 
     if (url.pathname === '/api/admin/settings' && req.method === 'POST') {
       requireSession(req, true);
-      const patch = await readJsonBody(req);
+      const patch = await readJsonBody(req, 300000);   // the legal texts can be long
       const result = admin.saveSettings(locked, patch);
       if (!result.ok) {
         const status = result.error.includes('DATA_DIR') ? 500 : 400;
@@ -343,6 +347,8 @@ function publicConfig() {
     hasForecast: !!(cfg.forecast.entity || cfg.forecast.dwdStationId || cfg.server.demo),
     alertRules: cfg.alerts.map(a => ({ id: a.id, label: a.label, description: a.description, level: a.level })),
     ui: cfg.ui,
+    // Only whether they exist, for the footer links; the texts come from /api/legal.
+    legal: { imprint: !!cfg.legal.imprint, privacy: !!cfg.legal.privacy },
   };
 }
 
@@ -353,6 +359,7 @@ const routes = {
   '/api/detail': async q => svc.detail(q.get('metric')),
   '/api/records': async () => svc.records(),
   '/api/alerts': async () => alerts.view(),
+  '/api/legal': async () => cfg.legal,
   '/api/forecast/hourly': async () => svc.forecastHourly(),
   '/api/radar': async () => {
     if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });

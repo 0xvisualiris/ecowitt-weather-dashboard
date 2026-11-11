@@ -207,9 +207,14 @@
     <div id="adminRoot"></div>
   </main>
 
+  <!-- Imprint and privacy policy -->
+  <main class="page narrow" data-view="legal" hidden>
+    <div id="legalRoot"></div>
+  </main>
+
   <footer class="foot">
     <p><span data-t="foot.data">Weather data and radar: Deutscher Wetterdienst. Map: Natural Earth. </span><span data-t="foot.sourceBy">Source code by </span><a href="https://github.com/0xvisualiris" rel="noopener">0xvisualiris</a><span data-t="foot.under"> under the </span><a href="https://github.com/0xvisualiris/ecowitt-weather-dashboard/blob/main/LICENSE" rel="noopener" data-t="foot.licence">MIT licence</a><span data-t="foot.end">.</span></p>
-    <p class="foot-links"><a href="#/settings" data-t="foot.settings">Units and language</a><a href="#/admin" data-t="foot.admin">Manage station</a></p>
+    <p class="foot-links"><a href="#/settings" data-t="foot.settings">Units and language</a><a href="#/admin" data-t="foot.admin">Manage station</a><a href="#/imprint" id="foot-imprint" data-t="foot.imprint" hidden>Imprint</a><a href="#/privacy" id="foot-privacy" data-t="foot.privacy" hidden>Privacy policy</a></p>
   </footer>
 
   <script src="app.js" type="module"></script>

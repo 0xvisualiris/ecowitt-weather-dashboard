@@ -18,9 +18,11 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Weather Station">
   <link rel="preload" href="fonts/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="modulepreload" href="i18n.js">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-view="now">
+  <a class="skip" href="#/" id="skipLink" data-t="skip">Skip to content</a>
   <header class="top">
     <a class="station" href="#/" id="stationName">Weather Station</a>
     <nav class="nav" id="nav" aria-label="Views" data-t-aria-label="nav.label">
@@ -31,7 +33,7 @@
       <a href="#/alerts" data-nav="alerts"><span data-t="nav.alerts">Alerts</span><span class="badge" id="alertBadge" hidden></span></a>
       <span class="nav-mark" id="navMark" aria-hidden="true"></span>
     </nav>
-    <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">Connecting</span></p>
+    <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">…</span></p>
   </header>
 
   <noscript><p class="noscript">This weather station needs JavaScript. · Diese Wetterstation braucht JavaScript.</p></noscript>
@@ -230,6 +232,8 @@
     <p class="foot-links"><a href="#/settings" data-t="foot.settings">Units and language</a><a href="#/admin" data-t="foot.admin">Manage station</a><a href="#/imprint" id="foot-imprint" data-t="foot.imprint" hidden>Imprint</a><a href="#/privacy" id="foot-privacy" data-t="foot.privacy" hidden>Privacy policy</a></p>
   </footer>
 
+  <!-- First on its own, so the page switches to the visitor's language before the views have loaded. -->
+  <script src="i18n.js" type="module"></script>
   <script src="app.js" type="module"></script>
   <script src="main.js" type="module"></script>
 </body>

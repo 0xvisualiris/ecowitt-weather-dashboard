@@ -36,7 +36,7 @@ let current = null;
 function route() {
   const [path, query = ''] = location.hash.replace(/^#\/?/, '').split('?');
   const [first, second] = path.split('/');
-  const view = kiosk ? 'now' : VIEWS[first] ?? OLD_ADDRESSES[first] ?? 'now';
+  const view = kiosk ? 'now' : VIEWS[first] ?? OLD_ADDRESSES[first] ?? 'notfound';
   const params = new URLSearchParams(query);
   if (first === 'details' && second && !params.has('m')) params.set('m', second);   // #/details/<metric>
   if (view === 'legal') params.set('page', LEGAL[first]);

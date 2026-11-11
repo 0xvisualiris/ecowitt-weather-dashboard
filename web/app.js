@@ -3,7 +3,7 @@
 // and dragging across the scene moves through the day.
 
 import {
-  DAY, $, reducedMotion, n0, n1, clock, weekday, weekdayShort, clamp, lerp, getJson, store,
+  DAY, $, el, reducedMotion, n0, n1, clock, weekday, weekdayShort, clamp, lerp, getJson, store,
   sunHeight as sunHeightFor, skyAt as skyFor, hex, mix, rgb, applyTheme, CONDITION, fromWord,
   units, conv, show, degree, temp as tempText, scrub, atClock, hourLabel, useDefaultUnits,
 } from './lib.js';
@@ -36,7 +36,9 @@ async function loadCurrent() {
   renderReadout();
 }
 
+let historyAt = 0;
 async function loadHistory() {
+  historyAt = Date.now();
   const metrics = ['temp', 'hum', 'wind', 'rain', 'press', 'solar', 'light'];
   const results = await Promise.allSettled(metrics.map((m) => getJson(`/api/history?metric=${m}&range=day`)));
   results.forEach((r, i) => { if (r.status === 'fulfilled') state.hist[metrics[i]] = r.value.points; });
@@ -366,15 +368,12 @@ function renderStatic() {
     const lo = Math.min(...days.map((d) => d.lo)), hi = Math.max(...days.map((d) => d.hi));
     const pct = (v) => (v - lo) / Math.max(hi - lo, 1) * 100;
     $('dayList').replaceChildren(...days.map((d, i) => {
-      const li = document.createElement('li');
-      li.className = 'day';
       const rain = d.pop >= 30 ? tr('now.chanceOfRain', { pop: n0.format(d.pop) }) : '';
-      li.innerHTML = `
-        <span class="day-bar" aria-hidden="true"><i style="bottom:${pct(d.lo)}%;top:${100 - pct(d.hi)}%"></i></span>
-        <span class="day-name">${i === 0 ? tr('time.today') : weekday.format(d.date)}</span>
-        <span class="day-cond">${CONDITION[d.conditionCode] ?? ''}${rain}</span>
-        <span class="day-range">${tempText(d.hi, 0)} <small>${tempText(d.lo, 0)}</small></span>`;
-      return li;
+      return el('li.day', {},
+        el('span.day-bar', { 'aria-hidden': 'true' }, el('i', { style: `bottom:${pct(d.lo)}%;top:${100 - pct(d.hi)}%` })),
+        el('span.day-name', {}, i === 0 ? tr('time.today') : weekday.format(d.date)),
+        el('span.day-cond', {}, `${CONDITION[d.conditionCode] ?? ''}${rain}`),
+        el('span.day-range', {}, `${tempText(d.hi, 0)} `, el('small', {}, tempText(d.lo, 0))));
     }));
   }
 
@@ -613,8 +612,15 @@ resize();
   useDefaultUnits(state.cfg?.ui?.default_units);
   await Promise.all([loadCurrent(), loadHistory()]);
   const every = (state.cfg?.ui?.refresh_seconds ?? 15) * 1000;
-  setInterval(loadCurrent, every);
-  setInterval(loadHistory, 5 * 60 * 1000);
+  // A hidden tab shows nothing: skip its polls, and catch up as soon as it is visible again.
+  const HISTORY_EVERY = 5 * 60 * 1000;
+  setInterval(() => { if (!document.hidden) loadCurrent(); }, every);
+  setInterval(() => { if (!document.hidden) loadHistory(); }, HISTORY_EVERY);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    loadCurrent();
+    if (Date.now() - historyAt > HISTORY_EVERY) loadHistory();
+  });
   setInterval(() => { if (cursor.live) { lastReadoutKey = ''; state.now = Date.now(); renderReadout(); } }, 20000);
 })();
 

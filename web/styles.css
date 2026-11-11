@@ -650,6 +650,9 @@ input[type="range"] { width: 100%; accent-color: var(--sun); height: 1.5rem; }
 .setting-label { font-size: 1.15rem; font-weight: 600; }
 .foot-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
 
+/* Without JavaScript only the header and this line show. */
+.noscript { padding: clamp(6.5rem, 14svh, 8.5rem) var(--pad) 0; font-size: 1.15rem; }
+
 /* ---------- Imprint and privacy policy ---------- */
 
 .legal-text { max-width: 44rem; line-height: 1.55; overflow-wrap: anywhere; }

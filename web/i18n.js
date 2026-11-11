@@ -235,6 +235,7 @@ const STRINGS = {
     'legal.imprint': 'Imprint', 'legal.privacy': 'Privacy policy',
     'legal.missing': 'This station has not published this page.',
     'legal.error': 'The page could not be loaded. Please try again later.',
+    'notfound.title': 'Page not found', 'notfound.back': 'Back to the current weather',
 
     // Station management
     'admin.title': 'Manage station',
@@ -502,6 +503,7 @@ const STRINGS = {
     'legal.imprint': 'Impressum', 'legal.privacy': 'Datenschutzerklärung',
     'legal.missing': 'Diese Station hat diese Seite nicht veröffentlicht.',
     'legal.error': 'Die Seite konnte nicht geladen werden. Bitte später erneut versuchen.',
+    'notfound.title': 'Seite nicht gefunden', 'notfound.back': 'Zurück zum aktuellen Wetter',
 
     'admin.title': 'Station verwalten',
     'admin.locked': 'In der config.yaml festgelegt, hier nicht änderbar.',

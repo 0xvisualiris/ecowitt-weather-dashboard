@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Weather Station</title>
+  <meta name="description" content="Weather Station: live readings, history, forecast and rain radar.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Weather Station">
+  <meta property="og:description" content="Weather Station: live readings, history, forecast and rain radar.">
+  <meta property="og:image" content="/icon-512.png">
   <meta name="theme-color" content="#2a66ae">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -28,6 +33,8 @@
     </nav>
     <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">Connecting</span></p>
   </header>
+
+  <noscript><p class="noscript">This weather station needs JavaScript. · Diese Wetterstation braucht JavaScript.</p></noscript>
 
   <!-- Now -->
   <div data-view="now">
@@ -205,6 +212,12 @@
   <!-- Station management -->
   <main class="page narrow" data-view="admin" hidden>
     <div id="adminRoot"></div>
+  </main>
+
+  <!-- An address that leads nowhere -->
+  <main class="page narrow" data-view="notfound" hidden>
+    <div class="page-head"><h1 data-t="notfound.title">Page not found</h1></div>
+    <p><a class="more" href="#/" data-t="notfound.back">Back to the current weather</a></p>
   </main>
 
   <!-- Imprint and privacy policy -->

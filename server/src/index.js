@@ -166,6 +166,8 @@ const MIME = {
 };
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
+  // The page uses none of these; fullscreen stays allowed for the kiosk mode.
+  'Permissions-Policy': 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
   'Referrer-Policy': 'no-referrer',
   'X-Frame-Options': 'SAMEORIGIN',
   'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'",
@@ -415,7 +417,11 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(301, { Location: '/' + url.search });
     return res.end();
   }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(publicDir, 'index.html');
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+    // A missing file (robots.txt, a .map, …) is a 404; only page addresses fall back to the app.
+    if (path.extname(url.pathname)) return send(req, res, 404, 'not found', 'text/plain; charset=utf-8');
+    file = path.join(publicDir, 'index.html');
+  }
   if (!fs.existsSync(file)) return send(req, res, 404, 'Frontend not built', 'text/plain');
   const ext = path.extname(file);
   const cache = file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache';
@@ -433,6 +439,8 @@ function withStationName(file, buf) {
     const n = escapeHtml(name);
     return Buffer.from(buf.toString('utf8')
       .replace(/<title>[^<]*<\/title>/, `<title>${n}</title>`)
+      .replace(/(<meta property="og:title" content=")[^"]*/, `$1${n}`)
+      .replace(/(<meta (?:name="description"|property="og:description") content=")Weather Station/g, `$1${n}`)
       .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*/, `$1${n}`)
       .replace(/(id="stationName">)[^<]*/, `$1${n}`));
   }

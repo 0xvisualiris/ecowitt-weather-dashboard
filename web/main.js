@@ -53,6 +53,18 @@ function route() {
   modules[view]?.enter?.(params);
 }
 
+// The skip link moves keyboard focus past the header to the open view's content. A plain
+// in-page anchor would change the hash, and the hash is the router's.
+$('skipLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  const view = document.querySelector('body > [data-view]:not([hidden])');
+  const target = view?.matches('main') ? view : view?.querySelector('main');
+  if (!target) return;
+  target.tabIndex = -1;
+  target.dataset.skipTarget = '';
+  target.focus();
+});
+
 // One mark slides between the nav items. It is measured again on every call, with the
 // current view, so a resize can never put it back under an old item.
 function placeMark(animate) {

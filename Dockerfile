@@ -7,7 +7,7 @@ RUN npm ci --omit=dev
 # ---------- 2) Runtime image ----------
 # The frontend (web/) has no build step: its files are copied as they are.
 FROM node:22.23.4-alpine
-RUN apk add --no-cache tzdata bzip2
+RUN apk add --no-cache tzdata
 ENV NODE_ENV=production \
     PORT=47813 \
     CONFIG_PATH=/config/config.yaml \

@@ -1,20 +1,15 @@
 // Live rain radar: DWD's RADOLAN "RY" national composite (5-minute cadence,
-// radar-derived rain rate, 900x900 km at 1km resolution) — the fast-
+// radar-derived rain rate at 1 km resolution) — the fast-
 // updating product, not the hourly-accumulation "RW" one, since this is
 // meant to read as "right now", like a visitor glancing at a weather app's
 // radar screen.
 //
-// DWD only publishes this bz2-compressed, and Node has no built-in bzip2
-// support (zlib covers gzip/deflate/brotli only). Rather than add an npm
-// dependency for one decompression call, this shells out to the standard
-// `bzip2` CLI (installed via the Dockerfile) the same way a shell script
-// would — no new package.json dependency.
+// The files are HDF5 since November 2026 (see radolan.js).
 
-import { spawn } from 'node:child_process';
-import { decodeRadolan } from './radolan.js';
+import { decodeComposite } from './radolan.js';
 
 const RY_DIR = 'https://opendata.dwd.de/weather/radar/radolan/ry/';
-const fileUrl = stamp => `${RY_DIR}raa01-ry_10000-${stamp}-dwd---bin.bz2`;
+const fileUrl = stamp => `${RY_DIR}raa01-ry_10000-${stamp}-dwd---bin.hdf5`;
 
 // DWD names each 5-minute composite by its UTC time, YYMMDDHHMM. That stamp
 // (not the header's day/hour/minute, which carries no month or year) is what
@@ -27,33 +22,14 @@ export function stampToMs(stamp) {
 // The newest `count` frame stamps in DWD's directory listing, oldest first.
 export function latestStamps(listingHtml, count) {
   const stamps = new Set();
-  for (const m of listingHtml.matchAll(/raa01-ry_10000-(\d{10})-dwd---bin\.bz2/g)) stamps.add(m[1]);
+  for (const m of listingHtml.matchAll(/raa01-ry_10000-(\d{10})-dwd---bin\.hdf5/g)) stamps.add(m[1]);
   return [...stamps].sort().slice(-count);
-}
-
-function bunzip2(compressed) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('bunzip2', ['-c']);
-    const chunks = [];
-    let stderr = '';
-    proc.stdout.on('data', c => chunks.push(c));
-    proc.stderr.on('data', c => { stderr += c; });
-    proc.on('error', reject); // e.g. ENOENT if bzip2 isn't installed
-    proc.on('close', code => {
-      if (code !== 0) return reject(new Error(`bunzip2 exited ${code}: ${stderr.trim()}`));
-      resolve(Buffer.concat(chunks));
-    });
-    proc.stdin.on('error', () => { /* bunzip2 closing stdin early on a bad stream is reported via 'close' above */ });
-    proc.stdin.end(compressed);
-  });
 }
 
 async function fetchFrame(stamp) {
   const res = await fetch(fileUrl(stamp));
   if (!res.ok) throw new Error(`RADOLAN request failed: HTTP ${res.status}`);
-  const compressed = Buffer.from(await res.arrayBuffer());
-  const raw = await bunzip2(compressed);
-  const { width, height, grid } = decodeRadolan(raw);
+  const { width, height, grid } = decodeComposite(Buffer.from(await res.arrayBuffer()));
   return { width, height, grid, timestamp: stampToMs(stamp) };
 }
 

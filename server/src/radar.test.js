@@ -8,7 +8,7 @@ test('stampToMs reads the YYMMDDHHMM frame stamp as UTC', () => {
 });
 
 test('latestStamps picks the newest frames from a directory listing, oldest first, ignoring "latest" and duplicates', () => {
-  const link = s => `<a href="raa01-ry_10000-${s}-dwd---bin.bz2">raa01-ry_10000-${s}-dwd---bin.bz2</a>`;
+  const link = s => `<a href="raa01-ry_10000-${s}-dwd---bin.hdf5">raa01-ry_10000-${s}-dwd---bin.hdf5</a>`;
   const html = [link('2610111925'), link('2610111915'), link('latest'), link('2610111920'), link('2610111910')].join(' ');
   assert.deepEqual(latestStamps(html, 3), ['2610111915', '2610111920', '2610111925']);
   assert.deepEqual(latestStamps(html, 10), ['2610111910', '2610111915', '2610111920', '2610111925']);

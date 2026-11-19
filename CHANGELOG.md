@@ -3,6 +3,24 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.4.0 – 2026-11-19
+
+### Fixed
+- The rain radar loads again. The DWD now publishes its RADOLAN composite only as HDF5; the dashboard reads the new format. (#87)
+- Zooming the map with the keys or buttons could zoom out instead of in. (#87)
+
+### New
+- The radar map zooms down to street level, with OpenStreetMap as the base map. Your server fetches the tiles and caches them for 14 days in `DATA_DIR/tiles`, so visitors' browsers never contact OpenStreetMap. (#87)
+- Sharper rain on the radar. (#87)
+
+### Removed
+- The Liquid Glass design from v2.3.0, for now. Himmel is the only design again, and the Design setting is gone. (#87)
+
+### Upgrade
+No `config.yaml` changes required. The server now needs outbound access to `tile.openstreetmap.org` for the street map.
+
+    docker compose pull && docker compose up -d
+
 ## v2.3.0 – 2026-11-19
 
 ### New

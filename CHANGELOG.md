@@ -3,6 +3,17 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.3.0 – 2026-11-19
+
+### New
+- Liquid Glass design: clear glass controls float over the sky, bend the picture behind them at their rim and bounce when pressed, and the header floats so the page scrolls underneath. The bending lens needs Chrome or Edge; other browsers show the glass without it. (#84)
+- Settings has a new Design choice between Liquid Glass (the default) and the original Himmel design. The choice is stored in the visitor's browser, like language and units. (#84)
+
+### Upgrade
+No `config.yaml` changes required.
+
+    docker compose pull && docker compose up -d
+
 ## v2.2.1 – 2026-11-11
 
 ### Fixed

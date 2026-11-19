@@ -32,7 +32,9 @@ The last 24 hours are drawn as a landscape: its ridge is the temperature, the sk
 - **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), and each day in three-hour steps
 - **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours as a loop; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
 - **Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
-- **Settings:** visitors choose their language and their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/l/m²/in)
+- **Settings:** visitors choose their language, the design (Liquid Glass or the original Himmel) and their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/l/m²/in)
+
+**Two designs:** *Liquid Glass* (the default) floats clear glass controls over the sky that bend the picture behind them at their rim and bounce when pressed; the lens effect needs a Chromium browser (Chrome, Edge), other browsers show the glass without it. *Himmel* is the original flat design. Both share the same sky, colours and layout.
 
 The built-in alert rules are shown in each visitor's language. Rules you write yourself are shown exactly as written; to have them in both languages, give each text once per language (see the comments in `config.example.yaml`).
 
@@ -340,7 +342,7 @@ Put the container behind a reverse proxy with HTTPS (e.g. Nginx Proxy Manager, T
 
 The API is strictly read-only. It never returns your token, coordinates or entity IDs, and it sends a strict Content Security Policy. Fonts are served from the container itself, so there are no requests to Google Fonts.
 
-A public site run from Germany usually needs an imprint (Impressum) and a privacy policy (Datenschutzerklärung). Write them under `legal:` in `config.yaml` or on the admin page; each becomes its own page, linked in the footer. The dashboard itself makes no requests to third parties, sets no cookies for visitors (only the admin's sign-in cookie) and keeps only the visitor's language and units in the browser's local storage, which is what the privacy policy has to describe, together with whatever your reverse proxy, tunnel or CDN does with visitors' requests.
+A public site run from Germany usually needs an imprint (Impressum) and a privacy policy (Datenschutzerklärung). Write them under `legal:` in `config.yaml` or on the admin page; each becomes its own page, linked in the footer. The dashboard itself makes no requests to third parties, sets no cookies for visitors (only the admin's sign-in cookie) and keeps only the visitor's language, design and units in the browser's local storage, which is what the privacy policy has to describe, together with whatever your reverse proxy, tunnel or CDN does with visitors' requests.
 
 ## API
 

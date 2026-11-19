@@ -93,6 +93,7 @@ async function showFrame(i) {
   $('radarTime').textContent = atClock(t);
   $('radarSlider').value = String(i);
   $('radarSlider').setAttribute('aria-valuetext', atClock(t));
+  $('radarSlider').style.setProperty('--p', state.frames.length > 1 ? String(i / (state.frames.length - 1)) : '1');
   try {
     const grid = await loadGrid(t);
     if (state.index !== i) return;   // the loop has moved on meanwhile

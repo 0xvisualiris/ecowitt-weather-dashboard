@@ -8,6 +8,7 @@ import { EcowittSource } from './ecowitt.js';
 import { DemoSource, DEMO_SENSORS, DEMO_DEVICES } from './demo.js';
 import { DwdForecast } from './dwd.js';
 import { RadarSource } from './radar.js';
+import { TileCache, parseTilePath } from './tiles.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
 import { AdminStore } from './admin.js';
@@ -147,6 +148,7 @@ if (cfg.forecast.dwdStationId) {
 // the rest of the public API being free/read-only with no setup required.
 const radar = new RadarSource();
 radar.start();
+const tiles = new TileCache(path.join(cfg.server.data_dir, 'tiles'));
 
 const svc = new WeatherService(cfg, source, dwd);
 const alerts = new AlertEngine(cfg, svc);
@@ -394,6 +396,18 @@ const server = http.createServer(async (req, res) => {
       return send(req, res, 200, Buffer.from(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
     }
     return send(req, res, 200, Buffer.from(radar.latest.grid), 'application/octet-stream', { 'Cache-Control': 'no-store' });
+  }
+
+  // Street map tiles for the radar map, from OpenStreetMap via the server's disk cache (tiles.js).
+  if (url.pathname.startsWith('/api/tiles/')) {
+    const tile = parseTilePath(url.pathname);
+    if (!tile) return send(req, res, 404, { error: 'no such tile' });
+    try {
+      return send(req, res, 200, await tiles.get(...tile), 'image/png', { 'Cache-Control': 'public, max-age=604800' });
+    } catch (e) {
+      console.warn(`[tiles] ${e.message}`);
+      return send(req, res, e.status || 502, { error: 'map tile not available' });
+    }
   }
 
   const route = routes[url.pathname];

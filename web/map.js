@@ -55,8 +55,92 @@ let basePromise = null;
 const baseMap = () => (basePromise ??= getJson('/radar-map.json').then((j) => Object.fromEntries(
   ['land', 'germany', 'states', 'rivers', 'streams', 'lakes'].map((k) => [k, new Path2D(j[k])]))));
 
+// ---------- Street map: OpenStreetMap tiles, warped onto the radar grid ----------
+// The server fetches and caches the tiles (server/src/tiles.js); the browser only ever asks its own origin.
+// Tiles are in Web Mercator, the grid is polar stereographic, so each tile is drawn in small pieces, each
+// placed by an affine transform through three of its corners: over a few kilometres the two projections
+// differ by far less than a pixel. Tiles are recoloured once, dark like the rest of the site.
+
+const TILE = 256, MIN_Z = 5, MAX_Z = 16;
+const tileLon = (x, z) => x / 2 ** z * 360 - 180;
+const tileLat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) * 180 / Math.PI;
+const tileXY = (lon, lat, z) => {
+  const n = 2 ** z, phi = lat * Math.PI / 180;
+  return [(lon + 180) / 360 * n, (1 - Math.log(Math.tan(phi) + 1 / Math.cos(phi)) / Math.PI) / 2 * n];
+};
+
+const tiles = new Map();   // "z/x/y" → { img: canvas | null, failed, used }
+let tileUse = 0;
+
+// Night version of a light map: lightness inverted, hue kept (invert, then turn the hue half way round),
+// a little less colourful and dimmed.
+const HUE180 = [-0.574, 1.43, 0.144, 0.426, 0.43, 0.144, 0.426, 1.43, -0.856];
+function darken(img) {
+  const c = document.createElement('canvas');
+  c.width = c.height = TILE;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, TILE, TILE);
+  const data = ctx.getImageData(0, 0, TILE, TILE), d = data.data, m = HUE180;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = 255 - d[i], g = 255 - d[i + 1], b = 255 - d[i + 2];
+    let R = m[0] * r + m[1] * g + m[2] * b, G = m[3] * r + m[4] * g + m[5] * b, B = m[6] * r + m[7] * g + m[8] * b;
+    const L = 0.3 * R + 0.59 * G + 0.11 * B;
+    R = L + (R - L) * 0.6; G = L + (G - L) * 0.6; B = L + (B - L) * 0.6;
+    d[i] = R * 0.82 + 6; d[i + 1] = G * 0.82 + 10; d[i + 2] = B * 0.82 + 9;
+  }
+  ctx.putImageData(data, 0, 0);
+  return c;
+}
+
+function tile(z, x, y, onLoad) {
+  const key = `${z}/${x}/${y}`;
+  let t = tiles.get(key);
+  if (!t) {
+    t = { img: null, failed: false, used: 0 };
+    tiles.set(key, t);
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => { t.img = darken(img); onLoad(); };
+    img.onerror = () => { t.failed = true; };
+    img.src = `/api/tiles/${key}.png`;
+    if (tiles.size > 400) {   // forget the least recently drawn
+      const old = [...tiles.entries()].filter(([, v]) => v.img || v.failed).sort((a, b) => a[1].used - b[1].used).slice(0, 100);
+      for (const [k] of old) tiles.delete(k);
+    }
+  }
+  t.used = ++tileUse;
+  return t;
+}
+
+// Draws tile (z, x, y) in grid coordinates; while it loads, the matching part of a coarser tile stands in.
+function drawTile(ctx, z, x, y, onLoad) {
+  let t = tile(z, x, y, onLoad), sx = 0, sy = 0, size = TILE;
+  for (let k = 1; !t.img && k <= 10 && z - k >= MIN_Z; k++) {
+    const px = x >> k, py = y >> k;
+    size = TILE / 2 ** k;
+    sx = (x - (px << k)) * size; sy = (y - (py << k)) * size;
+    t = tiles.get(`${z - k}/${px}/${py}`) ?? { img: null };
+  }
+  if (!t.img) return false;
+  // Pieces of about 20 km, so the warp stays exact.
+  const span = 40075 * Math.cos(tileLat(y + 0.5, z) * Math.PI / 180) / 2 ** z;
+  const n = Math.min(16, Math.max(1, Math.ceil(span / 20))), step = size / n, f = 1 / n;
+  const corner = (i, j) => toGridPos(tileLon(x + i * f, z), tileLat(y + j * f, z));
+  const o = 0.5 * size / TILE;   // about half a screen pixel of overlap hides the seams between pieces
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const p = corner(i, j), px = corner(i + 1, j), py = corner(i, j + 1);
+      ctx.save();
+      ctx.transform((px[0] - p[0]) / step, (px[1] - p[1]) / step, (py[0] - p[0]) / step, (py[1] - p[1]) / step, p[0], p[1]);
+      ctx.drawImage(t.img, sx + i * step, sy + j * step, step, step, -o, -o, step + 2 * o, step + 2 * o);
+      ctx.restore();
+    }
+  }
+  return true;
+}
+
 // ---------- The map ----------
-// options: home {x, y, w} · under(ctx, map) and lines(ctx, map) draw in grid coordinates (below and above the borders) ·
+// options: home {x, y, w} · tiles (street map underneath) · under(ctx, map) and lines(ctx, map) draw in grid coordinates (below and above the borders) ·
 // over(ctx, map) draws in screen pixels on top · onPick(gx, gy) · onHover([gx, gy] | null)
 
 export function createMap(container, options = {}) {
@@ -65,15 +149,18 @@ export function createMap(container, options = {}) {
   const frame = el('div.map-frame', {}, canvas, hint,
     el('div.map-zoom', {},
       el('button', { type: 'button', 'aria-label': tr('map.zoomIn'), onclick: () => zoomBy(0.6) }, '+'),
-      el('button', { type: 'button', 'aria-label': tr('map.zoomOut'), onclick: () => zoomBy(1 / 0.6) }, '−')));
+      el('button', { type: 'button', 'aria-label': tr('map.zoomOut'), onclick: () => zoomBy(1 / 0.6) }, '−')),
+    ...(options.tiles ? [el('a.map-credit', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, tr('map.credit'))] : []));
   container.append(frame);
 
+  const MIN_W = options.tiles ? 3 : 40;   // narrowest view in kilometres: street level with the street map
   let home = options.home ?? { x: 0, y: 0, w: GRID };
   let view = { ...home }, W = 0, H = 0, dpr = 1, base = null, raf = 0, anim = 0, hintTimer = 0;
   const map = {
     canvas, frame,
     get view() { return view; },
     get scale() { return W / view.w; },                      // screen pixels per kilometre
+    get size() { return { W, H, dpr }; },
     toGrid: (clientX, clientY) => { const r = canvas.getBoundingClientRect(); return [view.x + (clientX - r.left) / map.scale, view.y + (clientY - r.top) / map.scale]; },
     toScreen: (gx, gy) => [(gx - view.x) * map.scale, (gy - view.y) * map.scale],
     draw: () => { if (!raf) raf = requestAnimationFrame(paint); },
@@ -84,7 +171,7 @@ export function createMap(container, options = {}) {
   };
 
   function limit() {
-    view.w = clamp(view.w, 40, GRID);
+    view.w = clamp(view.w, MIN_W, GRID);
     const h = view.w * H / (W || 1);
     view.x = clamp(view.x, -view.w * 0.25, GRID - view.w * 0.75);
     view.y = clamp(view.y, -h * 0.25, GRID - h * 0.75);
@@ -111,15 +198,16 @@ export function createMap(container, options = {}) {
       ctx.fillStyle = rgb(sky.ground); ctx.fill(base.germany);
       ctx.fillStyle = inland; ctx.fill(base.lakes);
     }
+    const street = options.tiles ? drawTiles(ctx) : 0;
     options.under?.(ctx, map);
     if (base) {
       ctx.lineJoin = 'round';
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = street ? 0 : 0.55;   // the street map has its own rivers
       if (s > 2.2) { ctx.strokeStyle = inland; ctx.lineWidth = 0.8 * px; ctx.stroke(base.streams); }
       ctx.strokeStyle = inland; ctx.lineWidth = 1.1 * px; ctx.stroke(base.rivers);
       ctx.globalAlpha = 1;
-      ctx.strokeStyle = rgb(rim, 0.22); ctx.lineWidth = 0.8 * px; ctx.setLineDash([3 * px, 4 * px]); ctx.stroke(base.states); ctx.setLineDash([]);
-      ctx.strokeStyle = rgb(rim, 0.9); ctx.lineWidth = 1.6 * px; ctx.stroke(base.germany);
+      if (!street) { ctx.strokeStyle = rgb(rim, 0.22); ctx.lineWidth = 0.8 * px; ctx.setLineDash([3 * px, 4 * px]); ctx.stroke(base.states); ctx.setLineDash([]); }
+      if (street < 9) { ctx.strokeStyle = rgb(rim, street ? 0.55 : 0.9); ctx.lineWidth = 1.6 * px; ctx.stroke(base.germany); }
     }
     options.lines?.(ctx, map);
     ctx.restore();
@@ -128,7 +216,7 @@ export function createMap(container, options = {}) {
     const zoom = GRID / view.w, tiers = zoom >= 3.2 ? 3 : zoom >= 1.7 ? 2 : 1;
     ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     for (const p of PLACES) {
-      if (p.tier > tiers) continue;
+      if (p.tier > tiers || street >= 7) continue;   // closer in, the street map names the places
       const [x, y] = map.toScreen(p.px[0], p.px[1]);
       if (x < -40 || y < -10 || x > W + 10 || y > H + 10) continue;
       ctx.fillStyle = '#f3f6f2'; ctx.beginPath(); ctx.arc(x, y, 2.4, 0, 6.283); ctx.fill();
@@ -137,6 +225,25 @@ export function createMap(container, options = {}) {
       ctx.fillText(p.name, x + 7, y + 0.5);
     }
     options.over?.(ctx, map);
+  }
+
+  // The street map at the tile zoom that matches the screen; returns that zoom, or 0 if nothing was drawn.
+  function drawTiles(ctx) {
+    const h = view.w * H / W;
+    const clat = toLonLat(view.x + view.w / 2, view.y + h / 2)[1];
+    const z = clamp(Math.round(Math.log2(map.scale * dpr * 156543.03 * Math.cos(clat * Math.PI / 180) / 1000)), MIN_Z, MAX_Z);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const [fx, fy] of [[0, 0], [0.5, 0], [1, 0], [0, 0.5], [1, 0.5], [0, 1], [0.5, 1], [1, 1]]) {
+      const [tx, ty] = tileXY(...toLonLat(view.x + fx * view.w, view.y + fy * h), z);
+      x0 = Math.min(x0, tx); x1 = Math.max(x1, tx); y0 = Math.min(y0, ty); y1 = Math.max(y1, ty);
+    }
+    let drawn = 0;
+    ctx.globalAlpha = 0.92;
+    for (let y = Math.floor(y0); y <= Math.floor(y1); y++) {
+      for (let x = Math.floor(x0); x <= Math.floor(x1); x++) if (drawTile(ctx, z, x, y, map.draw)) drawn++;
+    }
+    ctx.globalAlpha = 1;
+    return drawn ? z : 0;
   }
 
   function resize() {
@@ -150,7 +257,7 @@ export function createMap(container, options = {}) {
 
   function zoomAt(factor, sx = W / 2, sy = H / 2) {
     const gx = view.x + sx / map.scale, gy = view.y + sy / map.scale;
-    const w = clamp(view.w * factor, 40, GRID), k = w / view.w;
+    const w = clamp(view.w * factor, MIN_W, GRID), k = w / view.w;
     view = { x: gx - (gx - view.x) * k, y: gy - (gy - view.y) * k, w };
     limit(); map.draw(); options.onMove?.(map);
   }
@@ -159,7 +266,7 @@ export function createMap(container, options = {}) {
     cancelAnimationFrame(anim);
     const from = { ...view }, start = performance.now(), ms = reducedMotion.matches ? 0 : 320;
     const tick = (now) => {
-      const p = ms ? Math.min(1, (now - start) / ms) : 1, e = 1 - (1 - p) ** 3;
+      const p = ms ? clamp((now - start) / ms, 0, 1) : 1, e = 1 - (1 - p) ** 3;
       view = { x: from.x + (target.x - from.x) * e, y: from.y + (target.y - from.y) * e, w: from.w + (target.w - from.w) * e };
       limit(); paint(); options.onMove?.(map);
       if (p < 1) anim = requestAnimationFrame(tick);
@@ -168,7 +275,7 @@ export function createMap(container, options = {}) {
   }
 
   function zoomBy(factor) {
-    const w = clamp(view.w * factor, 40, GRID), k = w / view.w, cx = view.x + view.w / 2, cy = view.y + view.w * H / W / 2;
+    const w = clamp(view.w * factor, MIN_W, GRID), k = w / view.w, cx = view.x + view.w / 2, cy = view.y + view.w * H / W / 2;
     flyTo({ x: cx - (cx - view.x) * k, y: cy - (cy - view.y) * k, w });
   }
 

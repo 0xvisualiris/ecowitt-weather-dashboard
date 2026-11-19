@@ -32,12 +32,44 @@ const LUT32 = new Uint32Array(LUT.buffer);
 const state = { frames: [], index: -1, playing: false, built: false, timer: 0, poll: 0, marker: null };
 const grids = new Map();              // timestamp → Uint8Array(900 × 900)
 const layer = document.createElement('canvas');
-layer.width = layer.height = GRID;
-let map = null, painted = null;
+let map = null, painted = null, layerKey = '';
 
-function paintLayer(grid) {
-  const ctx = layer.getContext('2d'), img = ctx.createImageData(GRID, GRID), px = new Uint32Array(img.data.buffer);
-  for (let i = 0; i < grid.length; i++) px[i] = LUT32[grid[i]];
+// The rain, drawn for the visible part of the map at screen resolution rather than as 1 km squares:
+// each screen pixel interpolates the rain rate between the four nearest grid cells (bilinear), and the
+// edge of the rain fades out over the last half class, so showers get smooth outlines at any zoom.
+// Redrawn only when the frame, the view or the size changes.
+const MAX_PIXELS = 900_000;
+function renderRain(m) {
+  const { W, H, dpr } = m.size, v = m.view;
+  const step = Math.max(1, Math.sqrt((W * dpr * H * dpr) / MAX_PIXELS));
+  const ow = Math.ceil(W * dpr / step), oh = Math.ceil(H * dpr / step);
+  const key = `${state.index}|${v.x}|${v.y}|${v.w}|${ow}x${oh}`;
+  if (key === layerKey) return;
+  layerKey = key;
+  if (layer.width !== ow || layer.height !== oh) { layer.width = ow; layer.height = oh; }
+  const ctx = layer.getContext('2d'), img = ctx.createImageData(ow, oh), px = new Uint32Array(img.data.buffer), grid = painted;
+  const k = v.w / ow;   // kilometres per layer pixel
+  const cell = (x, y) => (x < 0 || y < 0 || x >= GRID || y >= GRID ? 255 : grid[y * GRID + x]);
+  const nodata = LUT32[255];
+  for (let j = 0; j < oh; j++) {
+    const gy = v.y + (j + 0.5) * k - 0.5, y0 = Math.floor(gy), fy = gy - y0;
+    if (y0 < -1 || y0 >= GRID) continue;
+    for (let i = 0; i < ow; i++) {
+      const gx = v.x + (i + 0.5) * k - 0.5, x0 = Math.floor(gx), fx = gx - x0;
+      if (x0 < -1 || x0 >= GRID) continue;
+      const a = cell(x0, y0), b = cell(x0 + 1, y0), c = cell(x0, y0 + 1), d = cell(x0 + 1, y0 + 1);
+      if ((a | b | c | d) === 0) continue;   // dry: the common case, nothing to draw
+      const wa = (1 - fx) * (1 - fy), wb = fx * (1 - fy), wc = (1 - fx) * fy, wd = fx * fy;
+      // Cells outside radar range count as "no data" and as dry for the rain around them.
+      const none = (a === 255) * wa + (b === 255) * wb + (c === 255) * wc + (d === 255) * wd;
+      if (none > 0.5) { px[j * ow + i] = nodata; continue; }
+      const rain = (a === 255 ? 0 : a) * wa + (b === 255 ? 0 : b) * wb + (c === 255 ? 0 : c) * wc + (d === 255 ? 0 : d) * wd;
+      if (rain < 0.25) continue;
+      const colour = LUT32[Math.min(254, Math.max(1, Math.round(rain)))];
+      const edge = Math.min(1, (rain - 0.25) / 0.5);
+      px[j * ow + i] = edge >= 1 ? colour : (colour & 0x00ffffff) | (Math.round((colour >>> 24) * edge) << 24);
+    }
+  }
   ctx.putImageData(img, 0, 0);
 }
 
@@ -93,11 +125,10 @@ async function showFrame(i) {
   $('radarTime').textContent = atClock(t);
   $('radarSlider').value = String(i);
   $('radarSlider').setAttribute('aria-valuetext', atClock(t));
-  $('radarSlider').style.setProperty('--p', state.frames.length > 1 ? String(i / (state.frames.length - 1)) : '1');
   try {
     const grid = await loadGrid(t);
     if (state.index !== i) return;   // the loop has moved on meanwhile
-    paintLayer(grid); painted = grid;
+    painted = grid; layerKey = '';
     map.draw(); describe(grid);
   } catch { /* that frame is gone; the next poll replaces the list */ }
 }
@@ -140,7 +171,17 @@ function build() {
   state.built = true;
   map = createMap($('radarMap'), {
     label: tr('radar.mapLabel'),
-    under: (ctx) => { if (painted) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(layer, 0, 0, GRID, GRID); } },
+    tiles: true,
+    under: (ctx, m) => {
+      if (!painted) return;
+      renderRain(m);
+      const { W, H } = m.size;
+      ctx.save();
+      ctx.setTransform(m.size.dpr, 0, 0, m.size.dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(layer, 0, 0, W, H);
+      ctx.restore();
+    },
     lines: (ctx, m) => {
       if (!state.marker) return;
       const [x, y] = state.marker, px = 1 / m.scale;

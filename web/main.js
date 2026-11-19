@@ -3,7 +3,6 @@
 
 import { $, store, skyAt, applyTheme, syncBarColour } from './lib.js';
 import { LANG } from './i18n.js';
-import { slideMark } from './glass.js';
 import * as history from './history.js';
 import * as forecast from './forecast.js';
 import * as alerts from './alerts.js';
@@ -71,8 +70,10 @@ $('skipLink').addEventListener('click', (e) => {
 function placeMark(animate) {
   const mark = $('navMark'), link = document.querySelector(`#nav [data-nav="${current}"]`);
   if (!link) { mark.style.opacity = '0'; return; }
+  mark.style.transition = animate ? '' : 'none';
   mark.style.opacity = '1';
-  slideMark(mark, link.offsetLeft, link.offsetWidth, animate);
+  mark.style.width = `${link.offsetWidth}px`;
+  mark.style.transform = `translateX(${link.offsetLeft}px)`;
   for (const a of document.querySelectorAll('#nav a')) a.toggleAttribute('aria-current', a === link);
 }
 

@@ -200,6 +200,7 @@ const STRINGS = {
     'map.scrollHint': '{key} + scroll zooms the map',
     'map.twoFingers': 'Use two fingers to move and zoom the map',
     'map.loadError': 'The map could not be loaded',
+    'map.credit': '© OpenStreetMap contributors',
     'picker.loading': 'Loading the stations …',
     'picker.search': 'Search for a place or station, e.g. Bamberg',
     'picker.searchLabel': 'Search stations',
@@ -218,9 +219,6 @@ const STRINGS = {
     'settings.title': 'Settings',
     'settings.note': 'Applies to this browser only and is stored only here.',
     'settings.language': 'Language',
-    'settings.design': 'Design',
-    'design.glass': 'Liquid Glass',
-    'design.himmel': 'Himmel',
 
     // Alerts
     'alerts.title': 'Alerts',
@@ -235,7 +233,7 @@ const STRINGS = {
     'alerts.loadError': 'The alerts could not be loaded ({error}).',
 
     // Footer
-    'foot.data': 'Weather data and radar: Deutscher Wetterdienst. Map: Natural Earth. ',
+    'foot.data': 'Weather data and radar: Deutscher Wetterdienst. Map: Natural Earth and OpenStreetMap contributors. ',
     'foot.sourceBy': 'Source code by ', 'foot.under': ' under the ', 'foot.licence': 'MIT licence', 'foot.end': '.',
     'foot.settings': 'Units and language',
     'foot.admin': 'Manage station',
@@ -479,6 +477,7 @@ const STRINGS = {
     'map.scrollHint': '{key} + Scrollen zoomt die Karte',
     'map.twoFingers': 'Mit zwei Fingern verschieben und zoomen',
     'map.loadError': 'Die Karte konnte nicht geladen werden',
+    'map.credit': '© OpenStreetMap-Mitwirkende',
     'picker.loading': 'Lade die Stationen …',
     'picker.search': 'Ort oder Station suchen, z. B. Bamberg',
     'picker.searchLabel': 'Station suchen',
@@ -496,9 +495,6 @@ const STRINGS = {
     'settings.title': 'Einstellungen',
     'settings.note': 'Gilt nur für diesen Browser und wird nur hier gespeichert.',
     'settings.language': 'Sprache',
-    'settings.design': 'Design',
-    'design.glass': 'Liquid Glass',
-    'design.himmel': 'Himmel',
 
     'alerts.title': 'Warnungen',
     'alerts.history': 'Was bisher ausgelöst hat',
@@ -511,7 +507,7 @@ const STRINGS = {
     'alerts.noneYet': 'Bisher hat keine Warnung ausgelöst.',
     'alerts.loadError': 'Die Warnungen konnten nicht geladen werden ({error}).',
 
-    'foot.data': 'Wetterdaten und Radar: Deutscher Wetterdienst. Karte: Natural Earth. ',
+    'foot.data': 'Wetterdaten und Radar: Deutscher Wetterdienst. Karte: Natural Earth und OpenStreetMap-Mitwirkende. ',
     'foot.sourceBy': 'Quelltext von ', 'foot.under': ' unter der ', 'foot.licence': 'MIT-Lizenz', 'foot.end': '.',
     'foot.settings': 'Einheiten und Sprache',
     'foot.admin': 'Station verwalten',

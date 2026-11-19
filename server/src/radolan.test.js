@@ -1,57 +1,52 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodeRadolan } from './radolan.js';
+import { deflateSync } from 'node:zlib';
+import { decodeComposite, rateClass, outToLonLat, lonLatToSrc, OUT, SRC_W, SRC_H } from './radolan.js';
 
-// Builds a minimal synthetic RADOLAN buffer: a real-shaped ASCII header
-// (GP/PR fields, ETX terminator) over a small hand-picked grid, rather than
-// committing a real ~1.6MB DWD fixture file.
-function makeBuffer({ width, height, precisionExp, dayHHMM, values }) {
-  const header = `RY${dayHHMM}10000102BY${0}VS 3SW   2.29.1PR E${precisionExp >= 0 ? '+' : ''}${String(precisionExp).padStart(2, '0')}INT   5GP ${width}x ${height}MS 1<xyz>`;
-  const headerBuf = Buffer.from(header + ' ', 'ascii');
-  const etx = Buffer.from([0x03]);
-  const dataBuf = Buffer.alloc(width * height * 2);
-  values.forEach((v, i) => dataBuf.writeUInt16LE(v, i * 2));
-  return Buffer.concat([headerBuf, etx, dataBuf]);
+// A minimal stand-in for DWD's HDF5 file: the HDF5 signature, some filler
+// and the zlib-compressed 1100x1200 uint16 grid, rather than committing a
+// real ~400 KB DWD fixture. `fill(i)` gives the raw value of source cell i.
+function makeFile(fill) {
+  const data = Buffer.alloc(SRC_W * SRC_H * 2);
+  for (let i = 0; i < SRC_W * SRC_H; i++) data.writeUInt16LE(fill(i), i * 2);
+  const signature = Buffer.from([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]);
+  // Filler holding a small, unrelated zlib stream that must be skipped.
+  return Buffer.concat([signature, Buffer.alloc(64, 0x78), deflateSync(Buffer.from('not the grid')), deflateSync(data, { level: 4 })]);
 }
 
-test('decodeRadolan reads grid dimensions and precision from the header', () => {
-  const buf = makeBuffer({ width: 3, height: 2, precisionExp: -2, dayHHMM: '052040', values: [0, 0, 0, 0, 0, 0] });
-  const { width, height, precision } = decodeRadolan(buf);
-  assert.equal(width, 3);
-  assert.equal(height, 2);
-  assert.equal(precision, 0.01);
+test('rateClass maps no data to 255, no rain to 0 and rates to 0.6 mm/h steps', () => {
+  assert.equal(rateClass(65535), 255);
+  assert.equal(rateClass(0), 0);
+  assert.equal(rateClass(1), 1, 'any rain shows, however light');
+  assert.equal(rateClass(600), 10, '6 mm/h');
+  assert.equal(rateClass(60000), 254, 'an extreme rate is clamped, not overflowed');
 });
 
-test('decodeRadolan maps the 2500 sentinel to 255 (no data) and 0 to 0', () => {
-  const buf = makeBuffer({ width: 2, height: 1, precisionExp: -2, dayHHMM: '052040', values: [2500, 0] });
-  const { grid } = decodeRadolan(buf);
-  assert.equal(grid[0], 255);
-  assert.equal(grid[1], 0);
+test('the two projections agree on where a place is', () => {
+  // Frankfurt, near the middle of both grids; DWD's corner cells from the file's attributes.
+  const [lon, lat] = outToLonLat(380, 560);
+  const back = lonLatToSrc(lon, lat);
+  assert.ok(back[0] > 0 && back[0] < SRC_W && back[1] > 0 && back[1] < SRC_H);
+  const ul = lonLatToSrc(1.46330151, 55.86208711), lr = lonLatToSrc(16.58086935, 45.68460578);
+  assert.ok(Math.abs(ul[0] + 0.5) < 0.01 && Math.abs(ul[1] + 0.5) < 0.01, `north-west corner at ${ul}`);
+  assert.ok(Math.abs(lr[0] - (SRC_W - 0.5)) < 0.01 && Math.abs(lr[1] - (SRC_H - 0.5)) < 0.01, `south-east corner at ${lr}`);
 });
 
-test('decodeRadolan clamps a measured value into a 1-254 display class', () => {
-  const buf = makeBuffer({ width: 3, height: 1, precisionExp: -2, dayHHMM: '052040', values: [1, 50, 4000] });
-  const { grid } = decodeRadolan(buf);
-  assert.ok(grid[0] >= 1 && grid[0] <= 254);
-  assert.ok(grid[1] > grid[0], 'a larger raw value should map to a larger display class');
-  assert.equal(grid[2], 254, 'an extreme value is clamped to the top of the display range, not overflowed');
+test('decodeComposite resamples the DWD grid onto the 900x900 grid', () => {
+  // Rain only in the DWD cell under one browser cell; no data in the top row.
+  const [col, row] = [450, 450];
+  const [sc, sr] = lonLatToSrc(...outToLonLat(col + 0.5, row + 0.5)).map(Math.round);
+  const target = sr * SRC_W + sc;
+  const { width, height, grid } = decodeComposite(makeFile((i) => (i === target ? 600 : i < SRC_W ? 65535 : 0)));
+  assert.equal(width, OUT);
+  assert.equal(height, OUT);
+  assert.equal(grid[row * OUT + col], 10);
+  assert.equal(grid.filter((v) => v === 10).length, 1, 'one DWD cell lands in one browser cell here');
+  assert.equal(grid[0], 0, 'the browser grid lies inside the bigger DWD grid');
 });
 
-test('decodeRadolan parses the header timestamp (day/hour/minute, UTC)', () => {
-  const buf = makeBuffer({ width: 1, height: 1, precisionExp: -2, dayHHMM: '152340', values: [0] });
-  const { timestamp } = decodeRadolan(buf);
-  const d = new Date(timestamp);
-  assert.equal(d.getUTCDate(), 15);
-  assert.equal(d.getUTCHours(), 23);
-  assert.equal(d.getUTCMinutes(), 40);
-});
-
-test('decodeRadolan rejects a buffer with no ETX header terminator', () => {
-  assert.throws(() => decodeRadolan(Buffer.from('not a radolan file, no etx byte here')), /ETX/);
-});
-
-test('decodeRadolan rejects a payload shorter than width*height*2', () => {
-  const buf = makeBuffer({ width: 10, height: 10, precisionExp: -2, dayHHMM: '052040', values: [0, 0] });
-  const truncated = buf.subarray(0, buf.length - 4);
-  assert.throws(() => decodeRadolan(truncated), /too short/);
+test('decodeComposite rejects files that are not HDF5 or hold no grid', () => {
+  assert.throws(() => decodeComposite(Buffer.from('not a radar file')), /not an HDF5 file/);
+  const signature = Buffer.from([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.throws(() => decodeComposite(Buffer.concat([signature, deflateSync(Buffer.alloc(100))])), /no 1100x1200 data grid/);
 });

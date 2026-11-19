@@ -218,6 +218,9 @@ const STRINGS = {
     'settings.title': 'Settings',
     'settings.note': 'Applies to this browser only and is stored only here.',
     'settings.language': 'Language',
+    'settings.design': 'Design',
+    'design.glass': 'Liquid Glass',
+    'design.himmel': 'Himmel',
 
     // Alerts
     'alerts.title': 'Alerts',
@@ -493,6 +496,9 @@ const STRINGS = {
     'settings.title': 'Einstellungen',
     'settings.note': 'Gilt nur für diesen Browser und wird nur hier gespeichert.',
     'settings.language': 'Sprache',
+    'settings.design': 'Design',
+    'design.glass': 'Liquid Glass',
+    'design.himmel': 'Himmel',
 
     'alerts.title': 'Warnungen',
     'alerts.history': 'Was bisher ausgelöst hat',

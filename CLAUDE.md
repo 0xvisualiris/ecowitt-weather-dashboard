@@ -125,7 +125,7 @@ A public, read-only web dashboard for a personal weather station whose data live
 - Hobby project, vibe-coded with AI, not actively maintained. Keep changes simple and dependency-light.
 - Repo: `0xvisualiris/ecowitt-weather-dashboard`. Image: `ghcr.io/0xvisualiris/ecowitt-weather-dashboard:latest`.
 - **The UI is in English and German**, chosen per visitor (see "Languages"). **Everything else is English**: code, comments, docs, config files, tests, commit messages. German text exists in exactly two files, the translation tables `web/i18n.js` and `server/src/i18n.js`; don't put German anywhere else.
-- There is one design, "Himmel" (sky): the last 24 hours as a landscape under a sky that follows the sun. Until v2.0.0 a second, React-based design ("classic") existed; it was removed, and so was the `ui.design` option.
+- The page shows the last 24 hours as a landscape under a sky that follows the sun ("Himmel"). Each visitor picks one of two designs on the Settings page, stored in `localStorage` key `wetterstation.design`: **Liquid Glass** (`glass`, the default) and the original flat **Himmel** (`himmel`). They share markup, colours and layout; Liquid Glass only adds the rules under `:root[data-design="glass"]` at the end of `styles.css` plus `glass.js`. Until v2.0.0 a React-based design ("classic") existed; it was removed, and so was the `ui.design` config option, which stays ignored: the design is a visitor setting, not a server one.
 
 ## Repository layout
 
@@ -157,7 +157,9 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/util.js               local-time helpers, TTL cache, counter→increment conversion, time-bucketing (bucketLine/bucketCounter), round(), hourlyFromDays()
 web/                        the frontend: plain HTML, CSS and ES modules loaded by the browser as they are; no build, no dependencies, not type-checked
   index.html                the page: header, one <main> per view, footer; static texts carry data-t keys
-  styles.css                all styles and the colour tokens
+  styles.css                all styles and the colour tokens; the Liquid Glass design is the nested :root[data-design="glass"] block at the end
+  design.js                 classic (non-module) script in <head>: sets html[data-design] from localStorage before first paint
+  glass.js                  Liquid Glass only: SVG displacement-map lens per glass surface (Chromium; data: images, CSP-safe), press/drag springs, the springy nav mark; DESIGN/setDesign()
   i18n.js                   LANG, tr(), loc(), the English and German text tables, serverError(); the only frontend file with German
   lib.js                    formatting (num, clock, atClock, hourLabel), units + conversion, METRICS, CONDITION, sky colours (skyAt), canvas and DOM helpers, getJson/postJson
   main.js                   hash routing (with the old German addresses as aliases), nav mark, kiosk mode, first-run redirect
@@ -168,7 +170,7 @@ web/                        the frontend: plain HTML, CSS and ES modules loaded 
   map.js                    the one map of Germany on DWD's grid (canvas): projection, base map, place labels, pan/zoom; used by radar and both pickers
   pickers.js                admin-page map pickers: DWD station, approximate public location
   alerts.js                 Alerts: rules, active ones, log
-  settings.js               Settings: language and units, stored in the visitor's browser
+  settings.js               Settings: language, design and units, stored in the visitor's browser
   legal.js                  Imprint and privacy policy pages (/api/legal), rendered from plain text into elements, never HTML
   admin.js                  station management: sign-in, password, 2FA, all admin settings
   manifest.webmanifest      installable-PWA manifest (name filled in by the server)

@@ -46,7 +46,7 @@ All screenshots are from demo mode.
 |---|---|
 | ![History: a week of temperature as a line chart with the lowest, average and highest value](docs/screenshot-history.png) | ![Forecast: the next three days hour by hour as a temperature line with weather symbols and the chance of rain as bars](docs/screenshot-forecast.png) |
 | **Rain radar** | **The Now screen in German** |
-| ![Rain radar: a map around Frankfurt with distance rings, a play button, the time slider and the colour scale](docs/screenshot-radar.png) | ![The Now screen with German text: Jetzt, Fühlt sich an wie 15,6°, Gewitter in der Nähe](docs/screenshot-de.png) |
+| ![Rain radar on a forecast frame 45 minutes ahead: rain over a map around Frankfurt with distance rings and a Forecast badge, the time slider past Now, the colour scale and the expected rain at the home location](docs/screenshot-radar.png) | ![The Now screen with German text: Jetzt, Fühlt sich an wie 15,6°, Gewitter in der Nähe](docs/screenshot-de.png) |
 
 On a phone:
 

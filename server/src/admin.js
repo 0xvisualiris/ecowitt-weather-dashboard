@@ -385,9 +385,9 @@ export class AdminStore {
         const p = patch.station.publicLocation;
         // Rounded here too (not just client-side) – defense in depth, since
         // the whole point of this field is to never carry more precision
-        // than ~10 km into the public API.
+        // than 0.01° (~1 km) into the public API.
         next.settings.station.publicLocation = p && Number.isFinite(p.lat) && Number.isFinite(p.lon)
-          ? { lat: Math.round(p.lat * 10) / 10, lon: Math.round(p.lon * 10) / 10 }
+          ? { lat: Math.round(p.lat * 100) / 100, lon: Math.round(p.lon * 100) / 100 }
           : null;
       }
       if (!locked.stationDevices && Array.isArray(patch.station.devices)) next.settings.station.devices = sanitizeDevices(patch.station.devices);

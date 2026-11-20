@@ -78,7 +78,7 @@ export function stationPicker(body, getId, setId) {
   }).catch(() => { info.textContent = tr('picker.listError'); });
 }
 
-// The public location is only ever kept to 0.1 degree, so the map picks a cell of that size, not a point.
+// The public location is only ever kept to 0.01 degree, so the map picks a cell of that size, not a point.
 export function locationPicker(body, get, set) {
   const info = el('p.picker-info', { role: 'status' });
   const remove = el('button.btn.quiet', { type: 'button', onclick: () => { set(null); say(); map.draw(); } }, tr('picker.removeLocation'));
@@ -86,21 +86,22 @@ export function locationPicker(body, get, set) {
   body.append(mapBox, el('div.picker-foot', {}, info, remove));
   let hover = null;
 
-  const snap = (v) => Math.round(v * 10) / 10;
+  const snap = (v) => Math.round(v * 100) / 100;
   const cellPath = (ctx, lat, lon) => {
-    const corners = [[lon - 0.05, lat - 0.05], [lon + 0.05, lat - 0.05], [lon + 0.05, lat + 0.05], [lon - 0.05, lat + 0.05]].map(([lo, la]) => toGridPos(lo, la));
+    const corners = [[lon - 0.005, lat - 0.005], [lon + 0.005, lat - 0.005], [lon + 0.005, lat + 0.005], [lon - 0.005, lat + 0.005]].map(([lo, la]) => toGridPos(lo, la));
     ctx.beginPath(); corners.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
   };
   const say = () => {
     const p = get();
     remove.hidden = !p;
     info.textContent = p
-      ? tr('picker.locationChosen', { place: nearestPlace(...toGridPos(p.lon, p.lat)).place.name, lat: num(p.lat, 1), lon: num(p.lon, 1) })
+      ? tr('picker.locationChosen', { place: nearestPlace(...toGridPos(p.lon, p.lat)).place.name, lat: num(p.lat, 2), lon: num(p.lon, 2) })
       : tr('picker.locationHint');
   };
 
   const map = createMap(mapBox, {
     label: tr('picker.locationMapLabel'),
+    tiles: true,
     lines: (ctx, m) => {
       const px = 1 / m.scale, p = get();
       if (hover) { cellPath(ctx, hover.lat, hover.lon); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.2 * px; ctx.stroke(); }
@@ -120,6 +121,6 @@ export function locationPicker(body, get, set) {
   });
 
   const p = get();
-  if (p) { const [x, y] = toGridPos(p.lon, p.lat); map.setHome({ x: x - 150, y: y - 150, w: 300 }); }
+  if (p) { const [x, y] = toGridPos(p.lon, p.lat); map.setHome({ x: x - 15, y: y - 15, w: 30 }); }
   say();
 }

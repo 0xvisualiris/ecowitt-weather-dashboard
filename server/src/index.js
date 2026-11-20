@@ -368,8 +368,14 @@ const routes = {
   '/api/radar': async () => {
     if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
     const { width, height, timestamp } = radar.latest;
-    // `frames`: timestamps of every composite held (oldest first), each fetchable as /api/radar/grid?t=<timestamp>
-    return { width, height, timestamp, frames: radar.frames.map(f => f.timestamp) };
+    // `frames`: timestamps of every composite held (oldest first), each fetchable as /api/radar/grid?t=<timestamp>.
+    // `forecast`: the nowcast steps after the newest frame (oldest first, empty if there is no recent run),
+    // each fetchable as /api/radar/grid?t=<timestamp>&run=<run>.
+    const forecast = radar.upcoming();
+    return {
+      width, height, timestamp, frames: radar.frames.map(f => f.timestamp),
+      run: forecast.length ? radar.run : null, forecast: forecast.map(f => f.timestamp),
+    };
   },
   '/healthz': async () => ({ ok: true, connected: source.connected, lastMessage: source.lastMessage }),
 };
@@ -390,6 +396,14 @@ const server = http.createServer(async (req, res) => {
     // ?t=<timestamp> names one past composite, which never changes again and
     // can be cached; without it, the moving "latest" one, which can't.
     const t = url.searchParams.get('t');
+    // A forecast step is named by its time and its run: a newer run forecasts
+    // the same time differently, so the pair, not the time, never changes.
+    const run = url.searchParams.get('run');
+    if (t != null && run != null) {
+      const frame = radar.forecastFrame(Number(t), Number(run));
+      if (!frame) return send(req, res, 404, { error: 'no forecast frame for that time and run' });
+      return send(req, res, 200, Buffer.from(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
+    }
     if (t != null) {
       const frame = radar.frame(Number(t));
       if (!frame) return send(req, res, 404, { error: 'no radar frame for that time' });

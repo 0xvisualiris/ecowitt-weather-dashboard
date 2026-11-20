@@ -1,7 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import zlib from 'node:zlib';
+import { Encoded, StaticFiles, compress, encodedGrid, matches, negotiate, MIN_COMPRESS } from './delivery.js';
 import { loadConfig, SENSOR_KEYS } from './config.js';
 import { HomeAssistantSource } from './ha.js';
 import { EcowittSource } from './ecowitt.js';
@@ -175,17 +175,20 @@ const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'self'",
 };
 
+// `body` may be an Encoded: a body that never changes, whose compressed copies are kept.
 function send(req, res, status, body, type = 'application/json; charset=utf-8', extra = {}) {
-  const buf = Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
+  const encoded = body instanceof Encoded ? body : null;
+  const buf = encoded ? encoded.buf : Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
   const headers = { 'Content-Type': type, ...SECURITY_HEADERS, ...extra };
   // octet-stream here is specifically the radar grid: a sparse byte array
-  // (mostly 0/255) that gzips very well, unlike a typical opaque binary blob.
-  const compressible = /json|text|javascript|svg|octet-stream/.test(type) && buf.length > 1024;
-  if (compressible && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
-    headers['Content-Encoding'] = 'gzip';
-    headers['Vary'] = 'Accept-Encoding';
+  // (mostly 0/255) that compresses very well, unlike a typical opaque binary blob.
+  const compressible = /json|text|javascript|svg|octet-stream/.test(type) && buf.length > MIN_COMPRESS;
+  if (compressible) headers['Vary'] = 'Accept-Encoding';
+  const encoding = compressible ? negotiate(req.headers['accept-encoding']) : null;
+  if (encoding) {
+    headers['Content-Encoding'] = encoding;
     res.writeHead(status, headers);
-    res.end(zlib.gzipSync(buf));
+    res.end(encoded ? encoded.get(encoding) : compress(buf, encoding));
   } else {
     res.writeHead(status, headers);
     res.end(buf);
@@ -402,14 +405,15 @@ const server = http.createServer(async (req, res) => {
     if (t != null && run != null) {
       const frame = radar.forecastFrame(Number(t), Number(run));
       if (!frame) return send(req, res, 404, { error: 'no forecast frame for that time and run' });
-      return send(req, res, 200, Buffer.from(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
+      return send(req, res, 200, encodedGrid(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
     }
     if (t != null) {
       const frame = radar.frame(Number(t));
       if (!frame) return send(req, res, 404, { error: 'no radar frame for that time' });
-      return send(req, res, 200, Buffer.from(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
+      return send(req, res, 200, encodedGrid(frame.grid), 'application/octet-stream', { 'Cache-Control': 'public, max-age=7200, immutable' });
     }
-    return send(req, res, 200, Buffer.from(radar.latest.grid), 'application/octet-stream', { 'Cache-Control': 'no-store' });
+    // The latest frame's contents change with each refresh, but each grid itself doesn't: its copies are kept too.
+    return send(req, res, 200, encodedGrid(radar.latest.grid), 'application/octet-stream', { 'Cache-Control': 'no-store' });
   }
 
   // Street map tiles for the radar map, from OpenStreetMap via the server's disk cache (tiles.js).
@@ -445,16 +449,27 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(301, { Location: '/' + url.search });
     return res.end();
   }
-  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+  const transform = (buf) => withStationName(file, buf);
+  let entry = staticFiles.get(file, cfg.station.name, transform);
+  if (!entry) {
     // A missing file (robots.txt, a .map, …) is a 404; only page addresses fall back to the app.
     if (path.extname(url.pathname)) return send(req, res, 404, 'not found', 'text/plain; charset=utf-8');
     file = path.join(publicDir, 'index.html');
+    entry = staticFiles.get(file, cfg.station.name, transform);
   }
-  if (!fs.existsSync(file)) return send(req, res, 404, 'Frontend not built', 'text/plain');
+  if (!entry) return send(req, res, 404, 'Frontend not built', 'text/plain');
   const ext = path.extname(file);
+  // "no-cache" means "check first": with the ETag that check is a 304 with no body
+  // unless the file changed, so a release still reaches every visitor at once.
   const cache = file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache';
-  send(req, res, 200, withStationName(file, fs.readFileSync(file)), MIME[ext] || 'application/octet-stream', { 'Cache-Control': cache });
+  const type = MIME[ext] || 'application/octet-stream';
+  if (matches(req.headers['if-none-match'], entry.etag)) {
+    res.writeHead(304, { ...SECURITY_HEADERS, 'Cache-Control': cache, ETag: entry.etag, Vary: 'Accept-Encoding' });
+    return res.end();
+  }
+  send(req, res, 200, entry.encoded, type, { 'Cache-Control': cache, ETag: entry.etag });
 });
+const staticFiles = new StaticFiles();
 
 // The page and manifest ship with "Weather Station" as a placeholder; put the
 // configured station name in, so the browser tab, the header before its

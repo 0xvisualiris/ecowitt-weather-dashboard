@@ -1,11 +1,12 @@
-// Rain radar: DWD's RADOLAN rain radar for Germany on the map, with the last two hours as a loop.
+// Rain radar: DWD's RADOLAN rain radar for Germany on the map, with the last two hours and DWD's
+// two-hour nowcast as one loop.
 
 import { $, getJson, store, stationReady, num, fromWord, show, conv, atClock } from './lib.js';
 import { tr } from './i18n.js';
 import { GRID, createMap, toGridPos, nearestPlace } from './map.js';
 
 const POLL_MS = 60 * 1000;   // DWD adds a frame every five minutes
-const FRAME_MS = 420, HOLD_MS = 1600;
+const FRAME_MS = 420, HOLD_MS = 1600, HOLD_NOW_MS = 1000;   // the loop pauses at "now" and at its end
 const MM_PER_HOUR_PER_CLASS = 0.6;   // each intensity class from the server is 0.05 mm per 5 minutes
 const RINGS_KM = [25, 50, 100];
 
@@ -29,8 +30,11 @@ for (let v = 1; v < 255; v++) LUT.set(rainColour(v * MM_PER_HOUR_PER_CLASS), v *
 LUT.set([8, 14, 22, 105], 255 * 4);   // 255 = outside radar range: dimmed, so the edge of the coverage shows
 const LUT32 = new Uint32Array(LUT.buffer);
 
-const state = { frames: [], index: -1, playing: false, built: false, timer: 0, poll: 0, marker: null };
-const grids = new Map();              // timestamp → Uint8Array(900 × 900)
+// frames: [{ t, run }], oldest first; run is null for an observed frame, the nowcast run for a forecast one.
+// now: the index of the newest observed frame.
+const state = { frames: [], now: -1, index: -1, playing: false, built: false, timer: 0, poll: 0, marker: null, badge: null };
+const grids = new Map();              // frameKey → Uint8Array(900 × 900)
+const frameKey = (f) => (f.run == null ? String(f.t) : `${f.t}@${f.run}`);
 const layer = document.createElement('canvas');
 let map = null, painted = null, layerKey = '';
 
@@ -73,13 +77,40 @@ function renderRain(m) {
   ctx.putImageData(img, 0, 0);
 }
 
-async function loadGrid(t) {
-  if (grids.has(t)) return grids.get(t);
-  const r = await fetch(`/api/radar/grid?t=${t}`);
+async function loadGrid(f) {
+  const key = frameKey(f);
+  if (grids.has(key)) return grids.get(key);
+  const r = await fetch(`/api/radar/grid?t=${f.t}${f.run == null ? '' : `&run=${f.run}`}`);
   if (!r.ok) throw new Error(`${r.status}`);
   const grid = new Uint8Array(await r.arrayBuffer());
-  grids.set(t, grid);
+  grids.set(key, grid);
   return grid;
+}
+
+// The rain class at the home location in a grid: 0 dry, 255 no data, else rain.
+const homeCell = (grid, home) => {
+  const hx = Math.round(home[0]), hy = Math.round(home[1]);
+  return hx < 0 || hy < 0 || hx >= GRID || hy >= GRID ? 255 : grid[hy * GRID + hx];
+};
+
+// What the nowcast says about the home location: when the rain starts or stops there.
+function outlook() {
+  const node = $('radarOutlook');
+  const now = state.frames[state.now], ahead = state.frames.slice(state.now + 1);
+  const nowGrid = now && grids.get(frameKey(now));
+  if (!state.marker || !nowGrid || !ahead.length || ahead.some((f) => !grids.has(frameKey(f)))) { node.textContent = ''; return; }
+  const here = homeCell(nowGrid, state.marker);
+  if (here === 255) { node.textContent = ''; return; }
+  const place = nearestPlace(...state.marker).place.name;
+  const raining = (v) => v > 0 && v < 255;
+  const values = ahead.map((f) => homeCell(grids.get(frameKey(f)), state.marker));
+  const change = values.findIndex((v) => v === 255 || raining(v) !== raining(here));
+  if (change >= 0 && values[change] === 255) { node.textContent = ''; return; }   // the nowcast's coverage ends first
+  const until = atClock(ahead[ahead.length - 1].t);
+  const at = (i) => ({ place, time: atClock(ahead[i].t), min: num(Math.round((ahead[i].t - now.t) / 60000), 0) });
+  node.textContent = raining(here)
+    ? (change < 0 ? tr('radar.outlook.keepsRaining', { place, until }) : tr('radar.outlook.stops', at(change)))
+    : (change < 0 ? tr('radar.outlook.staysDry', { place, until }) : tr('radar.outlook.starts', at(change)));
 }
 
 // What the frame says about the home location: the rain there, or where the nearest rain is (out to 150 km).
@@ -103,33 +134,46 @@ function localRain(grid, home) {
   return { kind: 'near', km: Math.sqrt(best), bearing: (Math.atan2(bx - hx, hy - by) * 180 / Math.PI + 360) % 360 };
 }
 
-function describe(grid) {
+// The frame at the home location; a forecast frame in the future tense.
+function describe(grid, frame) {
   const node = $('radarLocal');
   if (!state.marker || !grid) {
     node.textContent = state.marker ? '' : tr('radar.noLocation');
     return;
   }
   const r = localRain(grid, state.marker), place = nearestPlace(...state.marker).place.name;
-  const unit = conv('rain').unit;
+  const unit = conv('rain').unit, k = frame?.run != null ? 'radar.f.' : 'radar.', time = frame ? atClock(frame.t) : '';
   node.textContent = !r ? ''
     : r.kind === 'outside' ? tr('radar.outside', { place })
-      : r.kind === 'rain' ? tr('radar.raining', { place, rate: show('rain', r.mmh), unit })
-        : r.kind === 'near' ? tr('radar.nearest', { place, km: num(r.km, 0), dir: fromWord(r.bearing) })
-          : tr('radar.dry', { place });
+      : r.kind === 'rain' ? tr(`${k}raining`, { place, time, rate: show('rain', r.mmh), unit })
+        : r.kind === 'near' ? tr(`${k}nearest`, { place, time, km: num(r.km, 0), dir: fromWord(r.bearing) })
+          : tr(`${k}dry`, { place, time });
+}
+
+// "now", "35 min ago" or "forecast, in 35 min", counted from the newest observed frame.
+function whenLabel(i) {
+  if (i === state.now) return tr('radar.when.now');
+  const min = num(Math.abs(Math.round((state.frames[i].t - state.frames[state.now].t) / 60000)), 0);
+  return tr(i < state.now ? 'radar.when.ago' : 'radar.when.ahead', { min });
 }
 
 async function showFrame(i) {
-  const t = state.frames[i];
-  if (t == null) return;
+  const frame = state.frames[i];
+  if (frame == null) return;
   state.index = i;
-  $('radarTime').textContent = atClock(t);
+  const forecast = frame.run != null, when = whenLabel(i);
+  $('radarTime').textContent = atClock(frame.t);
+  $('radarWhen').textContent = when;
+  $('radarWhen').classList.toggle('ahead', forecast);
   $('radarSlider').value = String(i);
-  $('radarSlider').setAttribute('aria-valuetext', atClock(t));
+  $('radarSlider').setAttribute('aria-valuetext', `${atClock(frame.t)}, ${when}`);
+  state.badge.textContent = when;
+  state.badge.hidden = !forecast;
   try {
-    const grid = await loadGrid(t);
+    const grid = await loadGrid(frame);
     if (state.index !== i) return;   // the loop has moved on meanwhile
     painted = grid; layerKey = '';
-    map.draw(); describe(grid);
+    map.draw(); describe(grid, frame);
   } catch { /* that frame is gone; the next poll replaces the list */ }
 }
 
@@ -143,7 +187,7 @@ function setPlaying(on) {
     if (!state.playing) return;
     const last = state.frames.length - 1, next = state.index >= last ? 0 : state.index + 1;
     showFrame(next);
-    state.timer = setTimeout(step, next === last ? HOLD_MS : FRAME_MS);
+    state.timer = setTimeout(step, next === last ? HOLD_MS : next === state.now ? HOLD_NOW_MS : FRAME_MS);
   };
   if (state.index >= state.frames.length - 1) showFrame(0);
   state.timer = setTimeout(step, FRAME_MS);
@@ -152,19 +196,44 @@ function setPlaying(on) {
 async function refresh() {
   try {
     const meta = await getJson('/api/radar');
-    const wasLatest = state.index < 0 || state.index === state.frames.length - 1;
-    state.frames = meta.frames?.length ? meta.frames : [meta.timestamp];
-    for (const t of grids.keys()) if (!state.frames.includes(t)) grids.delete(t);
-    $('radarSlider').max = String(state.frames.length - 1);
-    $('radarSlider').disabled = state.frames.length < 2;
-    $('radarPlay').disabled = state.frames.length < 2;
-    $('radarStatus').textContent = tr('radar.status', { time: atClock(state.frames[state.frames.length - 1]), n: state.frames.length });
-    if (!state.playing && wasLatest) await showFrame(state.frames.length - 1);
-    // The rest of the loop is fetched quietly, newest first, so pressing play does not stall.
-    for (const t of [...state.frames].reverse()) await loadGrid(t).catch(() => {});
+    const wasNow = state.index < 0 || state.index === state.now;
+    const observed = (meta.frames?.length ? meta.frames : [meta.timestamp]).map((t) => ({ t, run: null }));
+    const ahead = meta.run != null ? (meta.forecast ?? []).map((t) => ({ t, run: meta.run })) : [];
+    state.frames = [...observed, ...ahead];
+    state.now = observed.length - 1;
+    const keys = new Set(state.frames.map(frameKey));
+    for (const k of grids.keys()) if (!keys.has(k)) grids.delete(k);
+    const last = state.frames.length - 1;
+    $('radarSlider').max = String(last);
+    $('radarSlider').disabled = last < 1;
+    $('radarPlay').disabled = last < 1;
+    scale(observed, ahead);
+    const time = atClock(observed[state.now].t);
+    $('radarStatus').textContent = ahead.length
+      ? tr('radar.statusAhead', { time, until: atClock(ahead[ahead.length - 1].t) })
+      : tr('radar.status', { time, n: observed.length });
+    if (!state.playing && (wasNow || state.index > last)) await showFrame(state.now);
+    // The rest of the loop is fetched quietly, the forecast first, so the outlook and play do not wait.
+    for (const f of [...ahead, ...[...observed].reverse()]) await loadGrid(f).catch(() => {});
+    outlook();
   } catch (e) {
     $('radarStatus').textContent = e.status === 503 ? tr('radar.fetching') : tr('radar.unreachable', { error: e.message });
   }
+}
+
+// Under the slider: where the past ends and the forecast begins.
+function scale(observed, ahead) {
+  const last = observed.length + ahead.length - 1, nowAt = observed.length - 1;
+  const mark = (text, i, cls) => {
+    const s = document.createElement('span');
+    s.textContent = text; s.className = cls; s.style.left = `${(last ? i / last : 1) * 100}%`;
+    return s;
+  };
+  const minutes = (a, b) => num(Math.round((b - a) / 60000), 0);
+  const marks = [mark(tr('radar.scale.ago', { min: minutes(observed[0].t, observed[nowAt].t) }), 0, 'start')];
+  marks.push(mark(tr('radar.when.now'), nowAt, ahead.length ? 'now' : 'end'));
+  if (ahead.length) marks.push(mark(tr('radar.scale.ahead', { min: minutes(observed[nowAt].t, ahead[ahead.length - 1].t) }), last, 'end'));
+  $('radarScale').replaceChildren(...marks);
 }
 
 function build() {
@@ -198,6 +267,9 @@ function build() {
     },
     onMove: (m) => { $('radarReset').hidden = !m.zoomed; },
   });
+  state.badge = Object.assign(document.createElement('span'), { className: 'radar-badge', hidden: true });
+  state.badge.setAttribute('aria-hidden', 'true');   // the same text is beside the map
+  map.frame.append(state.badge);
 
   $('radarLegend').style.background = `linear-gradient(90deg, ${STOPS.map(([mmh, c]) => `rgb(${c[0]} ${c[1]} ${c[2]}) ${(rampPosition(mmh) * 100).toFixed(1)}%`).join(', ')})`;
   $('radarTicks').replaceChildren(...[1, 3, 10, 30, 100].map((v) => {
@@ -218,7 +290,7 @@ export async function enter() {
     // Opens on the surroundings of the home location if there is one, otherwise on all of Germany.
     map.setHome(marker ? { x: marker[0] - 130, y: marker[1] - 130, w: 260 } : { x: 0, y: 0, w: GRID });
   }
-  describe(painted);
+  describe(painted, state.frames[state.index]);
   refresh();
   clearInterval(state.poll);
   state.poll = setInterval(refresh, POLL_MS);

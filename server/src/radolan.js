@@ -1,5 +1,6 @@
 // Decodes a DWD RADOLAN RY composite (the national radar rain-rate grid) and
-// resamples it onto the 900x900 grid the radar screen draws on.
+// a RADVOR RV nowcast step, and resamples them onto the 900x900 grid the radar
+// screen draws on.
 //
 // Since November 2026 DWD publishes RY only as ODIM HDF5: one uint16 dataset
 // of 1100x1200 cells ("DE1200", 1 km each), rain rate in 0.01 mm/h, 65535 =
@@ -61,9 +62,10 @@ function sourceIndex() {
   return lookup;
 }
 
-// The compressed data chunk: the zlib stream that inflates to the full grid.
-function findGrid(buf) {
-  const size = SRC_W * SRC_H * 2;
+// The compressed data chunk: the zlib stream that inflates to the full grid
+// (`bytes` per cell: 2 for RY's uint16, 4 for the nowcast's uint32).
+function findGrid(buf, bytes) {
+  const size = SRC_W * SRC_H * bytes;
   for (let i = buf.indexOf(0x78); i >= 0 && i < buf.length - 2; i = buf.indexOf(0x78, i + 1)) {
     if (((buf[i] << 8) | buf[i + 1]) % 31 !== 0 || buf[i + 1] & 0x20) continue;   // not a valid zlib header
     let raw;
@@ -81,15 +83,55 @@ export function rateClass(raw) {
   return Math.max(1, Math.min(254, Math.round((raw * GAIN) / MMH_PER_CLASS)));
 }
 
-export function decodeComposite(buf) {
+// A nowcast cell (RADVOR RV: uint32 rain amount per 5 minutes, gain 0.001 mm,
+// offset -0.001 mm, 0 = no rain, 4294967295 = no data) → the same 0-255 byte.
+// The nowcast carries a haze of trace amounts that the RY radar does not
+// show (its lightest rain is 0.12 mm/h), so rates below that count as dry.
+export const RV_NODATA = 0xffffffff;
+export function nowcastClass(raw) {
+  if (raw === RV_NODATA) return 255;
+  if (raw < 11) return 0;                        // under 0.01 mm in 5 minutes = 0.12 mm/h
+  const mmh = (raw - 1) * 0.001 * 12;
+  return Math.max(1, Math.min(254, Math.round(mmh / MMH_PER_CLASS)));
+}
+
+function decode(buf, bytes, read, toClass) {
   if (buf.length < 8 || buf.readUInt32BE(0) !== 0x89484446) throw new Error('RADOLAN: not an HDF5 file');
-  const raw = findGrid(buf);
+  const raw = findGrid(buf, bytes);
   if (!raw) throw new Error(`RADOLAN: no ${SRC_W}x${SRC_H} data grid found`);
   const index = sourceIndex();
   const grid = new Uint8Array(OUT * OUT);
   for (let i = 0; i < grid.length; i++) {
     const s = index[i];
-    grid[i] = s < 0 ? 255 : rateClass(raw.readUInt16LE(s * 2));
+    grid[i] = s < 0 ? 255 : toClass(read.call(raw, s * bytes));
   }
   return { width: OUT, height: OUT, grid };
+}
+
+// An RY composite (observed rain rate).
+export function decodeComposite(buf) {
+  return decode(buf, 2, Buffer.prototype.readUInt16LE, rateClass);
+}
+
+// One step of a RADVOR RV nowcast, which DWD puts on the same DE1200 grid
+// and projection as RY, so it lands on the browser grid the same way.
+export function decodeNowcast(buf) {
+  return decode(buf, 4, Buffer.prototype.readUInt32LE, nowcastClass);
+}
+
+// The members of an uncompressed (ustar) tar archive, as DWD packs one
+// nowcast run: [{ name, data }].
+export function readTar(buf) {
+  const out = [];
+  for (let off = 0; off + 512 <= buf.length;) {
+    const name = buf.toString('latin1', off, off + 100).replace(/\0.*$/s, '');
+    if (!name) break;                                        // two zero blocks end the archive
+    const size = parseInt(buf.toString('latin1', off + 124, off + 136).replace(/\0.*$/s, '').trim() || '0', 8);
+    const type = String.fromCharCode(buf[off + 156] || 48);
+    const start = off + 512;
+    if (start + size > buf.length) throw new Error('tar: truncated archive');
+    if (type === '0') out.push({ name, data: buf.subarray(start, start + size) });
+    off = start + Math.ceil(size / 512) * 512;
+  }
+  return out;
 }

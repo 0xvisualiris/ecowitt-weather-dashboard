@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
-import { decodeComposite, rateClass, outToLonLat, lonLatToSrc, OUT, SRC_W, SRC_H } from './radolan.js';
+import { decodeComposite, decodeNowcast, nowcastClass, readTar, rateClass, outToLonLat, lonLatToSrc, OUT, SRC_W, SRC_H, RV_NODATA } from './radolan.js';
 
 // A minimal stand-in for DWD's HDF5 file: the HDF5 signature, some filler
 // and the zlib-compressed 1100x1200 uint16 grid, rather than committing a
@@ -50,3 +50,48 @@ test('decodeComposite rejects files that are not HDF5 or hold no grid', () => {
   const signature = Buffer.from([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]);
   assert.throws(() => decodeComposite(Buffer.concat([signature, deflateSync(Buffer.alloc(100))])), /no 1100x1200 data grid/);
 });
+
+// A ustar archive of the given members, as DWD packs a nowcast run.
+function makeTar(members) {
+  const parts = [];
+  for (const [name, data] of members) {
+    const h = Buffer.alloc(512);
+    h.write(name, 0, 'latin1');
+    h.write(data.length.toString(8).padStart(11, '0') + '\0', 124, 'latin1');
+    h.write('0', 156, 'latin1');
+    parts.push(h, data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  return Buffer.concat([...parts, Buffer.alloc(1024)]);
+}
+
+test('nowcastClass reads 0.001 mm per 5 minutes with its offset, drops trace amounts and keeps no data', () => {
+  assert.equal(nowcastClass(RV_NODATA), 255);
+  assert.equal(nowcastClass(0), 0);
+  assert.equal(nowcastClass(10), 0, '0.009 mm in 5 minutes = 0.108 mm/h counts as dry');
+  assert.equal(nowcastClass(11), 1, '0.12 mm/h is the lightest rain shown');
+  assert.equal(nowcastClass(501), 10, '0.5 mm in 5 minutes = 6 mm/h');
+  assert.equal(nowcastClass(1e6), 254);
+});
+
+test('decodeNowcast resamples a uint32 nowcast grid like an RY composite', () => {
+  const [col, row] = [450, 450];
+  const [sc, sr] = lonLatToSrc(...outToLonLat(col + 0.5, row + 0.5)).map(Math.round);
+  const target = sr * SRC_W + sc;
+  const data = Buffer.alloc(SRC_W * SRC_H * 4);
+  for (let i = 0; i < SRC_W * SRC_H; i++) data.writeUInt32LE(i === target ? 501 : 0, i * 4);
+  const signature = Buffer.from([0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const { grid } = decodeNowcast(Buffer.concat([signature, deflateSync(data, { level: 1 })]));
+  assert.equal(grid[row * OUT + col], 10);
+  assert.equal(grid.filter((v) => v !== 0).length, 1);
+});
+
+test('readTar lists the files of an archive with their contents', () => {
+  const big = Buffer.alloc(700, 7);
+  const files = readTar(makeTar([['a_000-hd5', Buffer.from('first')], ['a_005-hd5', big]]));
+  assert.deepEqual(files.map((f) => f.name), ['a_000-hd5', 'a_005-hd5']);
+  assert.equal(files[0].data.toString(), 'first');
+  assert.equal(files[1].data.length, 700);
+  assert.throws(() => readTar(makeTar([['x', big]]).subarray(0, 800)), /truncated/);
+});
+
+export { makeTar };

@@ -33,6 +33,7 @@
       <a href="#/alerts" data-nav="alerts"><span data-t="nav.alerts">Alerts</span><span class="badge" id="alertBadge" hidden></span></a>
       <span class="nav-mark" id="navMark" aria-hidden="true"></span>
     </nav>
+    <button type="button" class="btn primary update" id="radarNew" hidden></button>
     <p class="status" id="status"><span class="pulse" aria-hidden="true"></span><span id="statusText" data-t="status.connecting">…</span></p>
   </header>
 
@@ -177,20 +178,22 @@
     <div class="radar">
       <div id="radarMap"></div>
       <div class="radar-side">
-        <p class="readout-val" id="radarTime">–</p>
+        <p class="radar-when"><span class="readout-val" id="radarTime">–</span> <span class="radar-kind" id="radarWhen"></span></p>
         <div class="radar-play">
           <button type="button" class="btn primary" id="radarPlay" aria-pressed="false" data-t="radar.play">Play</button>
           <button type="button" class="btn" id="radarReset" data-t="radar.reset" hidden>Show whole map</button>
         </div>
-        <label class="radar-scrub"><span class="field-label" data-t="radar.scrub">Time within the last two hours</span>
-          <input type="range" id="radarSlider" min="0" max="0" step="1" value="0"></label>
+        <label class="radar-scrub"><span class="field-label" data-t="radar.scrub">Time: the last two hours and the forecast for the next two</span>
+          <input type="range" id="radarSlider" min="0" max="0" step="1" value="0">
+          <span class="radar-scale" id="radarScale" aria-hidden="true"></span></label>
         <div class="legend">
           <span class="field-label" data-t="radar.legend">Rain in mm per hour</span>
           <div class="legend-bar" id="radarLegend"></div>
           <div class="legend-ticks" id="radarTicks"></div>
         </div>
         <p class="sentence radar-local" id="radarLocal"></p>
-        <p class="sub" data-t="radar.credit">Data: DWD RADOLAN, updated every five minutes. Drag with the mouse, zoom with Ctrl + scroll or the keys. On a phone, use two fingers.</p>
+        <p class="sentence radar-outlook" id="radarOutlook" aria-live="polite"></p>
+        <p class="sub" data-t="radar.credit">Data: DWD RADOLAN, and the DWD RADVOR nowcast for the next two hours, updated every five to ten minutes. The forecast moves the rain on as it is moving now, so it gets less certain the further ahead it looks. Drag with the mouse, zoom with Ctrl + scroll or the keys. On a phone, use two fingers.</p>
       </div>
     </div>
   </main>

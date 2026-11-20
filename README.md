@@ -30,7 +30,7 @@ The last 24 hours are drawn as a landscape: its ridge is the temperature, the sk
 - **Now:** the landscape, current temperature and a sentence about the weather, wind with compass, rain, pressure trend, humidity, sun and UV, lightning, and the next five days
 - **History:** charts for day / week / month / year, today's figures and the sensor behind them, all-time records and CSV export
 - **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), and each day in three-hour steps
-- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours as a loop; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
+- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours and DWD's forecast for the next two as one loop, and says when rain is expected at the home location; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
 - **Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
 - **Settings:** visitors choose their language and their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/l/m²/in)
 
@@ -46,7 +46,7 @@ All screenshots are from demo mode.
 |---|---|
 | ![History: a week of temperature as a line chart with the lowest, average and highest value](docs/screenshot-history.png) | ![Forecast: the next three days hour by hour as a temperature line with weather symbols and the chance of rain as bars](docs/screenshot-forecast.png) |
 | **Rain radar** | **The Now screen in German** |
-| ![Rain radar: a map around Frankfurt with distance rings, a play button, the time slider and the colour scale](docs/screenshot-radar.png) | ![The Now screen with German text: Jetzt, Fühlt sich an wie 15,6°, Gewitter in der Nähe](docs/screenshot-de.png) |
+| ![Rain radar on a forecast frame 45 minutes ahead: rain over a map around Frankfurt with distance rings and a Forecast badge, the time slider past Now, the colour scale and the expected rain at the home location](docs/screenshot-radar.png) | ![The Now screen with German text: Jetzt, Fühlt sich an wie 15,6°, Gewitter in der Nähe](docs/screenshot-de.png) |
 
 On a phone:
 
@@ -182,8 +182,15 @@ the dashboard falls back to a Home Assistant `weather.*` entity
 ### Rain radar
 
 The "Rain radar" screen shows [DWD](https://www.dwd.de)'s RADOLAN RY rain
-radar composite for Germany, updated every 5 minutes. Drag to pan, scroll
-or pinch to zoom, down to street level; a button resets the view.
+radar composite for Germany, updated every 5 minutes, followed by DWD's
+RADVOR nowcast for the next two hours in 5-minute steps (it moves the rain
+on as it is moving now). The loop pauses at "now", forecast frames are
+marked as such, and with a home location set the screen says when rain
+should start or stop there. Drag to pan, scroll or pinch to zoom, down to
+street level; a button resets the view.
+
+The nowcast is one ~8.5 MB download from `opendata.dwd.de`, fetched at most
+every 10 minutes (about 1.2 GB a day) and held in memory (about 20 MB).
 
 The street map comes from [OpenStreetMap](https://www.openstreetmap.org/copyright).
 Your server fetches the tiles and caches them in `DATA_DIR/tiles` (a few MB),
@@ -359,8 +366,8 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | `/api/history?metric=temp&range=day`   | History and statistics. `metric`: temp, hum, wind, rain, press, solar, uv, light. `range`: day, week, month, year |
 | `/api/detail?metric=temp`              | Today's values, records, sensor info                                           |
 | `/api/records`                         | All-time records                                                               |
-| `/api/radar`                           | Current rain radar frame: grid size and timestamp                              |
-| `/api/radar/grid`                      | Current rain radar frame: raw binary intensity grid (pairs with `/api/radar`)  |
+| `/api/radar`                           | Rain radar: grid size, newest timestamp, the past frames (`frames`) and the nowcast's (`run`, `forecast`) |
+| `/api/radar/grid`                      | Raw binary intensity grid of the newest frame; `?t=` a past one, `?t=&run=` a forecast one |
 | `/api/alerts`                          | Alert rule status and history                                                  |
 | `/api/legal`                           | Imprint and privacy policy texts (`''` if not set)                             |
 | `/api/forecast/hourly`                 | The next 72 hours, hour by hour: temperature, condition, rain risk and amount, wind, gusts, sunshine, cloud cover. From DWD MOSMIX if a DWD station is set; otherwise derived from the daily forecast and marked `synthetic` |

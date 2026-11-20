@@ -179,6 +179,7 @@ const STRINGS = {
     // Rain radar
     'radar.title': 'Rain radar',
     'radar.play': 'Play', 'radar.pause': 'Pause',
+    'radar.newData': 'New radar data',
     'radar.reset': 'Show whole map',
     'radar.scrub': 'Time: the last two hours and the forecast for the next two',
     'radar.legend': 'Rain in mm per hour',
@@ -467,6 +468,7 @@ const STRINGS = {
 
     'radar.title': 'Regenradar',
     'radar.play': 'Abspielen', 'radar.pause': 'Anhalten',
+    'radar.newData': 'Neue Radardaten',
     'radar.reset': 'Ganze Karte zeigen',
     'radar.scrub': 'Zeitpunkt: die letzten zwei Stunden und die Vorhersage für die nächsten zwei',
     'radar.legend': 'Regen in mm pro Stunde',

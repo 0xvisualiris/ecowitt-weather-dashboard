@@ -53,3 +53,16 @@ test('saveSettings stores legal texts, skips locked ones, and an empty text remo
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('saveSettings rounds the public location to 0.01 degree, whatever the client sends', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'admin-test-'));
+  try {
+    const store = new AdminStore(dir);
+    assert.equal(store.saveSettings({ sensors: {} }, { station: { publicLocation: { lat: 50.123456, lon: 8.687654 } } }).ok, true);
+    assert.deepEqual(store.getSettings().station.publicLocation, { lat: 50.12, lon: 8.69 });
+    assert.equal(store.saveSettings({ sensors: {} }, { station: { publicLocation: null } }).ok, true);
+    assert.equal(store.getSettings().station.publicLocation, null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

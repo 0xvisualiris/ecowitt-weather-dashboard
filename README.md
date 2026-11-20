@@ -193,8 +193,8 @@ OpenStreetMap. The server therefore needs outgoing access to
 
 To have it open already zoomed in on your area, set an approximate home
 location on the admin page ("Approximate location" in the Station section).
-This is deliberately a **separate, coarse** location (rounded to about 10
-km), not your station's real coordinates — those stay server-side only and
+This is deliberately a **separate, coarse** location (rounded to 0.01°, about
+1 km), not your station's real coordinates — those stay server-side only and
 are never sent to the browser, same as always. Leaving it unset just opens
 the radar zoomed out to all of Germany.
 

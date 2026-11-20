@@ -137,12 +137,12 @@ export function loadConfig() {
       latitude: station.latitude ?? null,     // server-side only, never sent to the browser
       longitude: station.longitude ?? null,
       // Deliberately separate from latitude/longitude above and deliberately
-      // coarse (rounded to 1 decimal degree, ~10 km): this one IS sent to
+      // coarse (rounded to 0.01 degree, ~1 km): this one IS sent to
       // the public API, to auto-center the radar screen, without exposing
       // where the station (and likely the admin) actually lives. See the
       // README's "Public radar location" section.
       publicLocation: station.public_lat != null && station.public_lon != null
-        ? { lat: Math.round(Number(station.public_lat) * 10) / 10, lon: Math.round(Number(station.public_lon) * 10) / 10 }
+        ? { lat: Math.round(Number(station.public_lat) * 100) / 100, lon: Math.round(Number(station.public_lon) * 100) / 100 }
         : null,
       devices: (station.devices || []).map((d, i) => ({
         id: d.id || `device${i}`,

@@ -338,7 +338,7 @@ function publicConfig() {
   return {
     station: {
       name: cfg.station.name, subtitle: cfg.station.subtitle, altitude_m: cfg.station.altitude_m, since: cfg.station.since,
-      // Deliberately coarse (~10 km) and opt-in – see config.js's cfg.station.publicLocation comment.
+      // Deliberately coarse (0.01°, ~1 km) and opt-in – see config.js's cfg.station.publicLocation comment.
       // Unlike latitude/longitude, this one is meant to reach the browser.
       publicLocation: cfg.station.publicLocation,
       devices: cfg.station.devices.map(d => ({ id: d.id, name: d.name, short: d.short, role: d.role, metrics: d.metrics })),

@@ -57,3 +57,15 @@ test('legal texts in config.yaml are loaded and lock their admin fields', () => 
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('the public location is rounded to 0.01 degree', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-test-'));
+  const file = path.join(dir, 'config.yaml');
+  fs.writeFileSync(file, 'station:\n  public_lat: 50.12345\n  public_lon: 8.68765\n');
+  try {
+    const cfg = withEnv({ CONFIG_PATH: file, DEMO: undefined }, () => loadConfig());
+    assert.deepEqual(cfg.station.publicLocation, { lat: 50.12, lon: 8.69 });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

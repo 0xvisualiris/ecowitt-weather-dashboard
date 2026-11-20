@@ -159,6 +159,10 @@ p, h2, ol { margin: 0; }
 
 .status { display: flex; align-items: center; gap: 0.5rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* "New radar data": shown on the rain radar when newer frames arrive while you look at another moment. */
+.update { padding: 0.45rem 0.9rem; font-size: 0.9rem; white-space: nowrap; }
+.update[hidden] { display: none; }
+
 .pulse { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #8df0a8; }
 .status.stale .pulse { background: var(--sun); }
 
@@ -373,6 +377,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
   :root { --sky-h: clamp(34rem, 88svh, 46rem); }
   .top { flex-wrap: wrap; }
   .status { font-size: 0.85rem; margin-left: auto; }
+  /* On a phone the button takes the place of the status, so the header keeps its height. */
+  .update { margin-left: auto; padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+  .update-time { display: none; }
+  .update:not([hidden]) + .status { display: none; }
   .nav { order: 3; width: 100%; margin: 0 -0.8rem; overflow-x: auto; scrollbar-width: none; }
   .hero { top: 7.2rem; }
   .hint { right: var(--pad); max-width: none; bottom: 2.6rem; }
@@ -665,7 +673,17 @@ input[type="range"] { width: 100%; accent-color: var(--sun); height: 1.5rem; }
 .legend-bar { height: 0.6rem; border-radius: 999px; }
 .legend-ticks { position: relative; height: 1.2rem; font-size: 0.85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .legend-ticks span { position: absolute; transform: translateX(-50%); }
-.radar-local { margin: 0; font-size: 1.1rem; }
+.radar-local, .radar-outlook { margin: 0; font-size: 1.1rem; }
+.radar-outlook:empty { display: none; }
+.radar-when { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.8rem; }
+.radar-kind { color: var(--ink-soft); font-size: 1rem; }
+.radar-kind.ahead { color: var(--sun); }
+.radar-scale { position: relative; height: 1.2rem; font-size: 0.85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.radar-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.radar-scale .start { transform: none; }
+.radar-scale .end { transform: translateX(-100%); }
+.radar-scale .now { color: var(--ink); }
+.radar-badge { position: absolute; left: 0.6rem; top: 0.6rem; padding: 0.25rem 0.7rem; border-radius: 999px; background: color-mix(in srgb, var(--ground) 80%, transparent); color: var(--sun); font-size: 0.85rem; font-weight: 600; pointer-events: none; }
 
 /* Map pickers on the admin page */
 .picker-wrap { margin-top: 1.1rem; }

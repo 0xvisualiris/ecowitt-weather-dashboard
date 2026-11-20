@@ -36,6 +36,26 @@ const state = { frames: [], now: -1, index: -1, playing: false, built: false, ti
 const grids = new Map();              // frameKey → Uint8Array(900 × 900)
 const frameKey = (f) => (f.run == null ? String(f.t) : `${f.t}@${f.run}`);
 const layer = document.createElement('canvas');
+
+// Newer frames that arrived while you were playing the loop or looking at another moment: the view
+// stays where it is, and a button in the header offers to jump to the new "now".
+function setPending(time) {
+  const button = $('radarNew');
+  button.hidden = time == null;
+  if (time == null) return;
+  const at = Object.assign(document.createElement('span'), { className: 'update-time', textContent: `, ${time}` });
+  button.replaceChildren(tr('radar.newData'), at);
+}
+
+// The frame in `frames` that shows what `frame` showed: the same one, or the closest in time.
+function sameFrame(frames, frame) {
+  if (!frame) return -1;
+  const key = frameKey(frame), exact = frames.findIndex((f) => frameKey(f) === key);
+  if (exact >= 0) return exact;
+  let best = -1;
+  frames.forEach((f, i) => { if (best < 0 || Math.abs(f.t - frame.t) < Math.abs(frames[best].t - frame.t)) best = i; });
+  return best;
+}
 let map = null, painted = null, layerKey = '';
 
 // The rain, drawn for the visible part of the map at screen resolution rather than as 1 km squares:
@@ -161,6 +181,7 @@ async function showFrame(i) {
   const frame = state.frames[i];
   if (frame == null) return;
   state.index = i;
+  if (i === state.now && !state.playing) setPending(null);   // you are at the newest frame now
   const forecast = frame.run != null, when = whenLabel(i);
   $('radarTime').textContent = atClock(frame.t);
   $('radarWhen').textContent = when;
@@ -197,6 +218,8 @@ async function refresh() {
   try {
     const meta = await getJson('/api/radar');
     const wasNow = state.index < 0 || state.index === state.now;
+    const shown = state.frames[state.index], newestBefore = state.frames[state.now]?.t;
+    const runBefore = state.frames.find((f) => f.run != null)?.run ?? null;
     const observed = (meta.frames?.length ? meta.frames : [meta.timestamp]).map((t) => ({ t, run: null }));
     const ahead = meta.run != null ? (meta.forecast ?? []).map((t) => ({ t, run: meta.run })) : [];
     state.frames = [...observed, ...ahead];
@@ -212,7 +235,16 @@ async function refresh() {
     $('radarStatus').textContent = ahead.length
       ? tr('radar.statusAhead', { time, until: atClock(ahead[ahead.length - 1].t) })
       : tr('radar.status', { time, n: observed.length });
-    if (!state.playing && (wasNow || state.index > last)) await showFrame(state.now);
+    const newer = newestBefore != null && (observed[state.now].t > newestBefore || (ahead[0]?.run ?? null) !== runBefore);
+    if (!state.playing && wasNow) {
+      setPending(null);
+      await showFrame(state.now);
+    } else {
+      // The list has moved on under the frame on screen: keep showing that moment (the loop carries on from it).
+      state.index = sameFrame(state.frames, shown);
+      if (!state.playing) await showFrame(Math.max(0, state.index));
+      if (newer) setPending(time);
+    }
     // The rest of the loop is fetched quietly, the forecast first, so the outlook and play do not wait.
     for (const f of [...ahead, ...[...observed].reverse()]) await loadGrid(f).catch(() => {});
     outlook();
@@ -278,6 +310,7 @@ function build() {
   $('radarPlay').addEventListener('click', () => setPlaying(!state.playing));
   $('radarSlider').addEventListener('input', (e) => { setPlaying(false); showFrame(Number(e.target.value)); });
   $('radarReset').addEventListener('click', () => { map.reset(); $('radarReset').hidden = true; });
+  $('radarNew').addEventListener('click', () => { setPlaying(false); showFrame(state.now); });
 }
 
 export async function enter() {
@@ -298,5 +331,6 @@ export async function enter() {
 
 export function leave() {
   setPlaying(false);
+  setPending(null);
   clearInterval(state.poll);
 }

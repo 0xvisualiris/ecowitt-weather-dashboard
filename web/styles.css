@@ -159,6 +159,10 @@ p, h2, ol { margin: 0; }
 
 .status { display: flex; align-items: center; gap: 0.5rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+/* "New radar data": shown on the rain radar when newer frames arrive while you look at another moment. */
+.update { padding: 0.45rem 0.9rem; font-size: 0.9rem; white-space: nowrap; }
+.update[hidden] { display: none; }
+
 .pulse { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #8df0a8; }
 .status.stale .pulse { background: var(--sun); }
 
@@ -373,6 +377,10 @@ a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visibl
   :root { --sky-h: clamp(34rem, 88svh, 46rem); }
   .top { flex-wrap: wrap; }
   .status { font-size: 0.85rem; margin-left: auto; }
+  /* On a phone the button takes the place of the status, so the header keeps its height. */
+  .update { margin-left: auto; padding: 0.35rem 0.75rem; font-size: 0.85rem; }
+  .update-time { display: none; }
+  .update:not([hidden]) + .status { display: none; }
   .nav { order: 3; width: 100%; margin: 0 -0.8rem; overflow-x: auto; scrollbar-width: none; }
   .hero { top: 7.2rem; }
   .hint { right: var(--pad); max-width: none; bottom: 2.6rem; }

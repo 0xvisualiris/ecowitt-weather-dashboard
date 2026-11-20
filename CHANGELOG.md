@@ -3,6 +3,23 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.5.0 – 2026-11-20
+
+### New
+- The rain radar shows DWD's forecast for the next two hours after "now", in 5-minute steps, in the same loop as the last two hours. Forecast frames are marked on the map and beside it, and a line says when rain is expected to start or stop at the station's location. (#90)
+- When new radar data arrives while you play the loop or look at another moment, the radar stays where you are and a "New radar data" button appears at the top right; it jumps to the newest frame. (#91)
+
+### Improved
+- Pages load faster on repeat visits: unchanged files are answered with "not modified" instead of being sent again, Brotli compression is offered, and radar frames are compressed only once, which saves the server CPU time. (#92)
+
+### Fixed
+- After new radar frames arrived, the time slider could point at a different time than the map showed. (#91)
+
+### Upgrade
+No `config.yaml` changes required. The server now also downloads DWD's radar forecast, one file of about 8.5 MB at most every 10 minutes. If you run the server outside Docker, use Node.js 22.23.4, 24.22.1, 26.12.1 or newer in that line: they contain the fix for the Brotli flaw CVE-2026-111497. The Docker image already does.
+
+    docker compose pull && docker compose up -d
+
 ## v2.4.0 – 2026-11-19
 
 ### Fixed

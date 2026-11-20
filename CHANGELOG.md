@@ -3,6 +3,16 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.5.1 – 2026-11-20
+
+### Improved
+- The optional public location (used to centre the rain radar and say whether it rains there) is now kept to about 1 km instead of about 10 km. The location picker shows street maps and opens zoomed in on the chosen spot. Your station's exact coordinates still never leave the server. (#95)
+
+### Upgrade
+No `config.yaml` changes required. A public location saved before keeps its coarser value until you pick it again under Manage station, or until you give `public_lat` / `public_lon` with two decimals in `config.yaml`.
+
+    docker compose pull && docker compose up -d
+
 ## v2.5.0 – 2026-11-20
 
 ### New

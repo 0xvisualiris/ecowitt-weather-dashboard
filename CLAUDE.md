@@ -151,6 +151,7 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/tiles.js              TileCache: OpenStreetMap street tiles for the radar map, fetched by the server, cached in DATA_DIR/tiles, served as /api/tiles/z/x/y.png
   src/service.js            WeatherService: all data shaping (current, history, records, detail, hourly forecast) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, fills in messages per language, persists log to DATA_DIR/alerts.json
+  src/pollen.js             PollenSource: DWD's Pollenflug-Gefahrenindex (s31fg.json), parsed per region, refreshed every 3 h
   src/push.js               PushService: Web Push for alerts on node:crypto only (VAPID RFC 8292, aes128gcm RFC 8291), key pair + subscriptions in DATA_DIR/push.json
   src/admin.js              AdminStore: login/session/password hashing, optional TOTP 2FA, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
   src/entities.js           suggestSensors(): ranks HA sensors per sensor key (unit, device class, name, id family) for the admin entity picker
@@ -171,6 +172,8 @@ web/                        the frontend: plain HTML, CSS and ES modules loaded 
   map.js                    the one map of Germany on DWD's grid (canvas): projection, base map, OSM street tiles (radar only), place labels, pan/zoom; used by radar and both pickers
   pickers.js                admin-page map pickers: DWD station, approximate public location
   alerts.js                 Alerts: rules, active ones, log
+  pollen.js                 Pollen block on the Forecast page and the "pollen today" line on Now (/api/pollen)
+  motion.js                 motionField(): where the rain is heading, by block matching two radar grids (3 km cells, 60 km patches), smoothed with neighbours
   notify.js                 the Alerts page's Notifications block: subscribe/unsubscribe this device, choose rules
   sw.js                     service worker: shows push notifications, network-first cache so a home-screen app opens offline
   settings.js               Settings: language and units, stored in the visitor's browser
@@ -276,6 +279,7 @@ The UI is in **English and German**. All of it: every view, the admin page, the 
 - Bias correction: the offset between the live reading and DWD's own value for "now" is applied to the next `forecast.bias_hours` (default 6) of hourly temps, fading to 0 — only the near-term trajectory is nudged; day 2+ stays unmodified MOSMIX. `pop`/condition are never bias-corrected.
 - **`/api/forecast/hourly`** feeds the Forecast page: `DwdForecast.hours()` (same bias correction as `days()`, plus rain amount, wind, gusts, sunshine and cloud cover parsed from MOSMIX) when a DWD station is set; otherwise `util.js`'s `hourlyFromDays()` spreads the daily forecast over the hours and the response says `synthetic: true`, which the page tells the visitor.
 - On fetch/parse failure, a warning is logged and the last good result keeps being served (nothing overwrites `DwdForecast.hourly` on failure).
+- **Pollen** (`pollen.js`): DWD's Pollenflug-Gefahrenindex, one JSON file for all of Germany (`opendata.dwd.de/climate_environment/health/alerts/s31fg.json`, format in `Beschreibung_pollen_s31fg.pdf` beside it), published daily around 11:00. A deployment picks one region with `forecast.pollen_region` (or on the admin page, whose list comes from the file itself): the `partregion_id`, or the `region_id` where `partregion_id` is -1. Values `"0"`, `"0-1"` … `"3"` become 0 … 3 in half steps; `"-1"` (no forecast) becomes `null`. Pollen keys are DWD's German names mapped to stable English keys (`hazel`, `alder`, …), translated in the frontend. Fetched only when a region is set (demo mode uses 92, Rhein-Main), every 3 h; failures keep the last good file.
 
 ### Rain radar (`radolan.js`, `radar.js`, `web/radar.js`, `web/map.js`)
 
@@ -293,6 +297,8 @@ The UI is in **English and German**. All of it: every view, the admin page, the 
 - **Projection** (`toGridPos()` / `toLonLat()` in `web/map.js`): RADOLAN's polar-stereographic grid (standard parallel 60°N, reference meridian 10°E, Earth radius 6370.040 km) projects to a near-perfect axis-aligned 900×900 km square.
 - `/api/radar` returns `{width, height, timestamp, frames, run, forecast}` (503 if no frame has loaded yet), where `frames` lists the timestamps of every composite held, oldest first, `forecast` the nowcast steps after the newest one and `run` their run's time (`null` and `[]` without a recent run); `/api/radar/grid?t=<timestamp>&run=<run>` returns a forecast step (cacheable, since that pair never changes; 404 once the run is replaced); `/api/radar/grid` returns the newest one's raw `Uint8Array` as `application/octet-stream`, and `/api/radar/grid?t=<timestamp>` a specific past one (cacheable, since a past composite never changes; 404 if it has dropped out of the two-hour window). Compression shrinks a grid from 810,000 bytes to a few KB when it's dry and to about 50–70 KB with widespread rain; each grid is compressed at most once per encoding (`encodedGrid` in `delivery.js`, released with the frame), Brotli at quality 9, since 11 took 1.6 s per grid for 12% less.
 - **Public location / privacy**: auto-centering the radar on "home" would conflict with the hard constraint that the public API never exposes coordinates (see below), so there is a separate, admin-opt-in `station.publicLocation` (`{lat, lon}`, rounded to 0.01° / ~1 km both in the admin UI and again server-side in `admin.js`'s `saveSettings` as defense in depth) — kept entirely distinct from `station.latitude`/`longitude`, which remain server-side-only and are never sent to the browser. Picked via `locationPicker()` in `web/pickers.js`, which snaps to the same 0.01° cells (with street tiles, so the cell can be placed precisely) the server rounds to. If unset, the radar just opens showing all of Germany.
+- **Where the rain is heading** (`web/motion.js`, `updateMotion` in `web/radar.js`): the grid is averaged into 3 km cells, split into 60 km patches, and each patch with rain is matched against the other grid with shifts of up to 30 km (block matching, mean absolute difference); patches touching the coverage edge, matches at the edge of the search and ones hardly better than standing still are dropped, and each vector becomes the median of itself and its neighbours. It compares "now" with DWD's nowcast 15 minutes on when there is one (DWD's own motion analysis, much steadier than two noisy observations) and otherwise the observed frame 15 minutes before "now". Arrows are drawn from "now" on; a line beside the map gives the speed and direction of the rain nearest home, and says "towards" when it moves within 45° of home. About 30 ms per computation, once per new "now".
+- **Lightning on the radar**: `/api/current`'s `lightningRecent` lists each rise of the daily strike counter in the last two hours with the distance reported then. The sensor gives no direction, so a strike is a dashed white ring at its distance around the public location, on the observed frames up to 15 minutes after it, fading with age; a line beside the map says how many and how near. Needs `station.publicLocation`.
 - **Known gap**: wind isn't implemented. DWD doesn't have a "wind radar" product — radar detects precipitation, not wind — so a wind layer would need an entirely different, much larger data source (e.g. ICON-D2 GRIB2 model output), deliberately scoped out.
 
 ### Caching (`makeCache` in `util.js`: TTL + in-flight dedupe + serve-stale-on-error)
@@ -357,7 +363,8 @@ Everything under `/api/*` except `/api/admin/*` is GET-only (anything else retur
 | Endpoint | Returns |
 |---|---|
 | `/api/config` | public config: station, devices, timezone, available metrics/sensors, alert rule labels, ui, needsSetup, `legal` (which legal pages exist, booleans) |
-| `/api/current` | values, today min/max, rain totals, pressureTrend, spark, forecast, astro, devices, active alerts |
+| `/api/current` | values, today min/max, rain totals, pressureTrend, spark, lightningRecent (`[{t, km, n}]`, last 2 h), forecast, astro, devices, active alerts |
+| `/api/pollen` | `{ region, updated, next, types: [{ type, today, tomorrow, dayAfter }] }`, levels 0–3 in half steps or `null`; 404 without `forecast.pollen_region`, 503 before the first fetch |
 | `/api/history?metric=&range=` | `{ metric, range, agg, points: [{t, v, lo?, hi?}], stats }` |
 | `/api/detail?metric=` | `{ today: Stat[], record, device }` |
 | `/api/records` | all-time records per metric, plus this month |

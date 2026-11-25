@@ -136,6 +136,18 @@ forecast:
   entity: weather.forecast_home   # fallback if dwd_station_id is empty or unreachable
   # label: DWD MOSMIX        # source credit shown with the forecast; otherwise from "attribution" or a default text
   days: 5
+  # DWD pollen forecast (Pollenflug-Gefahrenindex) for one of DWD's 27 regions, shown on the
+  # Forecast page and, on days with pollen, under the next days. Easiest to pick on the admin page.
+  # The id is DWD's partregion id, or the region id where DWD doesn't split the region:
+  #   11 Inseln und Marschen, 12 Geest (SH/HH), 20 Mecklenburg-Vorpommern, 31 Westl. Niedersachsen/Bremen,
+  #   32 Östl. Niedersachsen, 41 Rhein.-Westf. Tiefland, 42 Ostwestfalen, 43 Mittelgebirge NRW,
+  #   50 Brandenburg und Berlin, 61 Tiefland Sachsen-Anhalt, 62 Harz, 71 Tiefland Thüringen,
+  #   72 Mittelgebirge Thüringen, 81 Tiefland Sachsen, 82 Mittelgebirge Sachsen,
+  #   91 Nordhessen und hess. Mittelgebirge, 92 Rhein-Main, 101 Rhein, Pfalz, Nahe und Mosel,
+  #   102 Mittelgebirgsbereich Rheinland-Pfalz, 103 Saarland, 111 Oberrhein und unteres Neckartal,
+  #   112 Hohenlohe/mittlerer Neckar/Oberschwaben, 113 Mittelgebirge Baden-Württemberg,
+  #   121 Allgäu/Oberbayern/Bay. Wald, 122 Donauniederungen, 123 Bayern nördl. der Donau, 124 Mainfranken
+  # pollen_region: 92
 
 # ---------------------------------------------------------------------
 # Alerts – read-only in the browser, defined here or on the admin page.

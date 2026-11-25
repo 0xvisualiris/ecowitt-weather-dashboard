@@ -532,6 +532,25 @@ td small { display: block; font-size: 0.85rem; color: var(--ink-soft); }
 
 /* Forecast, day by day */
 .fc-days { list-style: none; padding: 0; margin: 0.75rem 0 0; }
+
+/* Pollen: one row per pollen type that is flying, three days side by side */
+.radar-lightning { margin: 0.75rem 0 0; padding-left: 0.9rem; border-left: 2px dashed rgba(255, 255, 255, 0.8); color: var(--ink-soft); font-size: 0.9rem; }
+
+.pollen { width: 100%; margin-top: 0.75rem; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.pollen th, .pollen td { padding: 0.7rem 1rem 0.7rem 0; border-top: 1px solid var(--rule); text-align: left; font-weight: 400; }
+.pollen thead th { border-top: 0; padding-top: 0; font-size: 0.85rem; color: var(--ink-soft); }
+.pollen tbody th { font-weight: 600; }
+.pollen-level { display: inline-flex; align-items: center; gap: 0.6rem; }
+.pollen-meter { display: inline-flex; gap: 3px; }
+.pollen-meter i { width: 1.1rem; height: 0.5rem; border-radius: 2px; background: linear-gradient(90deg, var(--sun) var(--fill), rgba(243, 246, 242, 0.14) var(--fill)); }
+.pollen-none { color: var(--ink-faint); }
+.pollen-today { margin: 1rem 0 0; color: var(--ink-soft); font-size: 0.95rem; }
+.pollen-today a { color: var(--ink); font-weight: 600; text-decoration: none; }
+.pollen-today a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+@media (max-width: 40rem) {
+  .pollen-level span:last-child { display: none; }
+  .pollen th, .pollen td { padding-right: 0.5rem; }
+}
 .fc-days li { border-top: 1px solid var(--rule); }
 .fc-days summary {
   display: grid;
@@ -691,7 +710,7 @@ input[type="range"] { width: 100%; accent-color: var(--sun); height: 1.5rem; }
 .legend-bar { height: 0.6rem; border-radius: 999px; }
 .legend-ticks { position: relative; height: 1.2rem; font-size: 0.85rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .legend-ticks span { position: absolute; transform: translateX(-50%); }
-.radar-local, .radar-outlook { margin: 0; font-size: 1.1rem; }
+.radar-local, .radar-outlook, .radar-motion { margin: 0; font-size: 1.1rem; }
 .radar-outlook:empty { display: none; }
 .radar-when { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.3rem 0.8rem; }
 .radar-kind { color: var(--ink-soft); font-size: 1rem; }

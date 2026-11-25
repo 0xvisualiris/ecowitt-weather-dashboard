@@ -649,6 +649,12 @@ resize();
   window.dispatchEvent(new Event('config'));
   useDefaultUnits(state.cfg?.ui?.default_units);
   await Promise.all([loadCurrent(), loadHistory()]);
+  // The pollen line under the next days, loaded after the page is up; it changes once a day.
+  if (state.cfg?.hasPollen) {
+    const pollenLine = () => import('./pollen.js').then((m) => m.renderPollenToday()).catch(() => {});
+    pollenLine();
+    setInterval(() => { if (!document.hidden) pollenLine(); }, 60 * 60 * 1000);
+  }
   const every = (state.cfg?.ui?.refresh_seconds ?? 15) * 1000;
   // A hidden tab shows nothing: skip its polls, and catch up as soon as it is visible again.
   const HISTORY_EVERY = 5 * 60 * 1000;

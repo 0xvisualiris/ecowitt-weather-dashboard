@@ -4,6 +4,7 @@ import {
   $, el, getJson, store, stationReady, CONDITION, num, weekday, dayMonth, show, conv, metricConv, temp as tempText,
   clamp, lerp, fitCanvas, canvasFont, drawCondition, scrub, HOUR, hourLabel,
 } from './lib.js';
+import { renderPollenBlock } from './pollen.js';
 import { tr, words } from './i18n.js';
 
 const state = { hours: [], source: '', synthetic: false, cursor: 0, built: false, loadedAt: 0 };
@@ -234,5 +235,6 @@ function build() {
 export async function enter() {
   if (!state.built) build();
   await stationReady();
+  renderPollenBlock().catch(() => { $('pollenBlock').hidden = true; });
   if (Date.now() - state.loadedAt > 10 * 60 * 1000) await load(); else { draw(); renderReadout(); renderDays(); }
 }

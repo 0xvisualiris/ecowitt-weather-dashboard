@@ -4,6 +4,7 @@
 import { $, getJson, store, stationReady, num, fromWord, show, conv, atClock } from './lib.js';
 import { tr } from './i18n.js';
 import { GRID, createMap, toGridPos, nearestPlace } from './map.js';
+import { motionField } from './motion.js';
 
 const POLL_MS = 60 * 1000;   // DWD adds a frame every five minutes
 const FRAME_MS = 420, HOLD_MS = 1600, HOLD_NOW_MS = 1000;   // the loop pauses at "now" and at its end
@@ -32,7 +33,9 @@ const LUT32 = new Uint32Array(LUT.buffer);
 
 // frames: [{ t, run }], oldest first; run is null for an observed frame, the nowcast run for a forecast one.
 // now: the index of the newest observed frame.
-const state = { frames: [], now: -1, index: -1, playing: false, built: false, timer: 0, poll: 0, marker: null, badge: null };
+const state = { frames: [], now: -1, index: -1, playing: false, built: false, timer: 0, poll: 0, marker: null, badge: null, motion: [], motionKey: '' };
+const MOTION_MINUTES = 15;                 // how far apart the two frames are that the direction is read from
+const STRIKE_WINDOW_MS = 15 * 60 * 1000;   // a strike shows as a ring on the frames up to 15 minutes after it
 const grids = new Map();              // frameKey → Uint8Array(900 × 900)
 const frameKey = (f) => (f.run == null ? String(f.t) : `${f.t}@${f.run}`);
 const layer = document.createElement('canvas');
@@ -165,6 +168,8 @@ function localRain(grid, home) {
 
 // The frame at the home location; a forecast frame in the future tense.
 function describe(grid, frame) {
+  describeMotion();
+  describeLightning(frame);
   const node = $('radarLocal');
   if (!state.marker || !grid) {
     node.textContent = state.marker ? '' : tr('radar.noLocation');
@@ -177,6 +182,61 @@ function describe(grid, frame) {
       : r.kind === 'rain' ? tr(`${k}raining`, { place, time, rate: show('rain', r.mmh), unit })
         : r.kind === 'near' ? tr(`${k}nearest`, { place, time, km: num(r.km, 0), dir: fromWord(r.bearing) })
           : tr(`${k}dry`, { place, time });
+}
+
+// ---------- Where the showers are heading ----------
+// Read from "now" and DWD's nowcast 15 minutes on, which moves the rain with DWD's own motion
+// analysis; without a nowcast, from the observed frame 15 minutes before "now". Recomputed when
+// "now" or the nowcast run moves on.
+async function updateMotion() {
+  const now = state.frames[state.now];
+  if (!now) return;
+  const near = (from, to, t) => { for (let i = from; i !== to; i += Math.sign(to - from)) if (Math.abs(state.frames[i].t - t) < 3 * 60000) return state.frames[i]; return null; };
+  const ahead = near(state.now + 1, state.frames.length, now.t + MOTION_MINUTES * 60000);
+  const [older, newer] = ahead ? [now, ahead] : [near(state.now - 1, -1, now.t - MOTION_MINUTES * 60000), now];
+  if (!older) return;
+  const key = `${frameKey(older)}>${frameKey(newer)}`;
+  if (key === state.motionKey) return;
+  try {
+    const [a, b] = await Promise.all([loadGrid(older), loadGrid(newer)]);
+    state.motion = motionField(a, b, (newer.t - older.t) / 60000).filter((v) => v.speed >= 5);
+    state.motionKey = key;
+    map.draw(); describeMotion();
+  } catch { /* a frame is gone; the next poll tries again */ }
+}
+
+// The patch with rain nearest to the home location: how fast and where it moves, and whether towards it.
+function describeMotion() {
+  const node = $('radarMotion');
+  node.textContent = '';
+  node.hidden = true;
+  if (!state.marker || !state.motion.length || state.index < state.now) return;
+  const [hx, hy] = state.marker;
+  let best = null, bestD = Infinity;
+  for (const v of state.motion) { const d = Math.hypot(v.x - hx, v.y - hy); if (d < bestD) { bestD = d; best = v; } }
+  if (!best || bestD > 150) return;
+  const speed = show('wind', best.speed, 0), unit = conv('wind').unit, dir = fromWord(best.bearing);
+  // Towards home: the motion points within 45 degrees of the line from the rain to the home location.
+  const toHome = Math.atan2(hx - best.x, -(hy - best.y)) * 180 / Math.PI;
+  const off = Math.abs((((best.bearing - toHome) % 360) + 540) % 360 - 180);
+  node.textContent = tr(bestD > 20 && off < 45 ? 'radar.motionToward' : 'radar.motion', { speed, unit, dir, place: placeName() });
+  node.hidden = false;
+}
+
+// ---------- The station's own lightning ----------
+// The sensor gives a distance but no direction, so each strike is a ring around the home location,
+// on the frames up to 15 minutes after it.
+function strikesFor(frame) {
+  if (!frame || frame.run != null || !state.marker) return [];
+  return (store.cur?.lightningRecent ?? []).filter((s) => s.t <= frame.t + 60000 && s.t > frame.t - STRIKE_WINDOW_MS);
+}
+
+function describeLightning(frame) {
+  const node = $('radarLightning'), strikes = strikesFor(frame);
+  node.hidden = !strikes.length;
+  if (!strikes.length) return;
+  const n = strikes.reduce((a, s) => a + s.n, 0), nearest = Math.min(...strikes.map((s) => s.km));
+  node.textContent = tr('radar.lightning', { n, km: num(nearest, 0) });
 }
 
 // "now", "35 min ago" or "forecast, in 35 min", counted from the newest observed frame.
@@ -257,6 +317,7 @@ async function refresh() {
     // The rest of the loop is fetched quietly, the forecast first, so the outlook and play do not wait.
     for (const f of [...ahead, ...[...observed].reverse()]) await loadGrid(f).catch(() => {});
     outlook();
+    await updateMotion();
   } catch (e) {
     $('radarStatus').textContent = e.status === 503 ? tr('radar.fetching') : tr('radar.unreachable', { error: e.message });
   }
@@ -275,6 +336,28 @@ function scale(observed, ahead) {
   marks.push(mark(tr('radar.when.now'), nowAt, ahead.length ? 'now' : 'end'));
   if (ahead.length) marks.push(mark(tr('radar.scale.ahead', { min: minutes(observed[nowAt].t, ahead[ahead.length - 1].t) }), last, 'end'));
   $('radarScale').replaceChildren(...marks);
+}
+
+// An arrow per patch with rain, from "now" on. Its length grows with the speed, within limits
+// that keep it readable at every zoom.
+function drawMotion(ctx, m) {
+  if (state.index < state.now || !state.motion.length) return;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const v of state.motion) {
+    const [x, y] = m.toScreen(v.x, v.y);
+    if (x < -40 || y < -40 || x > m.size.W + 40 || y > m.size.H + 40) continue;
+    const len = Math.max(18, Math.min(70, (v.speed / 4) * m.scale)), ux = v.vx / v.speed, uy = v.vy / v.speed;
+    const x0 = x - ux * len / 2, y0 = y - uy * len / 2, x1 = x + ux * len / 2, y1 = y + uy * len / 2;
+    const arrow = () => {
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+      ctx.moveTo(x1 - ux * 8 - uy * 5, y1 - uy * 8 + ux * 5); ctx.lineTo(x1, y1); ctx.lineTo(x1 - ux * 8 + uy * 5, y1 - uy * 8 - ux * 5);
+      ctx.stroke();
+    };
+    ctx.strokeStyle = 'rgba(6,10,16,0.75)'; ctx.lineWidth = 5; arrow();
+    ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.lineWidth = 2; arrow();
+  }
+  ctx.restore();
 }
 
 function build() {
@@ -297,8 +380,19 @@ function build() {
       const [x, y] = state.marker, px = 1 / m.scale;
       ctx.strokeStyle = 'rgba(255,207,92,0.75)'; ctx.lineWidth = 1.2 * px;
       for (const km of RINGS_KM) { ctx.beginPath(); ctx.arc(x, y, km, 0, 6.283); ctx.stroke(); }
+      // Lightning: white dashed rings, fading over the 15 minutes after the strike.
+      const frame = state.frames[state.index];
+      ctx.save();
+      ctx.setLineDash([6 * px, 5 * px]); ctx.lineWidth = 2 * px;
+      for (const s of strikesFor(frame)) {
+        const age = Math.max(0, (frame.t - s.t) / STRIKE_WINDOW_MS);
+        ctx.strokeStyle = `rgba(255,255,255,${(0.95 - 0.65 * age).toFixed(2)})`;
+        ctx.beginPath(); ctx.arc(x, y, Math.max(s.km, 0.5), 0, 6.283); ctx.stroke();
+      }
+      ctx.restore();
     },
     over: (ctx, m) => {
+      drawMotion(ctx, m);
       if (!state.marker) return;
       const [x, y] = m.toScreen(...state.marker);
       ctx.fillStyle = 'rgba(255,207,92,0.3)'; ctx.beginPath(); ctx.arc(x, y, 11, 0, 6.283); ctx.fill();
@@ -337,6 +431,11 @@ export async function enter() {
   clearInterval(state.poll);
   state.poll = setInterval(refresh, POLL_MS);
 }
+
+// New readings (and with them new strikes) arrive with /api/current; the rings follow.
+window.addEventListener('station', () => {
+  if (state.built && document.body.dataset.view === 'radar') { map.draw(); describeLightning(state.frames[state.index]); }
+});
 
 export function leave() {
   setPlaying(false);

@@ -12,6 +12,7 @@ import { TileCache, parseTilePath } from './tiles.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
 import { PushService } from './push.js';
+import { PollenSource } from './pollen.js';
 import { AdminStore } from './admin.js';
 import { suggestSensors } from './entities.js';
 
@@ -37,6 +38,7 @@ const locked = {
   sensors: Object.fromEntries(Object.keys(cfg.sensors).map(k => [k, true])),
   forecastEntity: !!cfg.forecast.entity,
   dwdStationId: !!cfg.forecast.dwdStationId,
+  pollenRegion: cfg.forecast.pollenRegion != null,
   alerts: cfg._locked.alerts,
   stationName: cfg._locked.stationName,
   stationSubtitle: cfg._locked.stationSubtitle,
@@ -56,6 +58,7 @@ const locked = {
   for (const [k, v] of Object.entries(s.sensors)) if (!cfg.sensors[k] && v) cfg.sensors[k] = v;
   if (!cfg.forecast.entity) cfg.forecast.entity = s.forecast.entity || null;
   if (!cfg.forecast.dwdStationId) cfg.forecast.dwdStationId = s.forecast.dwdStationId || null;
+  if (cfg.forecast.pollenRegion == null) cfg.forecast.pollenRegion = s.forecast.pollenRegion ?? null;
   if (!locked.alerts && s.alerts) cfg.alerts = s.alerts;
   if (!locked.stationName && s.station.name) cfg.station.name = s.station.name;
   if (!locked.stationSubtitle && s.station.subtitle) cfg.station.subtitle = s.station.subtitle;
@@ -149,6 +152,11 @@ if (cfg.forecast.dwdStationId) {
 // the rest of the public API being free/read-only with no setup required.
 const radar = new RadarSource();
 radar.start();
+// DWD pollen forecast for one region; fetched only when a region is set (or the admin page lists them).
+// Demo mode shows the Rhein-Main region, so the pollen block can be tried out without setup.
+if (cfg.server.demo && cfg.forecast.pollenRegion == null) cfg.forecast.pollenRegion = 92;
+const pollen = new PollenSource(cfg.forecast.pollenRegion);
+pollen.start();
 const tiles = new TileCache(path.join(cfg.server.data_dir, 'tiles'));
 
 const svc = new WeatherService(cfg, source, dwd);
@@ -298,7 +306,9 @@ async function handleAdmin(req, res, url) {
     if (url.pathname === '/api/admin/settings' && req.method === 'GET') {
       requireSession(req, true);
       const timezone = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
-      return send(req, res, 200, admin.getPublicSettings(locked, cfg, timezone), 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+      // The pollen regions come from DWD's file itself, so the picker lists exactly what DWD publishes.
+      const pollenRegions = await pollen.regions().catch(() => []);
+      return send(req, res, 200, { ...admin.getPublicSettings(locked, cfg, timezone), pollenRegions }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
     }
 
     // Home Assistant's sensors for the entity picker, with the ones that fit each
@@ -395,6 +405,7 @@ function publicConfig() {
     metrics,
     sensors: Object.keys(cfg.sensors),
     hasForecast: !!(cfg.forecast.entity || cfg.forecast.dwdStationId || cfg.server.demo),
+    hasPollen: cfg.forecast.pollenRegion != null,
     alertRules: cfg.alerts.map(a => ({ id: a.id, label: a.label, description: a.description, level: a.level })),
     ui: cfg.ui,
     // Only whether they exist, for the footer links; the texts come from /api/legal.
@@ -413,6 +424,12 @@ const routes = {
   '/api/alerts': async () => alerts.view(),
   '/api/legal': async () => cfg.legal,
   '/api/forecast/hourly': async () => svc.forecastHourly(),
+  '/api/pollen': async () => {
+    if (cfg.forecast.pollenRegion == null) throw Object.assign(new Error('no pollen region configured'), { status: 404 });
+    const f = pollen.forecast();
+    if (!f) throw Object.assign(new Error('pollen forecast not available yet'), { status: 503 });
+    return f;
+  },
   '/api/radar': async () => {
     if (!radar.latest) throw Object.assign(new Error('radar data not available yet'), { status: 503 });
     const { width, height, timestamp } = radar.latest;

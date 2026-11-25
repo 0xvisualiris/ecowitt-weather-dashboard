@@ -34,7 +34,7 @@ const emptySettings = () => ({
   homeassistant: { url: '', token: '' },
   ecowitt: { host: '' },
   sensors: {},
-  forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '' },
+  forecast: { entity: '', dwdStationId: '', biasHours: 6, label: '', pollenRegion: null },
   alerts: null, // null = not customized, defer to config.yaml-or-DEFAULT_ALERTS; otherwise a normalizeAlerts()-validated array
   station: { name: '', subtitle: '', altitude_m: null, since: '', publicLocation: null, devices: [] },
   legal: { imprint: '', privacy: '' }, // each a legalText(): '' (no page), a string, or { en, de }
@@ -337,6 +337,7 @@ export class AdminStore {
         dwdStationId: cfg.forecast.dwdStationId || '',
         biasHours: cfg.forecast.biasHours,
         label: cfg.forecast.label || '',
+        pollenRegion: cfg.forecast.pollenRegion ?? null,
       },
       alerts: cfg.alerts,
       defaultAlerts: DEFAULT_ALERTS,
@@ -430,6 +431,11 @@ export class AdminStore {
       if (!locked.dwdStationId && typeof patch.forecast.dwdStationId === 'string') next.settings.forecast.dwdStationId = patch.forecast.dwdStationId.trim();
       if (Number.isFinite(patch.forecast.biasHours)) next.settings.forecast.biasHours = patch.forecast.biasHours;
       if (typeof patch.forecast.label === 'string') next.settings.forecast.label = patch.forecast.label.trim();
+      if (!locked.pollenRegion && 'pollenRegion' in patch.forecast) {
+        const r = patch.forecast.pollenRegion;
+        if (r !== null && !(Number.isInteger(r) && r > 0 && r < 1000)) return { ok: false, error: 'invalid pollen region' };
+        next.settings.forecast.pollenRegion = r;
+      }
     }
 
     if (!this._save(next)) return { ok: false, error: 'could not save settings (DATA_DIR is not writable)' };

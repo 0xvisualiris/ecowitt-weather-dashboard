@@ -154,6 +154,19 @@ export class WeatherService {
         } catch (e) { console.warn('[service] rain totals unavailable:', e.message); }
       }
 
+      // Strikes of the last two hours, for the radar's thunderstorm view: each rise of the daily
+      // counter with the distance the sensor reported then. The sensor knows no direction.
+      const lightningRecent = [];
+      if (raw.lightning_count?.length && raw.lightning_distance?.length) {
+        const from = now - 2 * HOUR, dist = raw.lightning_distance;
+        for (const p of counterIncrements(raw.lightning_count)) {
+          if (p.t < from || !(p.v > 0)) continue;
+          let d = null;
+          for (const q of dist) { if (q.t <= p.t + 5 * 60000) d = q; else break; }
+          if (d) lightningRecent.push({ t: p.t, km: round(d.v, 1), n: p.v });
+        }
+      }
+
       const loc = this.location();
       return {
         updated: this.lastUpdate(),
@@ -167,6 +180,7 @@ export class WeatherService {
         rain,
         pressureTrend,
         spark,
+        lightningRecent: lightningRecent.slice(-100),
         forecast: this.forecast(),
         astro: loc ? astro(loc.latitude, loc.longitude, now) : null,
         devices: this.devices(),

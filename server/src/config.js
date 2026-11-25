@@ -106,6 +106,8 @@ function bool(v) {
   return v === true || v === 'true' || v === '1' || v === 'yes';
 }
 
+const pollenRegion = (v) => (v == null || v === '' || !Number.isInteger(Number(v)) ? null : Number(v));
+
 export function loadConfig() {
   const file = process.env.CONFIG_PATH || '/config/config.yaml';
   let raw = {};
@@ -186,6 +188,8 @@ export function loadConfig() {
       biasHours: Number(raw.forecast?.bias_hours ?? 6),
       label: raw.forecast?.label || null,
       days: Number(raw.forecast?.days ?? 5),
+      // DWD pollen forecast region (pollen.js): a partregion id, or a region id where DWD has no parts.
+      pollenRegion: pollenRegion(raw.forecast?.pollen_region),
     },
     // Imprint and privacy policy, each shown as its own page linked from the footer when set.
     legal: {

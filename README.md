@@ -29,8 +29,8 @@ The last 24 hours are drawn as a landscape: its ridge is the temperature, the sk
 
 - **Now:** the landscape, current temperature and a sentence about the weather, wind with compass, rain, pressure trend, humidity, sun and UV, lightning, and the next five days
 - **History:** charts for day / week / month / year, today's figures and the sensor behind them, all-time records and CSV export
-- **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), and each day in three-hour steps
-- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours and DWD's forecast for the next two as one loop, and says when rain is expected at the home location; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
+- **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), each day in three-hour steps, and optionally DWD's pollen forecast for your region
+- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours and DWD's forecast for the next two as one loop, and says when rain is expected at the home location; arrows show where the showers are heading and how fast; strikes measured by your own lightning sensor appear as rings at their distance around the home location; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
 - **Alerts:** status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history; optionally, push notifications when an alert starts (`push.enabled`, see `config.example.yaml`)
 - **Settings:** visitors choose their language and their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/l/m²/in)
 
@@ -178,6 +178,13 @@ stable URL for DWD's own station list to look one up outside the app — use
 the admin page's map instead). If it's left unset, or DWD can't be reached,
 the dashboard falls back to a Home Assistant `weather.*` entity
 (`forecast.entity`), the same as before.
+
+**Pollen:** pick one of DWD's 27 pollen regions on the admin page, or set
+`forecast.pollen_region` (the ids are listed in `config.example.yaml`). The
+Forecast page then shows DWD's Pollenflug-Gefahrenindex for today, tomorrow
+and the day after, and the Now page adds a line under the next days whenever
+pollen is flying. The server fetches the file from opendata.dwd.de a few
+times a day; visitors' browsers never contact DWD.
 
 ### Rain radar
 
@@ -363,7 +370,8 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | Endpoint                               | Content                                                                        |
 |----------------------------------------|--------------------------------------------------------------------------------|
 | `/api/config`                          | Station info, available measurements, UI settings                              |
-| `/api/current`                         | Current values, today's min/max, rain totals, sparklines, forecast, sun/moon, active alerts |
+| `/api/current`                         | Current values, today's min/max, rain totals, sparklines, the last two hours' lightning strikes, forecast, sun/moon, active alerts |
+| `/api/pollen`                          | DWD pollen forecast for the configured region: today, tomorrow and the day after, per pollen type (404 without a region) |
 | `/api/history?metric=temp&range=day`   | History and statistics. `metric`: temp, hum, wind, rain, press, solar, uv, light. `range`: day, week, month, year |
 | `/api/detail?metric=temp`              | Today's values, records, sensor info                                           |
 | `/api/records`                         | All-time records                                                               |

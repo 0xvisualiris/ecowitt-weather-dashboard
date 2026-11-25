@@ -3,6 +3,20 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.6.1 – 2026-11-25
+
+### Improved
+- The Now page's landscape is drawn at 30 frames per second while nobody drags it, which halves the work on phones and saves battery. (#101)
+- The Content Security Policy also forbids plugins and restricts the page's base address and form targets to the dashboard itself. (#101)
+
+### Fixed
+- After an update, visitors behind a proxy or CDN with a long browser cache (such as Cloudflare's default of four hours) could get the new page with old JavaScript: the navigation showed a raw text key and no readings appeared. The service worker now checks every file with the server. (#101)
+
+### Upgrade
+No `config.yaml` changes required. If the dashboard runs behind Cloudflare, set Caching → Browser Cache TTL to "Respect Existing Headers" so first-time visits after an update get fresh files too.
+
+    docker compose pull && docker compose up -d
+
 ## v2.6.0 – 2026-11-25
 
 ### New

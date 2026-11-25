@@ -97,7 +97,8 @@ const xAtTime = (t) => geo.x0 + (t - (state.now - DAY)) / DAY * (geo.xNow - geo.
 function buildTerrain() {
   const p = state.hist.temp;
   terrain = new Float32Array(Math.ceil(W) + 2);
-  if (!p || !p.length) { terrain.fill(geo.ridgeBottom); extremes = null; return; }
+  // No history yet: a flat ridge, built once. loadHistory() marks it dirty again when data arrives.
+  if (!p || !p.length) { terrain.fill(geo.ridgeBottom); extremes = null; terrainDirty = false; return; }
   let min = Infinity, max = -Infinity, minPt = p[0], maxPt = p[0];
   for (const pt of p) { if (pt.v < min) { min = pt.v; minPt = pt; } if (pt.v > max) { max = pt.v; maxPt = pt; } }
   const span = Math.max(max - min, 2);
@@ -429,13 +430,19 @@ function seedParticles() {
 
 let intro = reducedMotion.matches ? 1 : 0;   // the ridge draws in once on load
 let lastFrame = 0;
+// While nobody drags the landscape, only the wind streaks move: 30 frames a second look the same
+// and take half the work, which a phone's battery notices. Dragging, the cursor spring and the
+// intro run at the display's full rate.
+const IDLE_FRAME_MS = 1000 / 30 - 2;
 let lastTheme = '';
 
 function frame(ts) {
+  // Only the visible view draws.
+  if (!W || document.body.dataset.view !== 'now') { lastFrame = ts; requestAnimationFrame(frame); return; }
+  const busy = cursor.dragging || cursor.springing || intro < 1 || terrainDirty;
+  if (!busy && ts - lastFrame < IDLE_FRAME_MS) { requestAnimationFrame(frame); return; }
   const dt = Math.min((ts - lastFrame) / 1000 || 0, 0.05);
   lastFrame = ts;
-  // Only the visible view draws.
-  if (!W || document.body.dataset.view !== 'now') { requestAnimationFrame(frame); return; }
   if (terrainDirty) buildTerrain();
   if (cursor.springing) stepSpring(dt);
   if (cursor.live && !cursor.dragging && !cursor.springing) cursor.x = cursor.target = geo.xNow;

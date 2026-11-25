@@ -4,6 +4,7 @@ import {
   $, el, getJson, store, stationReady, CONDITION, num, weekday, dayMonth, show, conv, metricConv, temp as tempText,
   clamp, lerp, fitCanvas, canvasFont, drawCondition, scrub, HOUR, hourLabel,
 } from './lib.js';
+import { renderPollenBlock } from './pollen.js';
 import { tr, words } from './i18n.js';
 
 const state = { hours: [], source: '', synthetic: false, cursor: 0, built: false, loadedAt: 0 };
@@ -120,6 +121,12 @@ function draw() {
     const height = h.pop / 100 * (rainBase - rainTop), r = Math.min(colW / 2, 3);
     ctx.beginPath(); ctx.roundRect(X(h.t) - colW / 2, rainBase - height, colW, height, [r, r, 0, 0]); ctx.fill();
   }
+  // Chances of a few percent make bars a pixel tall, which reads as a broken chart. Say it instead.
+  if (Math.max(...hours.map((h) => h.pop ?? 0)) < 10) {
+    ctx.fillStyle = 'rgba(243,246,242,0.62)'; ctx.font = canvasFont(12, 400); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(tr('forecast.noRain'), padL + 8, (rainTop + rainBase) / 2);
+    ctx.textBaseline = 'alphabetic';
+  }
 
   // Hours along the bottom
   ctx.fillStyle = 'rgba(243,246,242,0.62)'; ctx.font = canvasFont(12, 400); ctx.textAlign = 'center';
@@ -182,7 +189,7 @@ function renderDays() {
     const gust = Math.max(...hrs.map((h) => h.gust ?? 0));
     const sun = hrs.reduce((s, h) => s + (h.sunMin ?? 0), 0) / 60;
     const summary = el('summary', {},
-      el('span.fc-name', {}, i === 0 ? tr('time.today') : weekday.format(d.date), el('small', {}, dayMonth.format(d.date))),
+      el('span.fc-name', {}, sameDay(d.date, Date.now()) ? tr('time.today') : weekday.format(d.date), el('small', {}, dayMonth.format(d.date))),
       el('span.fc-cond', {}, CONDITION[d.conditionCode] ?? '–'),
       el('span.fc-range', {},
         el('span.fc-lo', {}, tempText(d.lo, 0)),
@@ -228,5 +235,6 @@ function build() {
 export async function enter() {
   if (!state.built) build();
   await stationReady();
+  renderPollenBlock().catch(() => { $('pollenBlock').hidden = true; });
   if (Date.now() - state.loadedAt > 10 * 60 * 1000) await load(); else { draw(); renderReadout(); renderDays(); }
 }

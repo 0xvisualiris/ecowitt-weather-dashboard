@@ -38,6 +38,15 @@ function select(obj, key, options, changed) {
     ...Object.entries(options).map(([value, label]) => el('option', { value, selected: obj[key] === value }, label)));
 }
 
+// DWD's pollen regions, as the server read them from DWD's file; the saved one stays listed even if
+// DWD is unreachable right now.
+function pollenSelect() {
+  const options = { '': tr('fc.pollenNone') };
+  for (const r of settings.pollenRegions ?? []) options[r.id] = r.name;
+  if (draft.forecast.pollenRegion && !(draft.forecast.pollenRegion in options)) options[draft.forecast.pollenRegion] = `#${draft.forecast.pollenRegion}`;
+  return Object.assign(select(draft.forecast, 'pollenRegion', options), { disabled: !!settings.locked?.pollenRegion });
+}
+
 const section = (title, intro, ...children) => el('section.form-section', {}, el('h2', {}, title), intro ? el('p.sub', {}, intro) : null, ...children);
 const message = (node, text, bad = false) => { node.textContent = text; node.classList.toggle('bad', bad); };
 const slug = (s) => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -117,7 +126,7 @@ function makeDraft() {
     source: s.source ?? 'homeassistant',
     ecowitt: { host: s.ecowitt?.host ?? '' },
     ha: { url: s.homeassistant.url ?? '', token: '' },
-    forecast: { dwdStationId: s.forecast.dwdStationId ?? '', biasHours: String(s.forecast.biasHours ?? 6), entity: s.forecast.entity ?? '', label: s.forecast.label ?? '' },
+    forecast: { dwdStationId: s.forecast.dwdStationId ?? '', biasHours: String(s.forecast.biasHours ?? 6), entity: s.forecast.entity ?? '', label: s.forecast.label ?? '', pollenRegion: s.forecast.pollenRegion == null ? '' : String(s.forecast.pollenRegion) },
     sensors: Object.fromEntries(Object.keys(SENSORS).map((k) => [k, s.sensors?.[k] ?? ''])),
     station: { name: s.station.name ?? '', subtitle: s.station.subtitle ?? '', altitude: s.station.altitude_m == null ? '' : String(s.station.altitude_m), since: s.station.since ?? '', lat: loc ? String(loc.lat) : '', lon: loc ? String(loc.lon) : '' },
     devices: structuredClone(s.station.devices ?? []),
@@ -139,6 +148,7 @@ function buildPatch() {
   if (d.forecast.dwdStationId.trim() !== (s.forecast.dwdStationId ?? '')) put('forecast', 'dwdStationId', d.forecast.dwdStationId);
   if (d.forecast.entity.trim() !== (s.forecast.entity ?? '')) put('forecast', 'entity', d.forecast.entity);
   if (d.forecast.label.trim() !== (s.forecast.label ?? '')) put('forecast', 'label', d.forecast.label);
+  if (d.forecast.pollenRegion !== (s.forecast.pollenRegion == null ? '' : String(s.forecast.pollenRegion))) put('forecast', 'pollenRegion', d.forecast.pollenRegion === '' ? null : Number(d.forecast.pollenRegion));
   if (number(d.forecast.biasHours) != null && number(d.forecast.biasHours) !== s.forecast.biasHours) put('forecast', 'biasHours', number(d.forecast.biasHours));
 
   for (const k of Object.keys(SENSORS)) if (d.sensors[k].trim() !== (s.sensors?.[k] ?? '')) put('sensors', k, d.sensors[k]);
@@ -391,7 +401,8 @@ function renderSettings() {
         field(tr('fc.station'), stationInput, lockNote(L.dwdStationId, tr('fc.stationNote'))),
         field(tr('fc.bias'), input(draft.forecast, 'biasHours', { inputMode: 'numeric' }), tr('fc.biasNote')),
         field(tr('fc.entity'), input(draft.forecast, 'entity', { placeholder: 'weather.forecast_home', disabled: L.forecastEntity }), lockNote(L.forecastEntity)),
-        field(tr('fc.label'), input(draft.forecast, 'label', { placeholder: tr('fc.labelPlaceholder') }))),
+        field(tr('fc.label'), input(draft.forecast, 'label', { placeholder: tr('fc.labelPlaceholder') })),
+        field(tr('fc.pollen'), pollenSelect(), lockNote(L.pollenRegion, tr('fc.pollenNote')))),
       stationMap),
 
     sensorsSection,

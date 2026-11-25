@@ -29,9 +29,9 @@ The last 24 hours are drawn as a landscape: its ridge is the temperature, the sk
 
 - **Now:** the landscape, current temperature and a sentence about the weather, wind with compass, rain, pressure trend, humidity, sun and UV, lightning, and the next five days
 - **History:** charts for day / week / month / year, today's figures and the sensor behind them, all-time records and CSV export
-- **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), and each day in three-hour steps
-- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours and DWD's forecast for the next two as one loop, and says when rain is expected at the home location; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
-- **Alerts:** read-only status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history
+- **Forecast:** the next 72 hours hour by hour (temperature, sky, chance of rain), each day in three-hour steps, and optionally DWD's pollen forecast for your region
+- **Rain radar:** live DWD rain radar for Germany on a map with borders, federal states, rivers and city labels; plays the last two hours and DWD's forecast for the next two as one loop, and says when rain is expected at the home location; arrows show where the showers are heading and how fast; strikes measured by your own lightning sensor appear as rings at their distance around the home location; pannable and zoomable (drag and Ctrl + scroll, or two fingers on a touchscreen), centred on an optional approximate home location
+- **Alerts:** status of configurable alerts (lightning nearby, frost, gusts, heavy rain, high UV) and their history; optionally, push notifications when an alert starts (`push.enabled`, see `config.example.yaml`)
 - **Settings:** visitors choose their language and their own units (°C/°F, km/h, m/s, mph, Bft, hPa/mmHg/inHg, mm/l/m²/in)
 
 The built-in alert rules are shown in each visitor's language. Rules you write yourself are shown exactly as written; to have them in both languages, give each text once per language (see the comments in `config.example.yaml`).
@@ -179,6 +179,13 @@ the admin page's map instead). If it's left unset, or DWD can't be reached,
 the dashboard falls back to a Home Assistant `weather.*` entity
 (`forecast.entity`), the same as before.
 
+**Pollen:** pick one of DWD's 27 pollen regions on the admin page, or set
+`forecast.pollen_region` (the ids are listed in `config.example.yaml`). The
+Forecast page then shows DWD's Pollenflug-Gefahrenindex for today, tomorrow
+and the day after, and the Now page adds a line under the next days whenever
+pollen is flying. The server fetches the file from opendata.dwd.de a few
+times a day; visitors' browsers never contact DWD.
+
 ### Rain radar
 
 The "Rain radar" screen shows [DWD](https://www.dwd.de)'s RADOLAN RY rain
@@ -320,6 +327,7 @@ of the admin page, this reset has nothing else to undo.
 | `CONFIG_PATH` | Path to the config file                                  | `/config/config.yaml` |
 | `DATA_DIR`    | Where the alert history, admin settings and (with `source: ecowitt`) the recorded readings are stored | `/data` |
 | `DEMO`        | `1` forces demo mode                                     | –                     |
+| `PUSH`        | `1` turns on push notifications for alerts (`push.enabled`) | –                  |
 
 ## Updating
 
@@ -351,9 +359,9 @@ it, not on every launch.
 
 Put the container behind a reverse proxy with HTTPS (e.g. Nginx Proxy Manager, Traefik, Caddy or a Cloudflare Tunnel).
 
-The API is strictly read-only. It never returns your token, coordinates or entity IDs, and it sends a strict Content Security Policy. Fonts are served from the container itself, so there are no requests to Google Fonts.
+The API is read-only. It never returns your token, coordinates or entity IDs, and it sends a strict Content Security Policy. The one exception open to visitors is push notifications, and only when you turn them on (`push.enabled`): a browser can then hand the server its push subscription (`POST /api/push/subscribe`) or take it back (`POST /api/push/unsubscribe`). Only the browser makers' push services are accepted as addresses, and nothing else on the server changes. Fonts are served from the container itself, so there are no requests to Google Fonts.
 
-A public site run from Germany usually needs an imprint (Impressum) and a privacy policy (Datenschutzerklärung). Write them under `legal:` in `config.yaml` or on the admin page; each becomes its own page, linked in the footer. The dashboard itself makes no requests to third parties, sets no cookies for visitors (only the admin's sign-in cookie) and keeps only the visitor's language and units in the browser's local storage, which is what the privacy policy has to describe, together with whatever your reverse proxy, tunnel or CDN does with visitors' requests.
+A public site run from Germany usually needs an imprint (Impressum) and a privacy policy (Datenschutzerklärung). Write them under `legal:` in `config.yaml` or on the admin page; each becomes its own page, linked in the footer. The dashboard itself makes no requests to third parties, sets no cookies for visitors (only the admin's sign-in cookie) and keeps only the visitor's language and units in the browser's local storage (with push notifications on, also the device's push subscription on the server, and the notifications go through Google's, Mozilla's, Apple's or Microsoft's push service), which is what the privacy policy has to describe, together with whatever your reverse proxy, tunnel or CDN does with visitors' requests.
 
 ## API
 
@@ -362,7 +370,8 @@ All public endpoints are `GET` and read-only. Values are returned in °C, km/h, 
 | Endpoint                               | Content                                                                        |
 |----------------------------------------|--------------------------------------------------------------------------------|
 | `/api/config`                          | Station info, available measurements, UI settings                              |
-| `/api/current`                         | Current values, today's min/max, rain totals, sparklines, forecast, sun/moon, active alerts |
+| `/api/current`                         | Current values, today's min/max, rain totals, sparklines, the last two hours' lightning strikes, forecast, sun/moon, active alerts |
+| `/api/pollen`                          | DWD pollen forecast for the configured region: today, tomorrow and the day after, per pollen type (404 without a region) |
 | `/api/history?metric=temp&range=day`   | History and statistics. `metric`: temp, hum, wind, rain, press, solar, uv, light. `range`: day, week, month, year |
 | `/api/detail?metric=temp`              | Today's values, records, sensor info                                           |
 | `/api/records`                         | All-time records                                                               |

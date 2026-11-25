@@ -14,6 +14,7 @@ export class AlertEngine {
     this.svc = service;
     this.file = path.join(cfg.server.data_dir, 'alerts.json');
     this.state = { active: {}, log: [] };
+    this.onActivate = null;   // called with the log entry when a rule becomes active (push notifications)
     try {
       if (fs.existsSync(this.file)) this.state = { active: {}, log: [], ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
     } catch (e) { console.warn('[alerts] could not read log:', e.message); }
@@ -107,6 +108,7 @@ export class AlertEngine {
           this.state.active[rule.id] = { since: now, lastTrue: now, logId: entry.id };
           console.log(`[alerts] ${rule.id} active: ${text}`);
           changed = true;
+          try { this.onActivate?.(entry); } catch (e) { console.warn('[alerts] onActivate:', e.message); }
         } else {
           act.lastTrue = now;
           const entry = this.state.log.find(l => l.id === act.logId);

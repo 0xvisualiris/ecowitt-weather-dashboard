@@ -32,6 +32,13 @@ export const DEFAULT_ALERTS_DE = {
   },
 };
 
+// The notification a visitor gets right after turning alert notifications on, so they can see
+// that it works. `{station}` is the station's name.
+export const PUSH_WELCOME = {
+  en: { title: '{station}', body: 'Notifications are on. You will get one when an alert starts.' },
+  de: { title: '{station}', body: 'Benachrichtigungen sind an. Du bekommst eine, sobald eine Warnung beginnt.' },
+};
+
 // Compass points as each language abbreviates them (German writes O for east).
 export const COMPASS_POINTS = {
   en: ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'],

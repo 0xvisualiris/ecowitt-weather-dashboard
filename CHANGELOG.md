@@ -3,6 +3,32 @@
 Production releases of the Ecowitt Weather Dashboard. Versions follow [Semantic Versioning](https://semver.org).
 Development pre-releases (`-dev.N`) are listed on the [releases page](https://github.com/0xvisualiris/ecowitt-weather-dashboard/releases).
 
+## v2.6.0 – 2026-11-25
+
+### New
+- Push notifications for alerts: with `push.enabled: true` (or `PUSH=1`), visitors can turn on notifications for their device on the Alerts page and choose which alerts notify them, even with the page closed. Off by default. (#98)
+- The home-screen app now opens without a connection, showing the last readings it had. (#98)
+- Pollen forecast from DWD for one region (`forecast.pollen_region`, or chosen on the admin page): a table on the Forecast page, and a line under the next days on days with pollen. (#98)
+- Rain radar: arrows show where the showers are heading and how fast, and a line says how the rain nearest the home location moves. (#98)
+- Rain radar: strikes measured by the station's own lightning sensor appear as rings at their distance around the home location. (#98)
+
+### Improved
+- The Now page loads faster: the other pages load only when needed. (#98)
+- Each reading tile on the Now page opens its history when tapped anywhere, not just on its heading. (#98)
+- The forecast's rain strip says when there is hardly any chance of rain. (#98)
+
+### Fixed
+- The forecast's day list called tomorrow "Today" in the evening. (#98)
+- On phones the Alerts item and its badge were cut off in the navigation. (#98)
+- The sun tile showed a sunset that had already passed; after dark it now shows the next sunrise. (#98)
+- The History page showed an empty "Sensor" block when no device was assigned. (#98)
+- The rain radar named a town far away (for example "near Frankfurt") as the location. (#98)
+
+### Upgrade
+No `config.yaml` changes required. To turn on notifications, set `push: enabled: true`; for the pollen forecast, pick a region on the admin page or set `forecast.pollen_region`. With notifications on, mention them in your privacy policy: the server stores each subscribed device's push address, and notifications go through Google's, Mozilla's, Apple's or Microsoft's push service.
+
+    docker compose pull && docker compose up -d
+
 ## v2.5.1 – 2026-11-20
 
 ### Improved

@@ -289,6 +289,15 @@ function ago(ms) {
 
 let lastReadoutKey = '';
 
+// The sun tile's line: UV and sunset while the sun is up, the next sunrise while it is down
+// (a sunset that has already happened tells nobody anything at night).
+function sunNow(astro, uv) {
+  const now = Date.now();
+  if (astro?.sunrise && now < astro.sunrise) return tr('now.sunrise', { time: atClock(astro.sunrise) });
+  if (astro?.sunset && now > astro.sunset) return astro.nextSunrise ? tr('now.sunriseTomorrow', { time: atClock(astro.nextSunrise) }) : tr('now.sunset', { time: atClock(astro.sunset) });
+  return uv == null ? tr('now.sunset', { time: atClock(astro.sunset) }) : tr('now.sunLive', { uv: n0.format(uv), word: UV_WORD(uv), time: atClock(astro.sunset) });
+}
+
 function renderReadout() {
   const cur = state.cur;
   if (!cur) return;
@@ -362,7 +371,7 @@ function renderReadout() {
     live ? tr('now.dewPoint', { t: tempText(v.dew_point) }) : tr('now.humRange', { min: num(cur.today?.hum?.min, 0), max: num(cur.today?.hum?.max, 0) }));
 
   setInst('inst-sun', solar == null ? '–' : n0.format(solar),
-    live ? (v.uv_index == null ? tr('now.sunset', { time: atClock(cur.astro.sunset) }) : tr('now.sunLive', { uv: n0.format(v.uv_index), word: UV_WORD(v.uv_index), time: atClock(cur.astro.sunset) }))
+    live ? sunNow(cur.astro, v.uv_index)
       : tr('now.sunPast', { rise: atClock(cur.astro.sunrise), set: atClock(cur.astro.sunset) }));
 
   if (live) {

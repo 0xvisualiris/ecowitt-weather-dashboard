@@ -121,7 +121,7 @@ function outlook() {
   if (!state.marker || !nowGrid || !ahead.length || ahead.some((f) => !grids.has(frameKey(f)))) { node.textContent = ''; return; }
   const here = homeCell(nowGrid, state.marker);
   if (here === 255) { node.textContent = ''; return; }
-  const place = nearestPlace(...state.marker).place.name;
+  const place = placeName();
   const raining = (v) => v > 0 && v < 255;
   const values = ahead.map((f) => homeCell(grids.get(frameKey(f)), state.marker));
   const change = values.findIndex((v) => v === 255 || raining(v) !== raining(here));
@@ -131,6 +131,15 @@ function outlook() {
   node.textContent = raining(here)
     ? (change < 0 ? tr('radar.outlook.keepsRaining', { place, until }) : tr('radar.outlook.stops', at(change)))
     : (change < 0 ? tr('radar.outlook.staysDry', { place, until }) : tr('radar.outlook.starts', at(change)));
+}
+
+// The name the local readout uses: the nearest map label, unless that town is farther off than
+// the station's own surroundings, in which case the station's name fits better ("near Frankfurt"
+// for a village 30 km away would point visitors to the wrong place).
+const PLACE_KM = 8;
+function placeName() {
+  const near = nearestPlace(...state.marker), own = store.cfg?.station?.name;
+  return near.km > PLACE_KM && own && own !== 'Weather Station' ? own : near.place.name;
 }
 
 // What the frame says about the home location: the rain there, or where the nearest rain is (out to 150 km).
@@ -161,7 +170,7 @@ function describe(grid, frame) {
     node.textContent = state.marker ? '' : tr('radar.noLocation');
     return;
   }
-  const r = localRain(grid, state.marker), place = nearestPlace(...state.marker).place.name;
+  const r = localRain(grid, state.marker), place = placeName();
   const unit = conv('rain').unit, k = frame?.run != null ? 'radar.f.' : 'radar.', time = frame ? atClock(frame.t) : '';
   node.textContent = !r ? ''
     : r.kind === 'outside' ? tr('radar.outside', { place })

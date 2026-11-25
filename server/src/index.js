@@ -11,6 +11,7 @@ import { RadarSource } from './radar.js';
 import { TileCache, parseTilePath } from './tiles.js';
 import { WeatherService, METRICS } from './service.js';
 import { AlertEngine } from './alerts.js';
+import { PushService } from './push.js';
 import { AdminStore } from './admin.js';
 import { suggestSensors } from './entities.js';
 
@@ -152,6 +153,9 @@ const tiles = new TileCache(path.join(cfg.server.data_dir, 'tiles'));
 
 const svc = new WeatherService(cfg, source, dwd);
 const alerts = new AlertEngine(cfg, svc);
+const push = new PushService(cfg);
+alerts.onActivate = (entry) => { push.notify(entry).catch((e) => console.warn('[push]', e.message)); };
+if (push.enabled) console.log(`[push] notifications on, ${push.subs.length} subscription(s)`);
 let evalTimer = null;
 source.on('update', () => {
   if (evalTimer) return;
@@ -336,6 +340,45 @@ async function handleAdmin(req, res, url) {
   }
 }
 
+// ---------------- Push subscriptions ----------------
+// The second write path, and the only one open to everyone: a browser hands over its push
+// subscription, or takes it back. It changes nothing but DATA_DIR/push.json, never HA or the
+// config, and only exists while push.enabled is on. Throttled per address like the admin login.
+const pushHits = new Map();
+function pushThrottled(req) {
+  const ip = clientIp(req), now = Date.now();
+  const hits = (pushHits.get(ip) || []).filter((t) => now - t < 10 * 60 * 1000);
+  hits.push(now);
+  pushHits.set(ip, hits);
+  if (pushHits.size > 5000) pushHits.clear();
+  return hits.length > 30;
+}
+
+async function handlePush(req, res, url) {
+  try {
+    if (req.method !== 'POST') return send(req, res, 405, { error: 'POST only' });
+    if (!push.enabled) return send(req, res, 404, { error: 'notifications are not enabled' });
+    // A JSON body only: a plain HTML form on another site can't send one without CORS.
+    if (!/^application\/json\b/.test(req.headers['content-type'] || '')) return send(req, res, 415, { error: 'JSON only' });
+    if (pushThrottled(req)) return send(req, res, 429, { error: 'too many requests' });
+    const body = await readJsonBody(req, 4000);
+    if (url.pathname === '/api/push/subscribe') {
+      const sub = push.subscribe(body);
+      if (body.welcome !== false) push.welcome(sub).catch(() => {});
+      return send(req, res, 200, { ok: true, rules: sub.rules }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+    if (url.pathname === '/api/push/unsubscribe') {
+      push.unsubscribe(body.endpoint);
+      return send(req, res, 200, { ok: true }, 'application/json; charset=utf-8', { 'Cache-Control': 'no-store' });
+    }
+    return send(req, res, 404, { error: 'not found' });
+  } catch (e) {
+    const status = e.status || 500;
+    if (status >= 500) console.warn(`[push] ${url.pathname}: ${e.message}`);
+    return send(req, res, status, { error: e.message });
+  }
+}
+
 function publicConfig() {
   const metrics = Object.keys(METRICS).filter(m => svc.metricAvailable(m));
   return {
@@ -356,6 +399,8 @@ function publicConfig() {
     ui: cfg.ui,
     // Only whether they exist, for the footer links; the texts come from /api/legal.
     legal: { imprint: !!cfg.legal.imprint, privacy: !!cfg.legal.privacy },
+    // The server's VAPID public key, which the browser needs to subscribe; null while push is off.
+    push: { enabled: push.enabled, publicKey: push.publicKey },
   };
 }
 
@@ -389,6 +434,7 @@ const publicDir = cfg.server.public_dir;
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (url.pathname.startsWith('/api/admin/')) return handleAdmin(req, res, url);
+  if (url.pathname.startsWith('/api/push/')) return handlePush(req, res, url);
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(req, res, 405, { error: 'read-only' });
 
   // Raw binary (one byte per grid cell), not JSON — the generic `routes`

@@ -179,6 +179,22 @@ alert_settings:
 #     message: "Voltage {sensor.wh90_battery} V"
 
 # ---------------------------------------------------------------------
+# Push notifications for alerts
+#
+# With this on, the Alerts page offers visitors a "Turn on notifications"
+# button: their device then gets a notification when an alert they chose
+# starts, even with the page closed (Chrome, Edge, Firefox, Safari; on an
+# iPhone or iPad only from the home-screen app). Needs HTTPS (or localhost).
+# The server keeps a key pair and each device's subscription in
+# DATA_DIR/push.json, and sends the encrypted messages through the browser
+# makers' push services (Google, Mozilla, Apple, Microsoft). Mention this
+# in your privacy policy if you turn it on. PUSH=1 also turns it on.
+# ---------------------------------------------------------------------
+# push:
+#   enabled: false
+#   contact: "mailto:you@example.org"   # optional; push services may use it to reach you about problems
+
+# ---------------------------------------------------------------------
 # Imprint and privacy policy
 #
 # A public site run from Germany usually needs an imprint (Impressum,

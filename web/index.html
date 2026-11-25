@@ -29,7 +29,7 @@
       <a href="#/" data-nav="now" data-t="nav.now">Now</a>
       <a href="#/history" data-nav="history" data-t="nav.history">History</a>
       <a href="#/forecast" data-nav="forecast" data-t="nav.forecast">Forecast</a>
-      <a href="#/radar" data-nav="radar" data-t="nav.radar">Rain radar</a>
+      <a href="#/radar" data-nav="radar"><span class="nav-long" data-t="nav.radar">Rain radar</span><span class="nav-short" data-t="nav.radarShort">Radar</span></a>
       <a href="#/alerts" data-nav="alerts"><span data-t="nav.alerts">Alerts</span><span class="badge" id="alertBadge" hidden></span></a>
       <span class="nav-mark" id="navMark" aria-hidden="true"></span>
     </nav>
@@ -136,7 +136,7 @@
         <h2 id="detTitle">Today</h2>
         <dl class="facts" id="detToday"></dl>
       </div>
-      <div>
+      <div id="detSensorBox" hidden>
         <h2 data-t="history.sensor">Sensor</h2>
         <dl class="facts" id="detSensor"></dl>
       </div>
@@ -208,6 +208,12 @@
   <main class="page" data-view="alerts" hidden>
     <div class="page-head"><h1 data-t="alerts.title">Alerts</h1><p class="sub" id="alertSummary">&nbsp;</p></div>
     <ul class="rule-list" id="alertRules"></ul>
+    <section class="block push" id="pushBlock" hidden>
+      <div class="section-head"><h2 data-t="push.title">Notifications</h2></div>
+      <p class="sub" id="pushText"></p>
+      <div class="checks" id="pushRules"></div>
+      <p class="push-actions"><button type="button" class="btn" id="pushToggle" hidden></button><span class="sub" id="pushNote" role="status"></span></p>
+    </section>
     <section class="block">
       <div class="section-head"><h2 data-t="alerts.history">What has triggered so far</h2></div>
       <ol class="log-list" id="alertLog"></ol>

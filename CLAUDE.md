@@ -151,6 +151,7 @@ server/                     Node 22 backend, ESM, plain JS, no framework
   src/tiles.js              TileCache: OpenStreetMap street tiles for the radar map, fetched by the server, cached in DATA_DIR/tiles, served as /api/tiles/z/x/y.png
   src/service.js            WeatherService: all data shaping (current, history, records, detail, hourly forecast) + METRICS
   src/alerts.js             AlertEngine: evaluates alert rules, fills in messages per language, persists log to DATA_DIR/alerts.json
+  src/push.js               PushService: Web Push for alerts on node:crypto only (VAPID RFC 8292, aes128gcm RFC 8291), key pair + subscriptions in DATA_DIR/push.json
   src/admin.js              AdminStore: login/session/password hashing, optional TOTP 2FA, persists DATA_DIR/admin.json, admin-settable HA/sensor/DWD settings
   src/entities.js           suggestSensors(): ranks HA sensors per sensor key (unit, device class, name, id family) for the admin entity picker
   src/totp.js               RFC 6238 TOTP (base32, HOTP, verify) on node:crypto only, no new dependency
@@ -170,6 +171,8 @@ web/                        the frontend: plain HTML, CSS and ES modules loaded 
   map.js                    the one map of Germany on DWD's grid (canvas): projection, base map, OSM street tiles (radar only), place labels, pan/zoom; used by radar and both pickers
   pickers.js                admin-page map pickers: DWD station, approximate public location
   alerts.js                 Alerts: rules, active ones, log
+  notify.js                 the Alerts page's Notifications block: subscribe/unsubscribe this device, choose rules
+  sw.js                     service worker: shows push notifications, network-first cache so a home-screen app opens offline
   settings.js               Settings: language and units, stored in the visitor's browser
   legal.js                  Imprint and privacy policy pages (/api/legal), rendered from plain text into elements, never HTML
   admin.js                  station management: sign-in, password, 2FA, all admin settings
@@ -325,6 +328,7 @@ The Now landscape uses the `day` history of temp, hum, wind, rain, press, solar 
 - A rule clears only after its conditions have been false for `alert_settings.clear_after_minutes`.
 - Evaluation is debounced 2 s after updates, and also runs every 30 s.
 - The log is persisted to `DATA_DIR/alerts.json` (max 200 entries). If the file isn't writable it logs a warning and keeps the log in memory.
+- When a rule becomes active, `AlertEngine.onActivate` hands the log entry to `PushService.notify()` (`index.js`): every subscription that chose the rule gets the title and message in its language. The same rule pushes at most once per 30 minutes; a push service answering 404/410 drops that subscription.
 - If `alerts:` is omitted, `DEFAULT_ALERTS` applies: lightning < 15 km within 30 min, frost, gust > 60 km/h, rain rate > 10 mm/h, UV ≥ 6. `alerts: []` disables all alerts.
 
 ### Admin (`admin.js`)
@@ -363,6 +367,8 @@ Everything under `/api/*` except `/api/admin/*` is GET-only (anything else retur
 | `/api/legal` | `{ imprint, privacy }`, each `''` (not set), a string, or `{ en, de }` |
 | `/api/forecast/hourly` | `{ source, synthetic, hours: [{t, temp, conditionCode, pop, rain, wind, gust, sunMin, cloud}] }` for the next 72 hours |
 | `/healthz` | `{ ok, connected, lastMessage }` |
+| `POST /api/push/subscribe` | only with `push.enabled`: stores a browser's push subscription (`{ endpoint, keys, lang, rules, welcome }`), sends a welcome notification unless `welcome: false` |
+| `POST /api/push/unsubscribe` | only with `push.enabled`: removes the subscription with that `endpoint` |
 
 Alert texts in `/api/config`, `/api/current` and `/api/alerts` (`label`, `description`, `banner`, `message`, a log entry's `title` and `text`) are a string or an `{ en, de }` object (see "Languages").
 
@@ -389,8 +395,8 @@ Plain HTML, CSS and ES modules, loaded by the browser as they are: no build step
 ## Hard constraints – do not break
 
 - **No secrets in the browser.** The public API never exposes the HA URL, token, coordinates or entity IDs. The one deliberate, narrow exception is the authenticated admin surface: `GET /api/admin/settings` still never echoes the real HA token back (only a `tokenSet` boolean). The other deliberate, narrow exception is `station.publicLocation` (see "Rain radar" above): an admin-opt-in, ~1 km-rounded (0.01°) approximate location, separate from `station.latitude`/`longitude`, which stay server-side-only as always.
-- **Content-Security-Policy** (`index.js`) allows only `'self'` (plus inline styles and data: images); `Permissions-Policy` denies sensors, camera, microphone, geolocation, payment and USB (fullscreen stays allowed for kiosk mode). Don't add CDNs, Google Fonts, analytics or any external requests; bundle assets instead.
-- **The public API stays read-only.** Everything under `/api/*` is GET-only except `/api/admin/*`, which is the one deliberate exception: authenticated (session cookie, enforced server-side), restart-required to take effect, and always overridden by anything already set in `config.yaml`. No other endpoint may change HA or the config.
+- **Content-Security-Policy** (`index.js`) allows only `'self'` (the service worker `sw.js` is same-origin too; push messages reach the browser through its own push service, not through a request the page makes) (plus inline styles and data: images); `Permissions-Policy` denies sensors, camera, microphone, geolocation, payment and USB (fullscreen stays allowed for kiosk mode). Don't add CDNs, Google Fonts, analytics or any external requests; bundle assets instead.
+- **The public API stays read-only.** Everything under `/api/*` is GET-only except `/api/admin/*`, which is the one deliberate exception: authenticated (session cookie, enforced server-side), restart-required to take effect, and always overridden by anything already set in `config.yaml`. No other endpoint may change HA or the config. The second, narrow exception is `/api/push/*` (push notifications): open to visitors, but off unless `push.enabled`, JSON bodies of at most 4 KB, throttled per address, it writes only `DATA_DIR/push.json`, and the server only ever sends to the browser push services allowlisted in `push.js` (no other address, so it can't be used to make the server call arbitrary URLs).
 - **Keep the dependency footprint small.** The server depends only on `yaml` and `suncalc`; the frontend has no dependencies at all. Discuss before adding any. (The rain radar reads DWD's HDF5 files with `node:zlib` instead of an HDF5 package — see "Rain radar" above.)
 - **Non-root container.** The image runs as `node` (UID 1000) and deployments may override this with `user:`, so code must never assume root or write anywhere except `DATA_DIR`.
 - **Keep `DemoSource` in sync** with any change to the data-source interface; demo mode is the main way to test.

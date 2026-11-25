@@ -2,6 +2,7 @@
 
 import { $, el, getJson, weekday, dayMonth, atClock } from './lib.js';
 import { tr, loc } from './i18n.js';
+import { renderNotify } from './notify.js';
 
 const when = (t) => {
   const today = new Date(t).toDateString() === new Date().toDateString();
@@ -16,6 +17,7 @@ function duration(ms) {
 }
 
 export async function enter() {
+  renderNotify().catch(() => { $('pushBlock').hidden = true; });
   try {
     const { rules, log } = await getJson('/api/alerts');
     const active = rules.filter((r) => r.active);

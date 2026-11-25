@@ -194,6 +194,12 @@ export function loadConfig() {
     },
     alerts: raw.alerts === undefined ? DEFAULT_ALERTS : (raw.alerts || []),
     alert_clear_minutes: Number(raw.alert_settings?.clear_after_minutes ?? 10),
+    // Web Push notifications for alerts (push.js). Off unless switched on: visitors then can
+    // subscribe on the Alerts page, the one write path open to everyone.
+    push: {
+      enabled: bool(process.env.PUSH) || bool(raw.push?.enabled),
+      contact: typeof raw.push?.contact === 'string' ? raw.push.contact.trim() : '',
+    },
     ui: {
       stale_after_seconds: Number(ui.stale_after_seconds ?? 120),
       refresh_seconds: Number(ui.refresh_seconds ?? 15),

@@ -214,9 +214,11 @@ async function loadDetail() {
       el('div', {}, el('dt', {}, tr('history.role')), el('dd', {}, dev.role || '–')),
       el('div', {}, el('dt', {}, tr('history.battery')), el('dd', {}, reading(dev.battery))),
       el('div', {}, el('dt', {}, tr('history.signal')), el('dd', {}, dev.signal ? tr('history.signalOf', { v: reading(dev.signal) }) : '–')),
-    ] : [el('div', {}, el('dt', {}, tr('history.device')), el('dd', {}, tr('history.noDevice')))]));
+    ] : []));
+    // Without a device assigned the block would only say so, which tells a visitor nothing.
+    $('detSensorBox').hidden = !dev;
   } catch {
-    $('detToday').replaceChildren(); $('detSensor').replaceChildren();
+    $('detToday').replaceChildren(); $('detSensor').replaceChildren(); $('detSensorBox').hidden = true;
   }
 }
 

@@ -4,8 +4,12 @@
 // Everything goes to the network first, so a new release and fresh readings always win; the
 // cache only answers when the network can't. The radar, map tiles and the admin and push
 // paths are never cached.
+//
+// Requests are sent with cache: 'no-cache', so the browser asks the server every time (a cheap
+// 304 when nothing changed) even if a proxy or CDN in front of the dashboard gave the files a
+// long max-age. Otherwise a visitor could get a new page with JavaScript from before a release.
 
-const CACHE = 'wetterstation-v1';
+const CACHE = 'wetterstation-v2';
 const SHELL = ['/', '/styles.css', '/i18n.js', '/lib.js', '/app.js', '/main.js', '/manifest.webmanifest',
   '/fonts/bricolage-latin.woff2', '/favicon.svg', '/icon-192.png'];
 const NEVER = /^\/api\/(radar|tiles|admin|push)\b/;
@@ -23,7 +27,8 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin || NEVER.test(url.pathname)) return;
-  e.respondWith(fetch(req).then((res) => {
+  const fresh = req.mode === 'navigate' ? req : new Request(req, { cache: 'no-cache' });
+  e.respondWith(fetch(fresh).then((res) => {
     if (res.ok && res.type === 'basic') {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(req.mode === 'navigate' ? '/' : req, copy)).catch(() => {});

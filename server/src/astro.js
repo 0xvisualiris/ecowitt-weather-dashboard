@@ -20,9 +20,17 @@ export function astro(lat, lon, now = Date.now()) {
   const rise = t.sunrise?.getTime(), set = t.sunset?.getTime();
   const valid = Number.isFinite(rise) && Number.isFinite(set);
   const moon = SunCalc.getMoonIllumination(d);
+  // After sunset the next sunrise is tomorrow's; it differs from today's by a few minutes.
+  let nextSunrise = valid ? rise : null;
+  if (valid && now > set) {
+    const tomorrow = new Date(noon); tomorrow.setDate(tomorrow.getDate() + 1);
+    const r = SunCalc.getTimes(tomorrow, lat, lon).sunrise?.getTime();
+    nextSunrise = Number.isFinite(r) ? r : null;
+  }
   return {
     sunrise: valid ? rise : null,
     sunset: valid ? set : null,
+    nextSunrise,
     dayLengthMin: valid ? Math.round((set - rise) / 60000) : null,
     sunFraction: valid && now >= rise && now <= set ? (now - rise) / (set - rise) : null,
     moon: { phase: moon.phase, illumination: Math.round(moon.fraction * 100), name: moonName(moon.phase) },

@@ -29,7 +29,7 @@
       <a href="#/" data-nav="now" data-t="nav.now">Now</a>
       <a href="#/history" data-nav="history" data-t="nav.history">History</a>
       <a href="#/forecast" data-nav="forecast" data-t="nav.forecast">Forecast</a>
-      <a href="#/radar" data-nav="radar" data-t="nav.radar">Rain radar</a>
+      <a href="#/radar" data-nav="radar"><span class="nav-long" data-t="nav.radar">Rain radar</span><span class="nav-short" data-t="nav.radarShort">Radar</span></a>
       <a href="#/alerts" data-nav="alerts"><span data-t="nav.alerts">Alerts</span><span class="badge" id="alertBadge" hidden></span></a>
       <span class="nav-mark" id="navMark" aria-hidden="true"></span>
     </nav>
@@ -106,6 +106,7 @@
           <a class="more" href="#/forecast" data-t="now.hourByHour">See hour by hour</a>
         </div>
         <ol class="day-list" id="dayList"></ol>
+        <p class="pollen-today" id="pollenToday" hidden></p>
       </section>
     </main>
   </div>
@@ -136,7 +137,7 @@
         <h2 id="detTitle">Today</h2>
         <dl class="facts" id="detToday"></dl>
       </div>
-      <div>
+      <div id="detSensorBox" hidden>
         <h2 data-t="history.sensor">Sensor</h2>
         <dl class="facts" id="detSensor"></dl>
       </div>
@@ -167,6 +168,10 @@
       <div class="section-head"><h2 data-t="forecast.dayByDay">Day by day</h2><p class="sub" data-t="forecast.dayByDayNote">Open a day to see it in three-hour steps.</p></div>
       <ol class="fc-days" id="fcDays"></ol>
     </section>
+    <section class="block" id="pollenBlock" hidden>
+      <div class="section-head"><h2 data-t="pollen.title">Pollen</h2><p class="sub" id="pollenNote"></p></div>
+      <div id="pollenTable"></div>
+    </section>
   </main>
 
   <!-- Rain radar -->
@@ -193,6 +198,8 @@
         </div>
         <p class="sentence radar-local" id="radarLocal"></p>
         <p class="sentence radar-outlook" id="radarOutlook" aria-live="polite"></p>
+        <p class="sentence radar-motion" id="radarMotion" hidden></p>
+        <p class="radar-lightning" id="radarLightning" hidden></p>
         <p class="sub" data-t="radar.credit">Data: DWD RADOLAN, and the DWD RADVOR nowcast for the next two hours, updated every five to ten minutes. The forecast moves the rain on as it is moving now, so it gets less certain the further ahead it looks. Drag with the mouse, zoom with Ctrl + scroll or the keys. On a phone, use two fingers.</p>
       </div>
     </div>
@@ -208,6 +215,12 @@
   <main class="page" data-view="alerts" hidden>
     <div class="page-head"><h1 data-t="alerts.title">Alerts</h1><p class="sub" id="alertSummary">&nbsp;</p></div>
     <ul class="rule-list" id="alertRules"></ul>
+    <section class="block push" id="pushBlock" hidden>
+      <div class="section-head"><h2 data-t="push.title">Notifications</h2></div>
+      <p class="sub" id="pushText"></p>
+      <div class="checks" id="pushRules"></div>
+      <p class="push-actions"><button type="button" class="btn" id="pushToggle" hidden></button><span class="sub" id="pushNote" role="status"></span></p>
+    </section>
     <section class="block">
       <div class="section-head"><h2 data-t="alerts.history">What has triggered so far</h2></div>
       <ol class="log-list" id="alertLog"></ol>

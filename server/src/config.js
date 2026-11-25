@@ -106,6 +106,8 @@ function bool(v) {
   return v === true || v === 'true' || v === '1' || v === 'yes';
 }
 
+const pollenRegion = (v) => (v == null || v === '' || !Number.isInteger(Number(v)) ? null : Number(v));
+
 export function loadConfig() {
   const file = process.env.CONFIG_PATH || '/config/config.yaml';
   let raw = {};
@@ -186,6 +188,8 @@ export function loadConfig() {
       biasHours: Number(raw.forecast?.bias_hours ?? 6),
       label: raw.forecast?.label || null,
       days: Number(raw.forecast?.days ?? 5),
+      // DWD pollen forecast region (pollen.js): a partregion id, or a region id where DWD has no parts.
+      pollenRegion: pollenRegion(raw.forecast?.pollen_region),
     },
     // Imprint and privacy policy, each shown as its own page linked from the footer when set.
     legal: {
@@ -194,6 +198,12 @@ export function loadConfig() {
     },
     alerts: raw.alerts === undefined ? DEFAULT_ALERTS : (raw.alerts || []),
     alert_clear_minutes: Number(raw.alert_settings?.clear_after_minutes ?? 10),
+    // Web Push notifications for alerts (push.js). Off unless switched on: visitors then can
+    // subscribe on the Alerts page, the one write path open to everyone.
+    push: {
+      enabled: bool(process.env.PUSH) || bool(raw.push?.enabled),
+      contact: typeof raw.push?.contact === 'string' ? raw.push.contact.trim() : '',
+    },
     ui: {
       stale_after_seconds: Number(ui.stale_after_seconds ?? 120),
       refresh_seconds: Number(ui.refresh_seconds ?? 15),
